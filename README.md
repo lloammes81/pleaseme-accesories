@@ -1,2 +1,0 @@
-# pleaseme
-oro laminado
