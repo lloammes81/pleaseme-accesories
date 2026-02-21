@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Pleaseme — Mi Cuenta</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#050505;--text:#f0dfa0;--text2:#c9aa6d;--muted:rgba(240,223,160,.55);
+      --line:rgba(180,140,40,.18);--line2:rgba(212,175,55,.32);
+      --gold:#c9963a;--gold2:#e8c56e;--gold3:#f7e9b8;
+      --ok:#2fe3b5;--err:#ff4d6d;--warn:#f5a623;
+      --card:rgba(255,255,255,.03);--radius:16px;
+      --font-d:'Cormorant Garamond',Georgia,serif;
+      --font-b:'Jost',system-ui,sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font-b);background:var(--bg);color:var(--text);min-height:100vh}
+    body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+      background:radial-gradient(ellipse 1200px 600px at 20% -10%,rgba(180,130,30,.14) 0%,transparent 55%),
+                 radial-gradient(ellipse 700px 500px at 85% 15%,rgba(212,175,55,.08) 0%,transparent 50%);}
+    body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+      background-image:linear-gradient(rgba(200,160,50,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(200,160,50,.035) 1px,transparent 1px);
+      background-size:60px 60px;}
+
+    /* ─── HEADER ─── */
+    header{position:sticky;top:0;z-index:100;background:rgba(5,5,5,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--line2)}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px;flex-wrap:wrap}
+    .brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+    .logo{width:42px;height:42px;border-radius:12px;
+      background:linear-gradient(145deg,#c9963a 0%,#f7e9b8 45%,#8a6010 100%);
+      display:grid;place-items:center;font-family:var(--font-d);font-size:20px;font-weight:700;color:#0d0900;
+      box-shadow:0 6px 20px rgba(180,130,30,.35)}
+    .brand-name{font-family:var(--font-d);font-size:22px;font-weight:600;color:var(--gold2)}
+    .back-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;
+      background:rgba(255,255,255,.04);border:1px solid var(--line2);cursor:pointer;
+      font-size:13px;color:var(--text2);text-decoration:none;transition:all .2s}
+    .back-btn:hover{background:rgba(212,175,55,.08);border-color:rgba(212,175,55,.3);color:var(--gold2)}
+
+    /* ─── WRAP ─── */
+    .wrap{max-width:520px;margin:0 auto;padding:40px 20px 80px;position:relative;z-index:1}
+
+    /* ─── AUTH CARD ─── */
+    .auth-card{background:rgba(255,255,255,.03);border:1px solid var(--line2);border-radius:24px;
+      padding:36px;backdrop-filter:blur(10px);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+    .auth-title{font-family:var(--font-d);font-size:28px;font-weight:600;color:var(--gold2);
+      text-align:center;margin-bottom:6px}
+    .auth-sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:28px;line-height:1.6}
+
+    /* ─── TABS ─── */
+    .tab-row{display:flex;gap:4px;background:rgba(0,0,0,.3);border-radius:12px;padding:4px;margin-bottom:28px}
+    .tab-btn{flex:1;padding:10px;border:none;border-radius:9px;cursor:pointer;
+      font-family:var(--font-b);font-size:13px;font-weight:500;
+      background:transparent;color:var(--muted);transition:all .2s}
+    .tab-btn.on{background:rgba(212,175,55,.12);color:var(--gold2);border:1px solid rgba(212,175,55,.3)}
+
+    /* ─── FORM ─── */
+    .field{margin-bottom:16px}
+    .field label{display:block;font-size:11px;font-weight:600;letter-spacing:.8px;
+      color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+    .field input,.field select,.field textarea{
+      width:100%;padding:12px 14px;border-radius:10px;
+      background:rgba(255,255,255,.05);border:1px solid var(--line2);
+      color:var(--text);font-family:var(--font-b);font-size:14px;outline:none;transition:all .2s}
+    .field input:focus,.field select:focus,.field textarea:focus{
+      border-color:rgba(212,175,55,.5);background:rgba(255,255,255,.07);
+      box-shadow:0 0 0 3px rgba(212,175,55,.08)}
+    .field input::placeholder{color:rgba(240,223,160,.3)}
+    .field textarea{min-height:80px;resize:vertical}
+    .field select option{background:#0d0d0d;color:var(--text)}
+
+    .f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+    /* ─── BUTTONS ─── */
+    .btn-primary{width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;
+      background:linear-gradient(135deg,#c9963a,#e8c56e);
+      color:#0d0900;font-family:var(--font-b);font-size:14px;font-weight:700;
+      letter-spacing:.5px;transition:all .3s;margin-top:8px}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(201,150,58,.35)}
+    .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .btn-ghost{padding:10px 18px;border-radius:10px;border:1px solid var(--line2);
+      background:transparent;color:var(--muted);cursor:pointer;font-size:13px;
+      font-family:var(--font-b);transition:all .2s}
+    .btn-ghost:hover{border-color:rgba(212,175,55,.4);color:var(--gold2)}
+    .btn-danger{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,77,109,.3);
+      background:rgba(255,77,109,.08);color:#ff8fa3;cursor:pointer;font-size:13px;
+      font-family:var(--font-b);transition:all .2s;margin-top:8px}
+    .btn-danger:hover{background:rgba(255,77,109,.15);border-color:rgba(255,77,109,.5)}
+
+    /* ─── TOAST ─── */
+    .toast{display:none;padding:11px 14px;border-radius:10px;font-size:13px;margin-top:14px;line-height:1.5}
+    .toast.show{display:block}
+    .toast.ok{background:rgba(47,227,181,.1);color:#7af0d4;border:1px solid rgba(47,227,181,.25)}
+    .toast.err{background:rgba(255,77,109,.1);color:#ff8fa3;border:1px solid rgba(255,77,109,.25)}
+    .toast.warn{background:rgba(245,166,35,.1);color:#ffd580;border:1px solid rgba(245,166,35,.2)}
+
+    /* ─── PROFILE SECTION ─── */
+    .profile-header{text-align:center;margin-bottom:32px}
+    .profile-avatar{width:72px;height:72px;border-radius:50%;margin:0 auto 14px;
+      background:linear-gradient(145deg,#c9963a,#f7e9b8);
+      display:grid;place-items:center;font-family:var(--font-d);font-size:32px;font-weight:700;color:#0d0900;
+      box-shadow:0 8px 24px rgba(180,130,30,.4)}
+    .profile-name{font-family:var(--font-d);font-size:26px;color:var(--gold2);margin-bottom:4px}
+    .profile-email{font-size:12px;color:var(--muted)}
+
+    .section-label{font-size:10px;font-weight:700;letter-spacing:1.2px;color:var(--muted);
+      text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+
+    .profile-tabs{display:flex;gap:4px;background:rgba(0,0,0,.3);border-radius:12px;
+      padding:4px;margin-bottom:24px;overflow-x:auto}
+    .profile-tab{flex:1;min-width:80px;padding:9px 6px;border:none;border-radius:9px;cursor:pointer;
+      font-size:11px;font-weight:600;letter-spacing:.3px;text-align:center;
+      background:transparent;color:var(--muted);transition:all .2s;white-space:nowrap;font-family:var(--font-b)}
+    .profile-tab.on{background:rgba(212,175,55,.12);color:var(--gold2);border:1px solid rgba(212,175,55,.25)}
+
+    .tab-panel{display:none}
+    .tab-panel.on{display:block}
+
+    /* ─── ORDERS LIST ─── */
+    .order-item{padding:16px;border:1px solid var(--line);border-radius:14px;
+      margin-bottom:12px;background:rgba(255,255,255,.02);transition:all .2s}
+    .order-item:hover{border-color:rgba(212,175,55,.25);background:rgba(212,175,55,.04)}
+    .order-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px}
+    .order-id{font-family:var(--font-d);font-size:16px;color:var(--gold2)}
+    .order-date{font-size:11px;color:var(--muted)}
+    .order-status{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.5px}
+    .status-pendiente{background:rgba(245,166,35,.15);color:#ffd580;border:1px solid rgba(245,166,35,.3)}
+    .status-procesando{background:rgba(100,150,255,.15);color:#a0b4ff;border:1px solid rgba(100,150,255,.3)}
+    .status-enviado{background:rgba(47,227,181,.15);color:#7af0d4;border:1px solid rgba(47,227,181,.3)}
+    .status-entregado{background:rgba(47,200,100,.15);color:#7af0b5;border:1px solid rgba(47,200,100,.3)}
+    .status-cancelado{background:rgba(255,77,109,.15);color:#ff8fa3;border:1px solid rgba(255,77,109,.3)}
+    .order-items-list{font-size:12px;color:var(--muted);line-height:1.7}
+    .order-total{font-family:var(--font-d);font-size:18px;color:var(--gold);font-weight:700;margin-top:6px}
+    .empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
+    .empty-state .icon{font-size:42px;margin-bottom:14px}
+
+    /* ─── PAYMENT METHODS ─── */
+    .pay-method{display:flex;align-items:center;gap:14px;padding:14px 16px;
+      border:1px solid var(--line);border-radius:12px;margin-bottom:10px;
+      background:rgba(255,255,255,.02);cursor:pointer;transition:all .2s}
+    .pay-method:hover{border-color:rgba(212,175,55,.3)}
+    .pay-method.selected{border-color:rgba(212,175,55,.6);background:rgba(212,175,55,.06)}
+    .pay-icon{font-size:24px;flex-shrink:0}
+    .pay-info{flex:1}
+    .pay-name{font-size:14px;font-weight:600;color:var(--text)}
+    .pay-detail{font-size:11px;color:var(--muted);margin-top:2px}
+    .pay-check{width:18px;height:18px;border-radius:50%;border:2px solid var(--line2);
+      display:grid;place-items:center;flex-shrink:0;transition:all .2s}
+    .pay-method.selected .pay-check{background:var(--gold);border-color:var(--gold)}
+
+    /* ─── DIVIDER ─── */
+    .divider{height:1px;background:var(--line);margin:24px 0}
+
+    /* ─── DELETE CONFIRM ─── */
+    .delete-confirm{display:none;padding:18px;background:rgba(255,77,109,.06);
+      border:1px solid rgba(255,77,109,.25);border-radius:12px;margin-top:14px}
+    .delete-confirm.show{display:block}
+    .delete-confirm p{font-size:13px;color:#ff8fa3;line-height:1.7;margin-bottom:14px}
+    .delete-confirm input{width:100%;padding:10px 12px;border-radius:8px;
+      background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.3);
+      color:#ff8fa3;font-size:13px;margin-bottom:12px;font-family:var(--font-b)}
+    .delete-confirm input::placeholder{color:rgba(255,143,163,.4)}
+
+    @media(max-width:480px){.f2{grid-template-columns:1fr}.profile-tabs{gap:2px}}
+  </style>
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<header>
+  <div class="topbar">
+    <a class="brand" href="index.html">
+      <div class="logo">P</div>
+      <span class="brand-name">Pleaseme</span>
+    </a>
+    <a class="back-btn" href="index.html">
+      ← Volver a la tienda
+    </a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- VISTA: NO LOGUEADO                    -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="viewAuth">
+    <div class="auth-card">
+      <div class="auth-title">✦ Mi Cuenta</div>
+      <p class="auth-sub">Inicia sesión o crea tu cuenta para guardar tus pedidos y datos de envío.</p>
+
+      <div class="tab-row">
+        <button class="tab-btn on" onclick="switchAuthTab('login')">Iniciar Sesión</button>
+        <button class="tab-btn" onclick="switchAuthTab('register')">Crear Cuenta</button>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="panelLogin">
+        <div class="field"><label>Correo electrónico</label>
+          <input id="lEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/></div>
+        <div class="field"><label>Contraseña</label>
+          <input id="lPass" type="password" placeholder="••••••••" autocomplete="current-password"/></div>
+        <div id="lToast" class="toast"></div>
+        <button class="btn-primary" id="btnLogin">→ Entrar</button>
+      </div>
+
+      <!-- REGISTER -->
+      <div id="panelRegister" style="display:none">
+        <div class="field"><label>Nombre completo</label>
+          <input id="rName" placeholder="Tu nombre" autocomplete="name"/></div>
+        <div class="field"><label>Correo electrónico</label>
+          <input id="rEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/></div>
+        <div class="field"><label>Teléfono (opcional)</label>
+          <input id="rPhone" type="tel" placeholder="+1 (000) 000-0000"/></div>
+        <div class="field"><label>Contraseña</label>
+          <input id="rPass" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password"/></div>
+        <div class="field"><label>Confirmar contraseña</label>
+          <input id="rPass2" type="password" placeholder="Repite tu contraseña" autocomplete="new-password"/></div>
+        <div id="rToast" class="toast"></div>
+        <button class="btn-primary" id="btnRegister">✓ Crear mi cuenta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- VISTA: LOGUEADO — PERFIL              -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="viewProfile" style="display:none">
+
+    <div class="auth-card">
+      <!-- Avatar + nombre -->
+      <div class="profile-header">
+        <div class="profile-avatar" id="profileAvatar">P</div>
+        <div class="profile-name" id="profileName">Cliente</div>
+        <div class="profile-email" id="profileEmail"></div>
+      </div>
+
+      <!-- Tabs de perfil -->
+      <div class="profile-tabs">
+        <button class="profile-tab on" onclick="switchProfileTab('orders')">🛍 Pedidos</button>
+        <button class="profile-tab" onclick="switchProfileTab('info')">👤 Mi Info</button>
+        <button class="profile-tab" onclick="switchProfileTab('payment')">💳 Pago</button>
+        <button class="profile-tab" onclick="switchProfileTab('security')">🔐 Seguridad</button>
+      </div>
+
+      <!-- ── TAB: PEDIDOS ── -->
+      <div id="panelOrders" class="tab-panel on">
+        <div class="section-label">Mis pedidos</div>
+        <div id="ordersList">
+          <div class="empty-state">
+            <div class="icon">🛍️</div>
+            <p>Cargando pedidos...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: MI INFO ── -->
+      <div id="panelInfo" class="tab-panel">
+        <div class="section-label">Información personal</div>
+        <div class="f2">
+          <div class="field"><label>Nombre</label>
+            <input id="iName" placeholder="Tu nombre"/></div>
+          <div class="field"><label>Teléfono</label>
+            <input id="iPhone" type="tel" placeholder="+1 (000) 000-0000"/></div>
+        </div>
+        <div class="field"><label>Correo (no editable)</label>
+          <input id="iEmail" disabled style="opacity:.5"/></div>
+
+        <div class="section-label" style="margin-top:20px">Dirección de envío</div>
+        <div class="field"><label>Nombre completo (destinatario)</label>
+          <input id="iShipName" placeholder="Nombre en el paquete"/></div>
+        <div class="field"><label>Dirección línea 1</label>
+          <input id="iAddr1" placeholder="Calle y número"/></div>
+        <div class="field"><label>Dirección línea 2 (apto, suite, etc.)</label>
+          <input id="iAddr2" placeholder="Opcional"/></div>
+        <div class="f2">
+          <div class="field"><label>Ciudad</label>
+            <input id="iCity" placeholder="Ciudad"/></div>
+          <div class="field"><label>Estado / Provincia</label>
+            <input id="iState" placeholder="Estado"/></div>
+        </div>
+        <div class="f2">
+          <div class="field"><label>ZIP / Código postal</label>
+            <input id="iZip" placeholder="00000"/></div>
+          <div class="field"><label>País</label>
+            <input id="iCountry" placeholder="USA" value="USA"/></div>
+        </div>
+
+        <div id="infoToast" class="toast"></div>
+        <button class="btn-primary" id="btnSaveInfo">💾 Guardar información</button>
+      </div>
+
+      <!-- ── TAB: PAGO ── -->
+      <div id="panelPayment" class="tab-panel">
+        <div class="section-label">Método de pago preferido</div>
+
+        <div class="pay-method selected" id="pmCard" onclick="selectPayMethod('card')">
+          <div class="pay-icon">💳</div>
+          <div class="pay-info">
+            <div class="pay-name">Tarjeta de crédito / débito</div>
+            <div class="pay-detail">Visa, Mastercard, Amex</div>
+          </div>
+          <div class="pay-check">✓</div>
+        </div>
+        <div class="pay-method" id="pmPaypal" onclick="selectPayMethod('paypal')">
+          <div class="pay-icon">🅿️</div>
+          <div class="pay-info">
+            <div class="pay-name">PayPal</div>
+            <div class="pay-detail">Pago seguro con tu cuenta PayPal</div>
+          </div>
+          <div class="pay-check"></div>
+        </div>
+        <div class="pay-method" id="pmWA" onclick="selectPayMethod('whatsapp')">
+          <div class="pay-icon">💬</div>
+          <div class="pay-info">
+            <div class="pay-name">WhatsApp</div>
+            <div class="pay-detail">Coordinar pago por WhatsApp</div>
+          </div>
+          <div class="pay-check"></div>
+        </div>
+
+        <div style="margin-top:20px">
+          <div class="section-label">PayPal Email (si aplica)</div>
+          <div class="field"><label>Email de tu cuenta PayPal</label>
+            <input id="iPPEmail" type="email" placeholder="tu@paypal.com"/></div>
+        </div>
+
+        <div id="payToast" class="toast"></div>
+        <button class="btn-primary" id="btnSavePayment">💾 Guardar preferencias</button>
+      </div>
+
+      <!-- ── TAB: SEGURIDAD ── -->
+      <div id="panelSecurity" class="tab-panel">
+        <div class="section-label">Cambiar contraseña</div>
+        <div class="field"><label>Contraseña actual</label>
+          <input id="sCurrPass" type="password" placeholder="••••••••"/></div>
+        <div class="field"><label>Nueva contraseña</label>
+          <input id="sNewPass" type="password" placeholder="Mínimo 6 caracteres"/></div>
+        <div class="field"><label>Confirmar nueva contraseña</label>
+          <input id="sNewPass2" type="password" placeholder="Repite la nueva contraseña"/></div>
+        <div id="secToast" class="toast"></div>
+        <button class="btn-primary" id="btnChangePass">🔐 Cambiar contraseña</button>
+
+        <div class="divider"></div>
+
+        <div class="section-label">Sesión</div>
+        <button class="btn-ghost" id="btnLogout" style="width:100%;margin-bottom:16px">← Cerrar sesión</button>
+
+        <div class="divider"></div>
+
+        <div class="section-label" style="color:rgba(255,77,109,.7)">Zona de peligro</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.7">
+          Eliminar tu cuenta es permanente. Se borrarán todos tus datos y no podrás recuperarlos.
+        </p>
+        <button class="btn-danger" onclick="showDeleteConfirm()">🗑 Eliminar mi cuenta</button>
+
+        <div class="delete-confirm" id="deleteConfirm">
+          <p>Para confirmar, escribe tu correo electrónico:</p>
+          <input id="deleteConfirmEmail" placeholder="tu@correo.com"/>
+          <button class="btn-danger" id="btnDeleteAccount">⚠ Confirmar eliminación de cuenta</button>
+        </div>
+      </div>
+
+    </div><!-- /auth-card -->
+  </div><!-- /viewProfile -->
+
+</div><!-- /wrap -->
+
+<script>
+// ════════════════════════════════════════════════════════
+//  SUPABASE — REST API directa
+// ════════════════════════════════════════════════════════
+const SB_URL = 'https://sqcggascnbcnfkymqcql.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY2dnYXNjbmJjbmZreW1xY3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODQ2NzIsImV4cCI6MjA4NzI2MDY3Mn0.q0C_q3gOZZzcr6dWPrIhWS63gst5OBYIg9FDxThaKt4';
+const SB_H  = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
+
+const G = id => document.getElementById(id);
+
+async function sbGET(path){
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/'+path,{headers:SB_H});
+    if(!r.ok) throw new Error(await r.text());
+    return await r.json();
+  }catch(e){ console.warn('[SB]',path,e.message); return null; }
+}
+async function sbPOST(table, body, prefer='return=minimal'){
+  const r = await fetch(SB_URL+'/rest/v1/'+table,{
+    method:'POST', headers:{...SB_H,'Prefer':prefer}, body:JSON.stringify(body)
+  });
+  if(!r.ok) throw new Error(await r.text());
+  return r;
+}
+async function sbPATCH(table, filter, body){
+  const r = await fetch(SB_URL+'/rest/v1/'+table+'?'+filter,{
+    method:'PATCH', headers:{...SB_H,'Prefer':'return=minimal'}, body:JSON.stringify(body)
+  });
+  if(!r.ok) throw new Error(await r.text());
+  return r;
+}
+async function sbDELETE(table, filter){
+  const r = await fetch(SB_URL+'/rest/v1/'+table+'?'+filter,{
+    method:'DELETE', headers:{...SB_H}
+  });
+  if(!r.ok) throw new Error(await r.text());
+  return r;
+}
+
+// ════════════════════════════════════════════════════════
+//  SESIÓN
+// ════════════════════════════════════════════════════════
+function getSession(){ try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null} }
+function saveSession(s){ localStorage.setItem('pleaseme_session',JSON.stringify(s)) }
+function clearSession(){ localStorage.removeItem('pleaseme_session'); localStorage.removeItem('pleaseme_logged_in_demo'); }
+
+// ════════════════════════════════════════════════════════
+//  TOAST helper
+// ════════════════════════════════════════════════════════
+function showToast(id, msg, type='ok'){
+  const el = G(id); if(!el) return;
+  el.textContent = msg;
+  el.className = 'toast show '+type;
+  setTimeout(()=>el.classList.remove('show'), 5000);
+}
+
+// ════════════════════════════════════════════════════════
+//  TABS
+// ════════════════════════════════════════════════════════
+function switchAuthTab(tab){
+  G('panelLogin').style.display    = tab==='login'    ? 'block' : 'none';
+  G('panelRegister').style.display = tab==='register' ? 'block' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('on',(tab==='login'&&i===0)||(tab==='register'&&i===1)));
+}
+
+function switchProfileTab(tab){
+  const panels = ['orders','info','payment','security'];
+  panels.forEach(p=>{ G('panel'+cap(p)).classList.toggle('on',p===tab); });
+  document.querySelectorAll('.profile-tab').forEach((b,i)=>b.classList.toggle('on',panels[i]===tab));
+  if(tab==='orders') loadOrders();
+}
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+// ════════════════════════════════════════════════════════
+//  AUTH — REGISTRO
+// ════════════════════════════════════════════════════════
+G('btnRegister').addEventListener('click', async ()=>{
+  const name  = G('rName').value.trim();
+  const email = G('rEmail').value.trim().toLowerCase();
+  const phone = G('rPhone').value.trim();
+  const pass  = G('rPass').value;
+  const pass2 = G('rPass2').value;
+
+  if(!name||!email||!pass){ showToast('rToast','Completa nombre, correo y contraseña.','err'); return; }
+  if(pass.length<6){ showToast('rToast','La contraseña debe tener al menos 6 caracteres.','err'); return; }
+  if(pass!==pass2){ showToast('rToast','Las contraseñas no coinciden.','err'); return; }
+
+  const btn = G('btnRegister'); btn.textContent='Creando cuenta...'; btn.disabled=true;
+
+  try{
+    // Verificar si ya existe
+    const existing = await sbGET('clientes?email=eq.'+encodeURIComponent(email)+'&select=id&limit=1');
+    if(existing && existing.length){ showToast('rToast','Este correo ya está registrado. Inicia sesión.','warn'); return; }
+
+    const id  = 'c_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    const now = new Date().toISOString();
+    const record = {
+      id, email, name, phone,
+      shipping_address:'', billing_address:'', same_billing:true,
+      preferred_payment:'card', paypal_email:'',
+      password_hash: btoa(unescape(encodeURIComponent(pass))),
+      orders_count:0, total_spent:0,
+      created_at:now, updated_at:now
+    };
+
+    await sbPOST('clientes',{id,email,record,created_at:now});
+
+    // Limpiar campos
+    G('rName').value=''; G('rEmail').value=''; G('rPhone').value='';
+    G('rPass').value=''; G('rPass2').value='';
+
+    // Guardar sesión
+    const session = {id,name,email,phone,shipping_address:'',billing_address:'',same_billing:true,preferred_payment:'card',created_at:now};
+    saveSession(session);
+
+    showToast('rToast','✓ ¡Cuenta creada! Bienvenida, '+name+' ✨','ok');
+    setTimeout(()=>window.location.href='index.html', 1800);
+
+  }catch(e){
+    showToast('rToast','Error: '+e.message,'err');
+    console.error('[SB] register:',e);
+  }finally{
+    btn.textContent='✓ Crear mi cuenta'; btn.disabled=false;
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  AUTH — LOGIN
+// ════════════════════════════════════════════════════════
+G('btnLogin').addEventListener('click', async ()=>{
+  const email = G('lEmail').value.trim().toLowerCase();
+  const pass  = G('lPass').value;
+
+  if(!email||!pass){ showToast('lToast','Ingresa tu correo y contraseña.','err'); return; }
+
+  const btn = G('btnLogin'); btn.textContent='Entrando...'; btn.disabled=true;
+
+  try{
+    const rows = await sbGET('clientes?email=eq.'+encodeURIComponent(email)+'&select=id,email,record&limit=1');
+    if(!rows||!rows.length){ showToast('lToast','Correo no registrado.','err'); return; }
+
+    const data = rows[0];
+    const rec  = data.record||{};
+    const hash = btoa(unescape(encodeURIComponent(pass)));
+    if(rec.password_hash !== hash){ showToast('lToast','Contraseña incorrecta.','err'); return; }
+
+    const session = {
+      id:    data.id,
+      name:  rec.name||email,
+      email: rec.email||email,
+      phone: rec.phone||'',
+      shipping_address: rec.shipping_address||'',
+      billing_address:  rec.billing_address||'',
+      same_billing:     rec.same_billing!==false,
+      preferred_payment: rec.preferred_payment||'card',
+      paypal_email:      rec.paypal_email||'',
+      created_at: rec.created_at
+    };
+    saveSession(session);
+    localStorage.setItem('pleaseme_logged_in_demo', email);
+
+    showToast('lToast','→ ¡Bienvenida, '+session.name+'!','ok');
+    setTimeout(()=>window.location.href='index.html', 1200);
+
+  }catch(e){
+    showToast('lToast','Error de conexión. Intenta de nuevo.','err');
+    console.error('[SB] login:',e);
+  }finally{
+    btn.textContent='→ Entrar'; btn.disabled=false;
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  PERFIL — cargar datos
+// ════════════════════════════════════════════════════════
+function loadProfile(){
+  const s = getSession(); if(!s) return;
+  G('profileAvatar').textContent = (s.name||'?').charAt(0).toUpperCase();
+  G('profileName').textContent   = s.name||'Cliente';
+  G('profileEmail').textContent  = s.email||'';
+
+  // Pre-llenar info
+  if(G('iName'))  G('iName').value  = s.name||'';
+  if(G('iPhone')) G('iPhone').value = s.phone||'';
+  if(G('iEmail')) G('iEmail').value = s.email||'';
+
+  // Dirección — parsear de shipping_address si es string simple o campos separados
+  const addr = s.shipping_address||'';
+  if(G('iShipName')) G('iShipName').value = s.ship_name || s.name || '';
+  // Si hay dirección estructurada la usamos, sino el string completo en addr1
+  if(G('iAddr1'))   G('iAddr1').value   = s.addr1||addr||'';
+  if(G('iAddr2'))   G('iAddr2').value   = s.addr2||'';
+  if(G('iCity'))    G('iCity').value    = s.city||'';
+  if(G('iState'))   G('iState').value   = s.state||'';
+  if(G('iZip'))     G('iZip').value     = s.zip||'';
+  if(G('iCountry')) G('iCountry').value = s.country||'USA';
+
+  // Pago
+  selectPayMethod(s.preferred_payment||'card', false);
+  if(G('iPPEmail')) G('iPPEmail').value = s.paypal_email||'';
+}
+
+// ════════════════════════════════════════════════════════
+//  PERFIL — guardar info
+// ════════════════════════════════════════════════════════
+G('btnSaveInfo').addEventListener('click', async ()=>{
+  const s = getSession(); if(!s){ showToast('infoToast','Sesión expirada.','err'); return; }
+  const btn = G('btnSaveInfo'); btn.textContent='Guardando...'; btn.disabled=true;
+
+  const addr1    = G('iAddr1').value.trim();
+  const addr2    = G('iAddr2').value.trim();
+  const city     = G('iCity').value.trim();
+  const state    = G('iState').value.trim();
+  const zip      = G('iZip').value.trim();
+  const country  = G('iCountry').value.trim();
+  const shipName = G('iShipName').value.trim();
+
+  // Construir dirección completa como string para checkout
+  const fullAddr = [addr1, addr2, city, state+' '+zip, country].filter(Boolean).join(', ');
+
+  const updates = {
+    name:             G('iName').value.trim(),
+    phone:            G('iPhone').value.trim(),
+    ship_name:        shipName,
+    addr1, addr2, city, state, zip, country,
+    shipping_address: fullAddr,
+    billing_address:  s.same_billing ? fullAddr : (s.billing_address||fullAddr),
+    updated_at:       new Date().toISOString()
+  };
+
+  try{
+    // Traer record actual para hacer merge
+    const rows = await sbGET('clientes?id=eq.'+s.id+'&select=record&limit=1');
+    const existing = (rows&&rows.length) ? (rows[0].record||{}) : {};
+    const merged = {...existing, ...updates};
+
+    await sbPATCH('clientes','id=eq.'+s.id,{record:merged});
+
+    // Actualizar sesión local
+    Object.assign(s, updates);
+    saveSession(s);
+
+    showToast('infoToast','✅ Información guardada correctamente.','ok');
+  }catch(e){
+    showToast('infoToast','Error al guardar: '+e.message,'err');
+  }finally{
+    btn.textContent='💾 Guardar información'; btn.disabled=false;
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  PAGO — seleccionar método
+// ════════════════════════════════════════════════════════
+let selectedPayMethod = 'card';
+function selectPayMethod(method, save=true){
+  selectedPayMethod = method;
+  ['card','paypal','whatsapp'].forEach(m=>{
+    const el = G('pm'+{card:'Card',paypal:'Paypal',whatsapp:'WA'}[m]);
+    if(el){
+      el.classList.toggle('selected', m===method);
+      const chk = el.querySelector('.pay-check');
+      if(chk) chk.textContent = m===method ? '✓' : '';
+    }
+  });
+  if(save){
+    const s = getSession(); if(s){ s.preferred_payment=method; saveSession(s); }
+  }
+}
+
+G('btnSavePayment').addEventListener('click', async ()=>{
+  const s = getSession(); if(!s){ showToast('payToast','Sesión expirada.','err'); return; }
+  const btn = G('btnSavePayment'); btn.textContent='Guardando...'; btn.disabled=true;
+  const ppEmail = G('iPPEmail').value.trim();
+
+  try{
+    const rows = await sbGET('clientes?id=eq.'+s.id+'&select=record&limit=1');
+    const existing = (rows&&rows.length) ? (rows[0].record||{}) : {};
+    const merged = {...existing,
+      preferred_payment: selectedPayMethod,
+      paypal_email: ppEmail,
+      updated_at: new Date().toISOString()
+    };
+    await sbPATCH('clientes','id=eq.'+s.id,{record:merged});
+    s.preferred_payment = selectedPayMethod;
+    s.paypal_email = ppEmail;
+    saveSession(s);
+    showToast('payToast','✅ Preferencias de pago guardadas.','ok');
+  }catch(e){
+    showToast('payToast','Error: '+e.message,'err');
+  }finally{
+    btn.textContent='💾 Guardar preferencias'; btn.disabled=false;
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  SEGURIDAD — cambiar contraseña
+// ════════════════════════════════════════════════════════
+G('btnChangePass').addEventListener('click', async ()=>{
+  const s = getSession(); if(!s){ showToast('secToast','Sesión expirada.','err'); return; }
+  const curr  = G('sCurrPass').value;
+  const newp  = G('sNewPass').value;
+  const newp2 = G('sNewPass2').value;
+
+  if(!curr||!newp){ showToast('secToast','Completa todos los campos.','err'); return; }
+  if(newp.length<6){ showToast('secToast','La nueva contraseña debe tener al menos 6 caracteres.','err'); return; }
+  if(newp!==newp2){ showToast('secToast','Las contraseñas no coinciden.','err'); return; }
+
+  const btn = G('btnChangePass'); btn.textContent='Verificando...'; btn.disabled=true;
+
+  try{
+    const rows = await sbGET('clientes?id=eq.'+s.id+'&select=record&limit=1');
+    if(!rows||!rows.length){ showToast('secToast','Error al verificar cuenta.','err'); return; }
+    const rec = rows[0].record||{};
+    const currHash = btoa(unescape(encodeURIComponent(curr)));
+    if(rec.password_hash !== currHash){ showToast('secToast','La contraseña actual es incorrecta.','err'); return; }
+
+    const newHash = btoa(unescape(encodeURIComponent(newp)));
+    const merged  = {...rec, password_hash:newHash, updated_at:new Date().toISOString()};
+    await sbPATCH('clientes','id=eq.'+s.id,{record:merged});
+
+    G('sCurrPass').value=''; G('sNewPass').value=''; G('sNewPass2').value='';
+    showToast('secToast','✅ Contraseña actualizada exitosamente.','ok');
+  }catch(e){
+    showToast('secToast','Error: '+e.message,'err');
+  }finally{
+    btn.textContent='🔐 Cambiar contraseña'; btn.disabled=false;
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  LOGOUT
+// ════════════════════════════════════════════════════════
+G('btnLogout').addEventListener('click', ()=>{
+  clearSession();
+  window.location.href='index.html';
+});
+
+// ════════════════════════════════════════════════════════
+//  ELIMINAR CUENTA
+// ════════════════════════════════════════════════════════
+function showDeleteConfirm(){ G('deleteConfirm').classList.toggle('show'); }
+
+G('btnDeleteAccount').addEventListener('click', async ()=>{
+  const s     = getSession(); if(!s){ return; }
+  const typed = G('deleteConfirmEmail').value.trim().toLowerCase();
+  if(typed !== s.email){ showToast('secToast','El correo no coincide.','err'); return; }
+
+  if(!confirm('¿Segura que quieres eliminar tu cuenta? Esta acción es permanente.')) return;
+
+  const btn = G('btnDeleteAccount'); btn.textContent='Eliminando...'; btn.disabled=true;
+
+  try{
+    await sbDELETE('clientes','id=eq.'+s.id);
+    clearSession();
+    showToast('secToast','Cuenta eliminada. Hasta pronto.','warn');
+    setTimeout(()=>window.location.href='index.html', 2000);
+  }catch(e){
+    showToast('secToast','Error al eliminar: '+e.message,'err');
+    btn.textContent='⚠ Confirmar eliminación'; btn.disabled=false;
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  PEDIDOS — cargar
+// ════════════════════════════════════════════════════════
+async function loadOrders(){
+  const s = getSession(); if(!s) return;
+  const list = G('ordersList');
+  list.innerHTML='<div class="empty-state"><div class="icon">⏳</div><p>Cargando pedidos...</p></div>';
+
+  try{
+    // Buscar pedidos por email del cliente
+    const rows = await sbGET("pedidos?record->>clientEmail=eq."+encodeURIComponent(s.email)+"&order=created_at.desc&limit=20");
+    const orders = rows ? rows.map(r=>({...((r.record)||{}),id:r.id,created_at:r.created_at,status:r.status})) : [];
+
+    if(!orders.length){
+      list.innerHTML='<div class="empty-state"><div class="icon">🛍️</div><p>Aún no tienes pedidos.<br/><a href="index.html" style="color:var(--gold);text-decoration:underline">¡Empieza a comprar!</a></p></div>';
+      return;
+    }
+
+    const statusLabels = {pendiente:'Pendiente',procesando:'Procesando',enviado:'Enviado',entregado:'Entregado',cancelado:'Cancelado',reembolsado:'Reembolsado'};
+    list.innerHTML = orders.map(o=>{
+      const items = (o.items||[]).map(i=>`${i.name} ×${i.qty}`).join(', ');
+      const date  = o.created_at ? new Date(o.created_at).toLocaleDateString('es-US',{year:'numeric',month:'short',day:'numeric'}) : '';
+      const st    = o.status||'pendiente';
+      return `<div class="order-item">
+        <div class="order-top">
+          <span class="order-id">#${o.id||''}</span>
+          <span class="order-date">${date}</span>
+          <span class="order-status status-${st}">${statusLabels[st]||st}</span>
+        </div>
+        <div class="order-items-list">${items||'Sin detalle'}</div>
+        <div class="order-total">$${Number(o.total||0).toFixed(2)}</div>
+        ${o.trackingNum?`<div style="font-size:11px;color:var(--muted);margin-top:4px">📦 Tracking: ${o.trackingNum}</div>`:''}
+      </div>`;
+    }).join('');
+  }catch(e){
+    list.innerHTML='<div class="empty-state"><div class="icon">⚠️</div><p>Error al cargar pedidos.</p></div>';
+    console.error('[SB] loadOrders:',e);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  INIT — determinar qué vista mostrar
+// ════════════════════════════════════════════════════════
+(function init(){
+  const s = getSession();
+  if(s && s.email){
+    G('viewAuth').style.display    = 'none';
+    G('viewProfile').style.display = 'block';
+    loadProfile();
+    // Abrir tab específico si viene en URL (?tab=info, ?tab=payment, etc.)
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if(tab && ['orders','info','payment','security'].includes(tab)){
+      switchProfileTab(tab);
+    } else {
+      loadOrders();
+    }
+  } else {
+    G('viewAuth').style.display    = 'block';
+    G('viewProfile').style.display = 'none';
+    // Si viene #register abrir tab de registro
+    if(window.location.hash === '#register') switchAuthTab('register');
+  }
+})();
+</script>
+</body>
+</html>
