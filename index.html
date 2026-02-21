@@ -319,38 +319,6 @@ footer{position:relative;z-index:1;border-top:1px solid var(--ln);margin-top:40p
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <span id="userDot" style="display:none;position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;background:#2fe3b5;border:1.5px solid #050505"></span>
       </button>
-      <!-- DROPDOWN -->
-      <div id="userMenuDrop" style="display:none;position:fixed;top:64px;right:16px;
-        min-width:230px;background:rgba(8,6,2,.97);border:1px solid rgba(212,175,55,.3);
-        border-radius:16px;padding:8px;z-index:99999;backdrop-filter:blur(20px);
-        box-shadow:0 20px 50px rgba(0,0,0,.8);animation:dropIn .2s ease">
-        <style>@keyframes dropIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}</style>
-        <!-- Header logueado -->
-        <div id="umLoggedIn" style="display:none;padding:12px 12px 8px">
-          <div style="font-size:11px;color:rgba(240,223,160,.4);letter-spacing:.5px;margin-bottom:4px">CUENTA</div>
-          <div id="umName" style="font-family:'Cormorant Garamond',serif;font-size:17px;color:#e8c56e;font-weight:600"></div>
-          <div id="umEmail" style="font-size:11px;color:rgba(240,223,160,.45);margin-top:2px"></div>
-        </div>
-        <!-- Header no logueado -->
-        <div id="umGuest" style="padding:12px 12px 8px">
-          <div style="font-size:13px;color:rgba(240,223,160,.6)">Inicia sesión para guardar tus pedidos.</div>
-        </div>
-        <div style="height:1px;background:rgba(212,175,55,.12);margin:4px 0"></div>
-        <!-- Opciones logueado -->
-        <div id="umOptions" style="display:none">
-          <button onclick="goToAccount('orders')"  class="um-item">🛍 Mis pedidos</button>
-          <button onclick="goToAccount('info')"    class="um-item">👤 Mi información</button>
-          <button onclick="goToAccount('payment')" class="um-item">💳 Método de pago</button>
-          <button onclick="goToAccount('security')"class="um-item">🔐 Seguridad</button>
-          <div style="height:1px;background:rgba(212,175,55,.12);margin:4px 0"></div>
-          <button onclick="logoutUser()" class="um-item" style="color:rgba(255,143,163,.8)">← Cerrar sesión</button>
-        </div>
-        <!-- Opciones guest -->
-        <div id="umGuestOptions">
-          <button onclick="window.location.href='account.html'" class="um-item um-primary">→ Iniciar sesión</button>
-          <button onclick="window.location.href='account.html#register'" class="um-item">✦ Crear cuenta</button>
-        </div>
-      </div>
     </div>
     <button class="shopnow" id="btnShopNow" onclick="show('shop')">Shop Now</button>
     <button class="hib" id="langBtn" onclick="toggleLang()" title="Español / English" style="font-size:11px;font-weight:700;letter-spacing:1px;width:42px">EN</button>
@@ -1685,44 +1653,44 @@ function toast(msg,type,sub){
   apply(getLang());
 })();
 
+</script>
+<script>
 // ── USER MENU ────────────────────────────────────────────────────
 (function initUserMenu(){
   const s = (()=>{ try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null} })();
   const dot    = document.getElementById('userDot');
   const umLog  = document.getElementById('umLoggedIn');
   const umGst  = document.getElementById('umGuest');
-  const umOpt  = document.getElementById('umOptions');
-  const umGOpt = document.getElementById('umGuestOptions');
-  const umName = document.getElementById('umName');
-  const umMail = document.getElementById('umEmail');
   if(s && s.email){
-    if(dot)    dot.style.display    = 'block';
-    if(umLog)  umLog.style.display  = 'block';
-    if(umGst)  umGst.style.display  = 'none';
-    if(umOpt)  umOpt.style.display  = 'block';
-    if(umGOpt) umGOpt.style.display = 'none';
-    if(umName) umName.textContent   = s.name||s.email;
-    if(umMail) umMail.textContent   = s.email;
+    if(dot)   dot.style.display = 'block';
+    if(umLog){ umLog.style.display='flex'; umLog.style.flexDirection='column'; }
+    if(umGst)  umGst.style.display='none';
+    const n = document.getElementById('umName');
+    const e = document.getElementById('umEmail');
+    const a = document.getElementById('umAvatar');
+    if(n) n.textContent = s.name||s.email;
+    if(e) e.textContent = s.email;
+    if(a) a.textContent = (s.name||s.email).charAt(0).toUpperCase();
+  } else {
+    if(umLog) umLog.style.display = 'none';
+    if(umGst) umGst.style.display = 'block';
   }
 })();
 
 function toggleUserMenu(){
-  const drop = document.getElementById('userMenuDrop');
-  const btn  = document.getElementById('userMenuBtn');
-  if(!drop||!btn) return;
-  const open = drop.style.display !== 'none';
-  if(open){ drop.style.display='none'; return; }
-  // Position relative to button
-  const rect = btn.getBoundingClientRect();
-  drop.style.top   = (rect.bottom + 8) + 'px';
-  drop.style.right = (window.innerWidth - rect.right) + 'px';
-  drop.style.display = 'block';
-  setTimeout(()=>document.addEventListener('click', closeMenuOutside, {once:true}), 50);
-}
-function closeMenuOutside(e){
-  const drop = document.getElementById('userMenuDrop');
-  const btn  = document.getElementById('userMenuBtn');
-  if(drop && btn && !btn.contains(e.target)) drop.style.display = 'none';
+  const panel = document.getElementById('umPanel');
+  const scrim = document.getElementById('umScrim');
+  if(!panel) return;
+  const isOpen = panel.classList.contains('open');
+  if(isOpen){
+    panel.classList.remove('open');
+    if(scrim){ scrim.style.display='none'; }
+    document.body.style.overflow='';
+  } else {
+    panel.classList.add('open');
+    if(scrim){ scrim.style.display='block'; }
+    document.body.style.overflow='hidden';
+  }
 }
 function goToAccount(tab){
   document.getElementById('userMenuDrop').style.display='none';
@@ -1733,6 +1701,617 @@ function logoutUser(){
   localStorage.removeItem('pleaseme_logged_in_demo');
   window.location.reload();
 }
+</script>
+
+
+<!-- ── USER SIDE PANEL ── -->
+<style>
+  #umScrim{display:none;position:fixed;inset:0;z-index:99990;background:rgba(0,0,0,.45)}
+  #umPanel{
+    position:fixed;top:0;right:-340px;width:320px;height:100vh;z-index:99999;
+    background:#080602;border-left:1px solid rgba(212,175,55,.22);
+    box-shadow:-16px 0 50px rgba(0,0,0,.8);
+    display:flex;flex-direction:column;
+    transition:right .3s cubic-bezier(.4,0,.2,1);
+    overflow:hidden;
+  }
+  #umPanel.open{right:0}
+  #umPanel::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;z-index:1;
+    background:linear-gradient(90deg,transparent,rgba(212,175,55,.55),rgba(247,233,184,.7),rgba(212,175,55,.55),transparent)}
+  /* Header */
+  .up-head{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 12px;flex-shrink:0}
+  .up-close{width:28px;height:28px;border-radius:8px;border:1px solid rgba(212,175,55,.15);
+    background:transparent;color:rgba(240,223,160,.5);cursor:pointer;font-size:13px;
+    display:grid;place-items:center;transition:all .2s}
+  .up-close:hover{background:rgba(212,175,55,.1);color:#e8c56e;border-color:rgba(212,175,55,.4)}
+  /* Tabs */
+  .up-tabs{display:flex;gap:2px;padding:0 10px 10px;flex-shrink:0}
+  .up-tab{flex:1;padding:7px 4px;border:none;border-radius:8px;cursor:pointer;
+    font-size:10px;font-weight:600;letter-spacing:.3px;
+    background:transparent;color:rgba(240,223,160,.4);
+    font-family:'Jost',sans-serif;transition:all .2s;white-space:nowrap}
+  .up-tab.on{background:rgba(212,175,55,.1);color:#e8c56e;border:1px solid rgba(212,175,55,.2)}
+  /* Scroll body */
+  .up-body{flex:1;overflow-y:auto;padding:0 12px 20px}
+  .up-body::-webkit-scrollbar{width:3px}
+  .up-body::-webkit-scrollbar-thumb{background:rgba(212,175,55,.2);border-radius:4px}
+  /* Section title */
+  .up-sec{font-size:9px;letter-spacing:1.4px;color:rgba(212,175,55,.4);font-weight:700;
+    text-transform:uppercase;margin:16px 0 8px;display:flex;align-items:center;gap:6px}
+  .up-sec::after{content:"";flex:1;height:1px;background:rgba(212,175,55,.08)}
+  /* Avatar */
+  .up-avatar{width:46px;height:46px;border-radius:50%;flex-shrink:0;
+    background:linear-gradient(145deg,#c9963a,#f7e9b8);
+    display:grid;place-items:center;font-family:'Cormorant Garamond',serif;
+    font-size:21px;font-weight:700;color:#0d0900;
+    box-shadow:0 4px 14px rgba(180,130,30,.4)}
+  /* Fields */
+  .up-field{margin-bottom:10px}
+  .up-field label{display:block;font-size:9px;font-weight:700;letter-spacing:.8px;
+    color:rgba(240,223,160,.38);text-transform:uppercase;margin-bottom:4px}
+  .up-field input,.up-field select,.up-field textarea{
+    width:100%;padding:9px 10px;border-radius:8px;
+    background:rgba(255,255,255,.04);border:1px solid rgba(212,175,55,.15);
+    color:rgba(240,223,160,.85);font-family:'Jost',sans-serif;font-size:12px;
+    outline:none;transition:all .2s}
+  .up-field input:focus,.up-field select:focus,.up-field textarea:focus{
+    border-color:rgba(212,175,55,.4);background:rgba(255,255,255,.06)}
+  .up-field input::placeholder{color:rgba(240,223,160,.2)}
+  .up-field input:disabled{opacity:.4;cursor:default}
+  .up-field textarea{min-height:70px;resize:vertical;font-size:12px}
+  .up-f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  /* Buttons */
+  .up-btn{width:100%;padding:10px;border-radius:9px;border:none;cursor:pointer;
+    font-family:'Jost',sans-serif;font-size:12px;font-weight:600;transition:all .2s;margin-top:6px}
+  .up-btn.gold{background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900}
+  .up-btn.gold:hover{opacity:.9;transform:translateY(-1px)}
+  .up-btn.ghost{background:transparent;border:1px solid rgba(212,175,55,.2);color:rgba(240,223,160,.6)}
+  .up-btn.ghost:hover{border-color:rgba(212,175,55,.4);color:#e8c56e}
+  .up-btn.red{background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.2);color:rgba(255,143,163,.7)}
+  .up-btn.red:hover{background:rgba(255,77,109,.15);border-color:rgba(255,77,109,.4);color:#ff8fa3}
+  .up-btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+  /* Toast */
+  .up-toast{display:none;padding:8px 10px;border-radius:8px;font-size:11px;margin-top:8px;line-height:1.5}
+  .up-toast.show{display:block}
+  .up-toast.ok{background:rgba(47,227,181,.1);color:#7af0d4;border:1px solid rgba(47,227,181,.2)}
+  .up-toast.err{background:rgba(255,77,109,.1);color:#ff8fa3;border:1px solid rgba(255,77,109,.2)}
+  .up-toast.warn{background:rgba(245,166,35,.1);color:#ffd580;border:1px solid rgba(245,166,35,.2)}
+  /* Payment methods */
+  .up-pay{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;
+    border:1px solid rgba(212,175,55,.12);background:rgba(255,255,255,.02);
+    cursor:pointer;transition:all .18s;margin-bottom:7px}
+  .up-pay:hover{border-color:rgba(212,175,55,.3);background:rgba(212,175,55,.05)}
+  .up-pay.sel{border-color:rgba(212,175,55,.5);background:rgba(212,175,55,.07)}
+  .up-pay-ico{font-size:20px;flex-shrink:0}
+  .up-pay-info{flex:1}
+  .up-pay-name{font-size:12px;font-weight:600;color:rgba(240,223,160,.8)}
+  .up-pay-sub{font-size:10px;color:rgba(240,223,160,.35);margin-top:1px}
+  .up-pay-chk{width:16px;height:16px;border-radius:50%;border:2px solid rgba(212,175,55,.25);
+    display:grid;place-items:center;font-size:8px;flex-shrink:0;transition:all .2s}
+  .up-pay.sel .up-pay-chk{background:var(--gold,#c9963a);border-color:var(--gold,#c9963a);color:#0d0900}
+  /* Orders */
+  .up-order{padding:10px;border:1px solid rgba(212,175,55,.1);border-radius:10px;
+    margin-bottom:8px;background:rgba(255,255,255,.02)}
+  .up-ord-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px;margin-bottom:5px}
+  .up-ord-id{font-family:'Cormorant Garamond',serif;font-size:14px;color:#e8c56e}
+  .up-ord-date{font-size:10px;color:rgba(240,223,160,.35)}
+  .up-ord-st{padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:.4px}
+  .st-pendiente{background:rgba(245,166,35,.12);color:#ffd580;border:1px solid rgba(245,166,35,.25)}
+  .st-procesando{background:rgba(100,150,255,.12);color:#a0b4ff;border:1px solid rgba(100,150,255,.25)}
+  .st-enviado{background:rgba(47,227,181,.12);color:#7af0d4;border:1px solid rgba(47,227,181,.25)}
+  .st-entregado{background:rgba(47,200,100,.12);color:#7af0b5;border:1px solid rgba(47,200,100,.25)}
+  .st-cancelado{background:rgba(255,77,109,.12);color:#ff8fa3;border:1px solid rgba(255,77,109,.25)}
+  .up-ord-items{font-size:11px;color:rgba(240,223,160,.4);line-height:1.6}
+  .up-ord-total{font-family:'Cormorant Garamond',serif;font-size:16px;color:#c9963a;margin-top:4px}
+  /* Delete confirm */
+  .up-del-box{display:none;padding:12px;background:rgba(255,77,109,.05);
+    border:1px solid rgba(255,77,109,.2);border-radius:10px;margin-top:10px}
+  .up-del-box.show{display:block}
+  .up-del-box p{font-size:11px;color:rgba(255,143,163,.7);margin-bottom:8px;line-height:1.6}
+  /* Guest */
+  .up-guest-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:20px 14px}
+  .up-guest-title{font-family:'Cormorant Garamond',serif;font-size:24px;color:#e8c56e;margin-bottom:8px}
+  .up-guest-sub{font-size:12px;color:rgba(240,223,160,.45);line-height:1.7;margin-bottom:20px}
+  /* Nav items */
+  .up-nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px;
+    border:none;border-radius:10px;background:transparent;
+    color:rgba(240,223,160,.7);font-family:'Jost',sans-serif;font-size:13px;
+    cursor:pointer;transition:all .18s;text-align:left}
+  .up-nav-item:hover{background:rgba(212,175,55,.07);color:#e8c56e;padding-left:14px}
+  .up-nav-item .ni{width:30px;height:30px;border-radius:8px;background:rgba(212,175,55,.07);
+    display:grid;place-items:center;font-size:14px;flex-shrink:0}
+  .up-nav-item span:last-child{margin-left:auto;color:rgba(212,175,55,.25);font-size:14px}
+  /* Footer */
+  .up-foot{padding:10px 12px;border-top:1px solid rgba(212,175,55,.08);flex-shrink:0}
+</style>
+
+<div id="umScrim" onclick="toggleUserMenu()"></div>
+
+<div id="umPanel">
+  <!-- HEADER -->
+  <div class="up-head">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="up-avatar" id="upAvatar">P</div>
+      <div>
+        <div id="upName" style="font-family:'Cormorant Garamond',serif;font-size:16px;color:#e8c56e;font-weight:600"></div>
+        <div id="upEmail" style="font-size:10px;color:rgba(240,223,160,.35);margin-top:1px"></div>
+      </div>
+    </div>
+    <button class="up-close" onclick="toggleUserMenu()">✕</button>
+  </div>
+
+  <!-- TABS (solo logueado) -->
+  <div class="up-tabs" id="upTabs" style="display:none">
+    <button class="up-tab on" onclick="upSwitchTab('orders')" id="upt-orders">🛍</button>
+    <button class="up-tab"    onclick="upSwitchTab('info')"   id="upt-info">👤 Info</button>
+    <button class="up-tab"    onclick="upSwitchTab('payment')" id="upt-payment">💳 Pago</button>
+    <button class="up-tab"    onclick="upSwitchTab('msg')"    id="upt-msg">💬 Admin</button>
+    <button class="up-tab"    onclick="upSwitchTab('account')" id="upt-account">⚙</button>
+  </div>
+
+  <!-- ══ LOGGED IN PANELS ══ -->
+  <div id="umLoggedIn" style="display:none;flex:1;overflow:hidden;flex-direction:column">
+
+    <!-- PEDIDOS -->
+    <div class="up-body" id="upPanelOrders">
+      <div class="up-sec">Mis pedidos</div>
+      <div id="upOrdersList">
+        <div style="text-align:center;padding:30px 0;color:rgba(240,223,160,.3);font-size:12px">Cargando...</div>
+      </div>
+    </div>
+
+    <!-- INFO -->
+    <div class="up-body" id="upPanelInfo" style="display:none">
+      <div class="up-sec">Información personal</div>
+      <div class="up-f2">
+        <div class="up-field"><label>Nombre</label><input id="upInfoName" placeholder="Tu nombre"/></div>
+        <div class="up-field"><label>Teléfono</label><input id="upInfoPhone" placeholder="+1 000 0000000"/></div>
+      </div>
+      <div class="up-field"><label>Email (no editable)</label><input id="upInfoEmail" disabled/></div>
+      <div class="up-sec">Dirección de envío</div>
+      <div class="up-field"><label>Destinatario</label><input id="upShipName" placeholder="Nombre en el paquete"/></div>
+      <div class="up-field"><label>Dirección</label><input id="upAddr1" placeholder="Calle y número"/></div>
+      <div class="up-field"><label>Apt / Suite</label><input id="upAddr2" placeholder="Opcional"/></div>
+      <div class="up-f2">
+        <div class="up-field"><label>Ciudad</label><input id="upCity" placeholder="Ciudad"/></div>
+        <div class="up-field"><label>Estado</label><input id="upState" placeholder="Estado"/></div>
+      </div>
+      <div class="up-f2">
+        <div class="up-field"><label>ZIP</label><input id="upZip" placeholder="00000"/></div>
+        <div class="up-field"><label>País</label><input id="upCountry" placeholder="USA"/></div>
+      </div>
+      <div id="upInfoToast" class="up-toast"></div>
+      <button class="up-btn gold" id="upBtnSaveInfo" onclick="upSaveInfo()">💾 Guardar</button>
+    </div>
+
+    <!-- PAGO -->
+    <div class="up-body" id="upPanelPayment" style="display:none">
+      <div class="up-sec">Método preferido</div>
+      <div class="up-pay sel" id="uppCard" onclick="upSelectPay('card')">
+        <span class="up-pay-ico">💳</span>
+        <div class="up-pay-info"><div class="up-pay-name">Tarjeta</div><div class="up-pay-sub">Visa · MC · Amex</div></div>
+        <div class="up-pay-chk" id="upchkCard">✓</div>
+      </div>
+      <div class="up-pay" id="uppPaypal" onclick="upSelectPay('paypal')">
+        <span class="up-pay-ico">🅿️</span>
+        <div class="up-pay-info"><div class="up-pay-name">PayPal</div><div class="up-pay-sub">Pago seguro PayPal</div></div>
+        <div class="up-pay-chk" id="upchkPaypal"></div>
+      </div>
+      <div class="up-pay" id="uppWA" onclick="upSelectPay('whatsapp')">
+        <span class="up-pay-ico">💬</span>
+        <div class="up-pay-info"><div class="up-pay-name">WhatsApp</div><div class="up-pay-sub">Coordinar por chat</div></div>
+        <div class="up-pay-chk" id="upchkWA"></div>
+      </div>
+      <div class="up-sec" style="margin-top:14px">Email PayPal</div>
+      <div class="up-field"><label>Email de tu cuenta PayPal</label><input id="upPPEmail" type="email" placeholder="tu@paypal.com"/></div>
+      <div id="upPayToast" class="up-toast"></div>
+      <button class="up-btn gold" onclick="upSavePayment()">💾 Guardar preferencias</button>
+    </div>
+
+    <!-- MENSAJE AL ADMIN -->
+    <div class="up-body" id="upPanelMsg" style="display:none">
+      <div class="up-sec">Mensaje al administrador</div>
+      <div class="up-field"><label>Asunto</label>
+        <select id="upMsgSubject">
+          <option value="pedido">Consulta sobre mi pedido</option>
+          <option value="cambio">Cambio / devolución</option>
+          <option value="envio">Estado de envío</option>
+          <option value="pago">Problema con el pago</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div class="up-field"><label>Número de pedido (opcional)</label>
+        <input id="upMsgOrderId" placeholder="PM123456"/></div>
+      <div class="up-field"><label>Mensaje</label>
+        <textarea id="upMsgText" placeholder="Escribe tu consulta aquí..."></textarea></div>
+      <div id="upMsgToast" class="up-toast"></div>
+      <button class="up-btn gold" onclick="upSendMsg()">💬 Enviar por WhatsApp</button>
+      <p style="font-size:10px;color:rgba(240,223,160,.3);margin-top:8px;line-height:1.6;text-align:center">
+        Se abrirá WhatsApp con tu mensaje para nuestro equipo.
+      </p>
+    </div>
+
+    <!-- CUENTA / SEGURIDAD -->
+    <div class="up-body" id="upPanelAccount" style="display:none">
+      <div class="up-sec">Cambiar contraseña</div>
+      <div class="up-field"><label>Contraseña actual</label><input id="upCurrPass" type="password" placeholder="••••••"/></div>
+      <div class="up-field"><label>Nueva contraseña</label><input id="upNewPass" type="password" placeholder="Mín. 6 caracteres"/></div>
+      <div class="up-field"><label>Confirmar</label><input id="upNewPass2" type="password" placeholder="Repite la contraseña"/></div>
+      <div id="upSecToast" class="up-toast"></div>
+      <button class="up-btn gold" onclick="upChangePass()">🔐 Cambiar contraseña</button>
+
+      <div class="up-sec" style="margin-top:20px">Zona de peligro</div>
+      <button class="up-btn red" onclick="document.getElementById('upDelBox').classList.toggle('show')">🗑 Eliminar mi cuenta</button>
+      <div class="up-del-box" id="upDelBox">
+        <p>Esta acción es permanente. Escribe tu correo para confirmar:</p>
+        <div class="up-field"><input id="upDelEmail" placeholder="tu@correo.com"/></div>
+        <button class="up-btn red" onclick="upDeleteAccount()" style="margin-top:4px">⚠ Confirmar eliminación</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ GUEST ══ -->
+  <div id="umGuest" style="display:none;flex:1">
+    <div class="up-guest-wrap">
+      <div class="up-guest-title">✦ Bienvenida</div>
+      <div class="up-guest-sub">Inicia sesión para ver tus pedidos, guardar tu dirección y mucho más.</div>
+      <button class="up-btn gold" onclick="window.location.href='account.html'" style="margin-bottom:8px">→ Iniciar sesión</button>
+      <button class="up-btn ghost" onclick="window.location.href='account.html#register'">✦ Crear cuenta</button>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="up-foot" id="upFoot" style="display:none">
+    <button class="up-btn red" onclick="upLogout()" style="margin-top:0">← Cerrar sesión</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  USER PANEL — helpers REST
+// ══════════════════════════════════════════════════
+async function upFetch(path){
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/'+path,{headers:SB_H});
+    if(!r.ok) throw new Error(await r.text());
+    return await r.json();
+  }catch(e){console.warn('[UP]',e.message);return null;}
+}
+async function upPatch(filter, body){
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/clientes?'+filter,{
+      method:'PATCH',headers:{...SB_H,'Prefer':'return=minimal'},body:JSON.stringify(body)
+    });
+    if(!r.ok) throw new Error(await r.text());
+    return true;
+  }catch(e){console.warn('[UP]',e.message);return false;}
+}
+async function upDelete(filter){
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/clientes?'+filter,{method:'DELETE',headers:SB_H});
+    if(!r.ok) throw new Error(await r.text());
+    return true;
+  }catch(e){console.warn('[UP]',e.message);return false;}
+}
+
+// ══════════════════════════════════════════════════
+//  USER PANEL — state
+// ══════════════════════════════════════════════════
+let _upPay = 'card';
+
+function upToast(id, msg, type='ok'){
+  const el = document.getElementById(id); if(!el) return;
+  el.textContent = msg; el.className = 'up-toast show '+type;
+  setTimeout(()=>el.classList.remove('show'), 4000);
+}
+
+// ══════════════════════════════════════════════════
+//  TOGGLE PANEL OPEN / CLOSE
+// ══════════════════════════════════════════════════
+function toggleUserMenu(){
+  const panel = document.getElementById('umPanel');
+  const scrim = document.getElementById('umScrim');
+  if(!panel) return;
+  const isOpen = panel.classList.contains('open');
+  if(isOpen){
+    panel.classList.remove('open');
+    if(scrim) scrim.style.display='none';
+    document.body.style.overflow='';
+  } else {
+    panel.classList.add('open');
+    if(scrim) scrim.style.display='block';
+    document.body.style.overflow='hidden';
+    upInit();  // refresh data every open
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  INIT PANEL
+// ══════════════════════════════════════════════════
+function upInit(){
+  const s = (()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
+  const dot    = document.getElementById('userDot');
+  const logged = document.getElementById('umLoggedIn');
+  const guest  = document.getElementById('umGuest');
+  const tabs   = document.getElementById('upTabs');
+  const foot   = document.getElementById('upFoot');
+
+  if(s && s.email){
+    if(dot)    dot.style.display = 'block';
+    if(guest)  guest.style.display = 'none';
+    if(logged){ logged.style.display = 'flex'; logged.style.flexDirection = 'column'; }
+    if(tabs)   tabs.style.display   = 'flex';
+    if(foot)   foot.style.display   = 'block';
+
+    const av = document.getElementById('upAvatar');
+    const nm = document.getElementById('upName');
+    const em = document.getElementById('upEmail');
+    if(av) av.textContent = (s.name||s.email).charAt(0).toUpperCase();
+    if(nm) nm.textContent = s.name||s.email;
+    if(em) em.textContent = s.email;
+
+    upLoadOrders(s);
+    upFillInfo(s);
+    upFillPayment(s);
+  } else {
+    if(dot)    dot.style.display   = 'none';
+    if(logged) logged.style.display = 'none';
+    if(tabs)   tabs.style.display   = 'none';
+    if(foot)   foot.style.display   = 'none';
+    if(guest)  guest.style.display  = 'flex';
+    const nm = document.getElementById('upName');
+    const em = document.getElementById('upEmail');
+    if(nm) nm.textContent = 'Mi cuenta';
+    if(em) em.textContent = 'Inicia sesión';
+  }
+}
+
+// Run once on page load
+(function initUserMenu(){ upInit(); })();
+
+// ══════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════
+function upSwitchTab(tab){
+  const panels = {orders:'upPanelOrders',info:'upPanelInfo',payment:'upPanelPayment',msg:'upPanelMsg',account:'upPanelAccount'};
+  const tabIds = {orders:'upt-orders',info:'upt-info',payment:'upt-payment',msg:'upt-msg',account:'upt-account'};
+  Object.keys(panels).forEach(k=>{
+    const p = document.getElementById(panels[k]);
+    const t = document.getElementById(tabIds[k]);
+    if(p) p.style.display = k===tab ? 'block' : 'none';
+    if(t) t.classList.toggle('on', k===tab);
+  });
+}
+
+// ══════════════════════════════════════════════════
+//  ORDERS
+// ══════════════════════════════════════════════════
+async function upLoadOrders(s){
+  if(!s) s = (()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
+  if(!s) return;
+  const list = document.getElementById('upOrdersList');
+  if(!list) return;
+  list.innerHTML = '<div style="text-align:center;padding:24px 0;color:rgba(240,223,160,.3);font-size:11px">Cargando pedidos...</div>';
+  try{
+    // Try both clientEmail and email fields in record
+    const rows = await upFetch("pedidos?order=created_at.desc&limit=30");
+    const all  = rows || [];
+    const mine = all.filter(r=>{
+      const rec = r.record||{};
+      return (rec.clientEmail||rec.email||'').toLowerCase() === s.email.toLowerCase();
+    });
+    if(!mine.length){
+      list.innerHTML='<div style="text-align:center;padding:24px 0;color:rgba(240,223,160,.3);font-size:11px">Aún no tienes pedidos 🛍</div>';
+      return;
+    }
+    const stLabels={pendiente:'Pendiente',procesando:'Procesando',enviado:'Enviado',entregado:'Entregado',cancelado:'Cancelado',reembolsado:'Reembolsado'};
+    list.innerHTML = mine.map(row=>{
+      const o    = {...(row.record||{}), id:row.id, status:row.status||'pendiente', created_at:row.created_at};
+      const date = o.created_at ? new Date(o.created_at).toLocaleDateString('es-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+      const st   = o.status||'pendiente';
+      const items= (o.items||[]).slice(0,3).map(i=>i.name+(i.qty>1?' ×'+i.qty:'')).join(', ');
+      const more = (o.items||[]).length > 3 ? ' +'+((o.items||[]).length-3)+' más' : '';
+      return `<div class="up-order">
+        <div class="up-ord-top">
+          <span class="up-ord-id">#${o.id}</span>
+          <span class="up-ord-st st-${st}">${stLabels[st]||st}</span>
+        </div>
+        <div class="up-ord-date">${date}</div>
+        <div class="up-ord-items">${items}${more}</div>
+        <div class="up-ord-total">$${Number(o.total||0).toFixed(2)}</div>
+        ${o.trackingNum?`<div style="font-size:10px;color:rgba(240,223,160,.3);margin-top:3px">📦 ${o.trackingNum}</div>`:''}
+        ${o.shippingAddress?`<div style="font-size:10px;color:rgba(240,223,160,.28);margin-top:2px">📍 ${o.shippingAddress}</div>`:''}
+      </div>`;
+    }).join('');
+  }catch(e){
+    list.innerHTML='<div style="text-align:center;padding:20px;color:rgba(255,143,163,.5);font-size:11px">Error al cargar pedidos</div>';
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  INFO
+// ══════════════════════════════════════════════════
+function upFillInfo(s){
+  const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
+  set('upInfoName',  s.name);
+  set('upInfoPhone', s.phone);
+  set('upInfoEmail', s.email);
+  set('upShipName',  s.ship_name||s.name);
+  set('upAddr1',     s.addr1||s.shipping_address||'');
+  set('upAddr2',     s.addr2||'');
+  set('upCity',      s.city||'');
+  set('upState',     s.state||'');
+  set('upZip',       s.zip||'');
+  set('upCountry',   s.country||'USA');
+}
+async function upSaveInfo(){
+  const s = (()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
+  if(!s){ upToast('upInfoToast','Sesión expirada.','err'); return; }
+  const btn = document.getElementById('upBtnSaveInfo');
+  if(btn){ btn.textContent='Guardando...'; btn.disabled=true; }
+  const g = id => document.getElementById(id)?.value?.trim()||'';
+  const addr1=g('upAddr1'),addr2=g('upAddr2'),city=g('upCity'),state=g('upState'),zip=g('upZip'),country=g('upCountry')||'USA';
+  const fullAddr = [addr1,addr2,city,state+(zip?' '+zip:''),country].filter(Boolean).join(', ');
+  const updates = {
+    name:g('upInfoName'), phone:g('upInfoPhone'),
+    ship_name:g('upShipName'), addr1,addr2,city,state,zip,country,
+    shipping_address:fullAddr,
+    billing_address:s.same_billing!==false ? fullAddr : (s.billing_address||fullAddr),
+    updated_at:new Date().toISOString()
+  };
+  try{
+    const rows = await upFetch('clientes?id=eq.'+s.id+'&select=record&limit=1');
+    const existing = (rows&&rows.length) ? (rows[0].record||{}) : {};
+    const ok = await upPatch('id=eq.'+s.id, {record:{...existing,...updates}});
+    if(ok){
+      Object.assign(s, updates);
+      localStorage.setItem('pleaseme_session', JSON.stringify(s));
+      // Also update LS_USER_DEMO for checkout prefill
+      const prof = JSON.parse(localStorage.getItem('pleaseme_user_demo_v1')||'{}');
+      prof.name=s.name; prof.addresses={shipping:fullAddr,billing:fullAddr,sameAsBilling:true};
+      localStorage.setItem('pleaseme_user_demo_v1', JSON.stringify(prof));
+      upToast('upInfoToast','✅ Información guardada.','ok');
+      // Update header name
+      const nm=document.getElementById('upName'); if(nm) nm.textContent=s.name||s.email;
+      const av=document.getElementById('upAvatar'); if(av) av.textContent=(s.name||s.email).charAt(0).toUpperCase();
+    } else { upToast('upInfoToast','Error al guardar.','err'); }
+  }catch(e){ upToast('upInfoToast','Error: '+e.message,'err'); }
+  finally{ if(btn){ btn.textContent='💾 Guardar'; btn.disabled=false; } }
+}
+
+// ══════════════════════════════════════════════════
+//  PAYMENT
+// ══════════════════════════════════════════════════
+function upFillPayment(s){
+  upSelectPay(s.preferred_payment||'card', false);
+  const pp = document.getElementById('upPPEmail'); if(pp) pp.value = s.paypal_email||'';
+}
+function upSelectPay(method, save=true){
+  _upPay = method;
+  const map = {card:'uppCard',paypal:'uppPaypal',whatsapp:'uppWA'};
+  const chk = {card:'upchkCard',paypal:'upchkPaypal',whatsapp:'upchkWA'};
+  Object.keys(map).forEach(m=>{
+    const el = document.getElementById(map[m]); if(!el) return;
+    el.classList.toggle('sel', m===method);
+    const c = document.getElementById(chk[m]); if(c) c.textContent = m===method?'✓':'';
+  });
+  if(save){
+    const s=(()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
+    if(s){s.preferred_payment=method; localStorage.setItem('pleaseme_session',JSON.stringify(s));}
+  }
+}
+async function upSavePayment(){
+  const s=(()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
+  if(!s) return;
+  const ppEmail = document.getElementById('upPPEmail')?.value?.trim()||'';
+  try{
+    const rows = await upFetch('clientes?id=eq.'+s.id+'&select=record&limit=1');
+    const existing = (rows&&rows.length)?(rows[0].record||{}):{};
+    const ok = await upPatch('id=eq.'+s.id,{record:{...existing,preferred_payment:_upPay,paypal_email:ppEmail,updated_at:new Date().toISOString()}});
+    if(ok){
+      s.preferred_payment=_upPay; s.paypal_email=ppEmail;
+      localStorage.setItem('pleaseme_session',JSON.stringify(s));
+      upToast('upPayToast','✅ Preferencias guardadas.','ok');
+    } else { upToast('upPayToast','Error al guardar.','err'); }
+  }catch(e){ upToast('upPayToast','Error: '+e.message,'err'); }
+}
+
+// ══════════════════════════════════════════════════
+//  MENSAJE AL ADMIN
+// ══════════════════════════════════════════════════
+function upSendMsg(){
+  const s=(()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
+  if(!s){ upToast('upMsgToast','Debes iniciar sesión.','err'); return; }
+  const subject = document.getElementById('upMsgSubject')?.value||'otro';
+  const orderId = document.getElementById('upMsgOrderId')?.value?.trim()||'';
+  const msgText = document.getElementById('upMsgText')?.value?.trim()||'';
+  if(!msgText){ upToast('upMsgToast','Escribe tu mensaje.','warn'); return; }
+  const subjectLabels={pedido:'Consulta sobre mi pedido',cambio:'Cambio / devolución',envio:'Estado de envío',pago:'Problema con el pago',otro:'Otro'};
+  const lines=[
+    '👋 Hola Pleaseme!',
+    '',
+    '📋 *'+subjectLabels[subject]+'*',
+    orderId ? '🛍 Pedido: #'+orderId : '',
+    '',
+    '💬 Mensaje:',
+    msgText,
+    '',
+    '— '+s.name+' ('+s.email+')'
+  ].filter(l=>l!==undefined);
+  // Get WA number from CFG
+  const wa = (typeof CFG !== 'undefined' ? CFG.wa : '10000000000') || '10000000000';
+  window.open('https://wa.me/'+wa.replace(/\D/g,'')+'?text='+encodeURIComponent(lines.join('\n')),'_blank');
+  upToast('upMsgToast','✅ Abriendo WhatsApp...','ok');
+  document.getElementById('upMsgText').value='';
+  document.getElementById('upMsgOrderId').value='';
+}
+
+// ══════════════════════════════════════════════════
+//  CAMBIAR CONTRASEÑA
+// ══════════════════════════════════════════════════
+async function upChangePass(){
+  const s=(()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
+  if(!s){ upToast('upSecToast','Sesión expirada.','err'); return; }
+  const curr  = document.getElementById('upCurrPass')?.value||'';
+  const newp  = document.getElementById('upNewPass')?.value||'';
+  const newp2 = document.getElementById('upNewPass2')?.value||'';
+  if(!curr||!newp){ upToast('upSecToast','Completa todos los campos.','err'); return; }
+  if(newp.length<6){ upToast('upSecToast','Mínimo 6 caracteres.','err'); return; }
+  if(newp!==newp2){ upToast('upSecToast','Las contraseñas no coinciden.','err'); return; }
+  try{
+    const rows = await upFetch('clientes?id=eq.'+s.id+'&select=record&limit=1');
+    if(!rows||!rows.length){ upToast('upSecToast','Error al verificar.','err'); return; }
+    const rec = rows[0].record||{};
+    const currHash = btoa(unescape(encodeURIComponent(curr)));
+    if(rec.password_hash !== currHash){ upToast('upSecToast','Contraseña actual incorrecta.','err'); return; }
+    const newHash = btoa(unescape(encodeURIComponent(newp)));
+    const ok = await upPatch('id=eq.'+s.id,{record:{...rec,password_hash:newHash,updated_at:new Date().toISOString()}});
+    if(ok){
+      ['upCurrPass','upNewPass','upNewPass2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+      upToast('upSecToast','✅ Contraseña actualizada.','ok');
+    } else { upToast('upSecToast','Error al guardar.','err'); }
+  }catch(e){ upToast('upSecToast','Error: '+e.message,'err'); }
+}
+
+// ══════════════════════════════════════════════════
+//  ELIMINAR CUENTA
+// ══════════════════════════════════════════════════
+async function upDeleteAccount(){
+  const s=(()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
+  if(!s) return;
+  const typed = document.getElementById('upDelEmail')?.value?.trim().toLowerCase();
+  if(typed !== s.email){ upToast('upSecToast','El correo no coincide.','err'); return; }
+  if(!confirm('¿Confirmas eliminar tu cuenta permanentemente?')) return;
+  const ok = await upDelete('id=eq.'+s.id);
+  if(ok){
+    localStorage.removeItem('pleaseme_session');
+    localStorage.removeItem('pleaseme_logged_in_demo');
+    localStorage.removeItem('pleaseme_user_demo_v1');
+    toggleUserMenu();
+    window.location.reload();
+  } else { upToast('upSecToast','Error al eliminar.','err'); }
+}
+
+// ══════════════════════════════════════════════════
+//  LOGOUT
+// ══════════════════════════════════════════════════
+function upLogout(){
+  localStorage.removeItem('pleaseme_session');
+  localStorage.removeItem('pleaseme_logged_in_demo');
+  toggleUserMenu();
+  window.location.reload();
+}
+
+// Keep legacy function names working
+function goToAccount(tab){
+  toggleUserMenu();
+  // Map old tabs to new panel
+  setTimeout(()=>{
+    toggleUserMenu();
+    upSwitchTab(tab==='orders'?'orders':tab==='info'?'info':tab==='payment'?'payment':'account');
+  },50);
+}
+function logoutUser(){ upLogout(); }
 </script>
 
 </body>
