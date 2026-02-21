@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Pleaseme — Mi Cuenta</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Jost:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#050505;
+      --text:#f0dfa0;
+      --text2:#c9aa6d;
+      --muted:rgba(240,223,160,.55);
+      --line:rgba(180,140,40,.18);
+      --line2:rgba(212,175,55,.32);
+      --gold:#c9963a;
+      --gold2:#e8c56e;
+      --gold3:#f7e9b8;
+      --shadow:0 20px 50px rgba(0,0,0,.7);
+      --radius:16px;
+      --font-display:'Cormorant Garamond',Georgia,serif;
+      --font-body:'Jost',system-ui,sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:var(--font-body);
+      background:var(--bg);
+      color:var(--text);
+      min-height:100vh;
+    }
+    a{color:inherit;text-decoration:none}
+    body::before{
+      content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+      background:
+        radial-gradient(ellipse 1200px 600px at 20% -10%, rgba(180,130,30,.14) 0%, transparent 55%),
+        radial-gradient(ellipse 700px 500px at 85% 15%, rgba(212,175,55,.08) 0%, transparent 50%);
+    }
+    body::after{
+      content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+      background-image:
+        linear-gradient(rgba(200,160,50,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200,160,50,.035) 1px, transparent 1px);
+      background-size:60px 60px;
+    }
+    .wrap{max-width:1000px;margin:0 auto;padding:0 20px;position:relative;z-index:1}
+
+    /* ─── HEADER ─── */
+    header{
+      position:sticky;top:0;z-index:100;
+      background:rgba(5,5,5,.88);
+      backdrop-filter:blur(20px);
+      border-bottom:1px solid var(--line2);
+    }
+    header::after{
+      content:"";display:block;height:1px;
+      background:linear-gradient(90deg,transparent,rgba(212,175,55,.3),transparent);
+    }
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;flex-wrap:wrap}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{
+      width:46px;height:46px;border-radius:14px;
+      background:linear-gradient(145deg,#c9963a 0%,#f7e9b8 45%,#8a6010 100%);
+      display:grid;place-items:center;
+      font-family:var(--font-display);font-size:22px;font-weight:700;
+      color:#0d0900;
+      box-shadow:0 8px 24px rgba(180,130,30,.35), inset 0 1px 0 rgba(255,255,255,.25);
+      flex-shrink:0;position:relative;overflow:hidden;
+    }
+    .logo::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.3) 0%,transparent 50%)}
+    .brand-text h1{
+      font-family:var(--font-display);font-size:22px;font-weight:600;
+      letter-spacing:1.5px;color:var(--gold3);
+    }
+    .brand-text span{
+      font-size:11px;font-weight:300;letter-spacing:3px;text-transform:uppercase;
+      color:var(--text2);display:block;margin-top:2px;
+    }
+    .btn{
+      font-family:var(--font-body);font-size:13px;font-weight:500;letter-spacing:.4px;
+      border:1px solid var(--line2);background:rgba(255,255,255,.04);
+      color:var(--text);padding:9px 16px;border-radius:12px;
+      cursor:pointer;display:inline-flex;align-items:center;gap:7px;
+      transition:all .18s ease;white-space:nowrap;
+    }
+    .btn:hover{background:rgba(212,175,55,.08);border-color:rgba(212,175,55,.4);color:var(--gold2);transform:translateY(-1px)}
+    .btn.primary{
+      background:linear-gradient(135deg,var(--gold) 0%,var(--gold2) 50%,var(--gold3) 100%);
+      color:#0d0a00;font-weight:700;
+      border:1px solid rgba(255,255,255,.15);
+      box-shadow:0 4px 16px rgba(180,130,30,.3), inset 0 1px 0 rgba(255,255,255,.25);
+    }
+    .btn.primary:hover{filter:brightness(1.06);transform:translateY(-2px);color:#0d0a00}
+
+    /* ─── PAGE ─── */
+    .page-header{padding:36px 0 8px;text-align:center}
+    .page-eyebrow{
+      font-size:10px;font-weight:600;letter-spacing:4px;text-transform:uppercase;
+      color:var(--gold);margin-bottom:10px;
+      display:flex;align-items:center;justify-content:center;gap:10px;
+    }
+    .page-eyebrow::before,.page-eyebrow::after{
+      content:"";width:60px;height:1px;
+      background:linear-gradient(90deg,transparent,rgba(212,175,55,.4));
+    }
+    .page-eyebrow::before{background:linear-gradient(270deg,transparent,rgba(212,175,55,.4))}
+    .page-title{
+      font-family:var(--font-display);font-size:clamp(28px,5vw,44px);font-weight:600;
+      color:var(--gold3);letter-spacing:.5px;margin-bottom:6px;
+    }
+    .page-sub{color:var(--muted);font-size:13px;font-weight:300;letter-spacing:.5px}
+
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px;padding-bottom:50px}
+    @media(max-width:700px){.grid{grid-template-columns:1fr}}
+
+    /* ─── GLASS CARD ─── */
+    .glass-card{
+      background:linear-gradient(140deg, rgba(18,14,6,.95) 0%, rgba(12,10,4,.85) 100%);
+      border:1px solid var(--line2);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:24px;
+      position:relative;overflow:hidden;
+    }
+    .glass-card::before{
+      content:"";position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(600px 300px at -10% -10%, rgba(212,175,55,.09) 0%, transparent 60%);
+    }
+    .glass-card > *{position:relative;z-index:1}
+    .card-title{
+      font-family:var(--font-display);font-size:22px;font-weight:600;
+      color:var(--gold3);margin-bottom:4px;
+    }
+    .card-desc{font-size:12px;color:var(--muted);font-weight:300;margin-bottom:20px;line-height:1.6}
+
+    .divider{height:1px;background:var(--line);margin:6px 0 4px}
+
+    label{
+      display:block;font-size:10px;font-weight:600;
+      letter-spacing:2px;text-transform:uppercase;
+      color:var(--text2);margin:14px 0 6px;
+    }
+    input{
+      width:100%;
+      background:rgba(0,0,0,.5);
+      border:1px solid var(--line2);
+      color:var(--text);
+      padding:11px 14px;border-radius:12px;
+      font-family:var(--font-body);font-size:14px;
+      outline:none;
+      transition:border-color .18s;
+    }
+    input:focus{border-color:rgba(212,175,55,.6)}
+    input::placeholder{color:var(--muted);font-weight:300}
+
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}
+    .row .btn{min-width:130px;justify-content:center}
+
+    .toast{
+      margin-top:12px;padding:11px 14px;border-radius:12px;
+      border:1px solid var(--line2);background:rgba(0,0,0,.5);
+      display:none;font-size:13px;
+    }
+
+    /* ─── FOOTER ─── */
+    footer{
+      position:relative;z-index:1;
+      padding:22px 0;border-top:1px solid var(--line);
+      text-align:center;
+    }
+    .footer-brand{font-family:var(--font-display);font-size:18px;color:var(--gold2);letter-spacing:1.5px}
+    .footer-copy{font-size:11px;color:rgba(240,223,160,.3);margin-top:6px}
+  </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<header>
+  <div class="wrap topbar">
+    <a class="brand" href="index.html">
+      <div class="logo">P</div>
+      <div class="brand-text">
+        <h1>Pleaseme</h1>
+        <span>Mi Cuenta · Joyería</span>
+      </div>
+    </a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="langToggle">🌐</button>
+      <a class="btn" href="index.html">← Volver a tienda</a>
+      <a class="btn primary" href="orders.html">📦 Mis pedidos</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="page-header">
+    <div class="page-eyebrow">Acceso Clientes Exclusivos</div>
+    <h2 class="page-title">Mi Cuenta</h2>
+    <p class="page-sub">Regístrate o inicia sesión para gestionar tus pedidos</p>
+  </div>
+
+  <div class="grid">
+    <!-- REGISTRO -->
+    <div class="glass-card">
+      <div class="card-title">Crear cuenta</div>
+      <div class="card-desc">Crea tu cuenta para gestionar tus pedidos en tiempo real.</div>
+      <div class="divider"></div>
+
+      <label>Nombre de usuario</label>
+      <input id="rName" placeholder="Tu nombre"/>
+
+      <label>Correo electrónico</label>
+      <input id="rEmail" type="email" placeholder="tucorreo@email.com"/>
+
+      <label>Contraseña</label>
+      <input id="rPass" type="password" placeholder="Mínimo 6 caracteres"/>
+
+      <label id="rPass2Lbl">Confirmar contraseña</label>
+      <input id="rPass2" type="password" placeholder="Repite la contraseña"/>
+<div class="row">
+        <button class="btn primary" id="register">✓ Registrarme</button>
+      </div>
+      <div class="toast" id="rToast"></div>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="glass-card">
+      <div class="card-title">Iniciar sesión</div>
+      <div class="card-desc">Ingresa con tu correo y contraseña para acceder a tu cuenta.</div>
+      <div class="divider"></div>
+
+      <label>Correo electrónico</label>
+      <input id="lEmail" type="email" placeholder="tucorreo@email.com"/>
+
+      <label>Contraseña</label>
+      <input id="lPass" type="password" placeholder="Tu contraseña"/>
+
+      <div class="row">
+        <button class="btn primary" id="login">→ Entrar</button>
+        <button class="btn" id="logout">✕ Cerrar sesión</button>
+      </div>
+      <div class="toast" id="lToast"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-brand">Pleaseme</div>
+    <div class="footer-copy">© <span id="y"></span> Pleaseme LLC · Todos los derechos reservados</div>
+  </div>
+</footer>
+
+<script>
+  const LS_USER = "pleaseme_user_demo_v1";
+  const LS_CURR = "pleaseme_current_user_email";
+  const $ = (id)=>document.getElementById(id);
+  document.getElementById("y").textContent = new Date().getFullYear();
+
+  function toast(el, msg){
+    el.style.display = "block";
+    el.innerHTML = msg;
+    setTimeout(()=>el.style.display="none", 2800);
+  }
+
+  $("register").onclick = ()=>{
+    const name=$("rName").value.trim(),
+          email=$("rEmail").value.trim().toLowerCase(),
+          pass=$("rPass").value,
+          pass2=$("rPass2").value;
+    if(!name || !email || pass.length<6 || pass2.length<6){
+      toast($("rToast"), "⚠️ Completa usuario, email y contraseña (mínimo 6).");
+      return;
+    }
+    if(pass !== pass2){
+      toast($("rToast"), "❌ Las contraseñas no coinciden.");
+      return;
+    }
+    const prev = JSON.parse(localStorage.getItem(LS_USER)||"null") || {};
+    const user={...prev, name, email, createdAt: prev.createdAt || new Date().toISOString()};
+    localStorage.setItem(LS_USER, JSON.stringify(user));
+    localStorage.setItem(LS_CURR, email);
+    localStorage.setItem("pleaseme_logged_in_demo","1");
+    toast($("rToast"), "✅ Cuenta creada correctamente.");
+  };
+
+  $("login").onclick = ()=>{
+    const email=$("lEmail").value.trim().toLowerCase(), pass=$("lPass").value;
+    if(!email || pass.length<1){ toast($("lToast"), "⚠️ Escribe tu email y contraseña."); return; }
+    const u=JSON.parse(localStorage.getItem(LS_USER)||"null");
+    if(!u || u.email!==email){ toast($("lToast"), "❌ No encontramos esa cuenta. Regístrate primero."); return; }
+    localStorage.setItem("pleaseme_logged_in_demo","1");
+    localStorage.setItem(LS_CURR, email);
+    toast($("lToast"), "✅ Sesión iniciada. Ve a Mis pedidos.");
+  };
+
+  $("logout").onclick = ()=>{
+    localStorage.removeItem("pleaseme_logged_in_demo");
+    toast($("lToast"), "Sesión cerrada correctamente.");
+  };
+
+  try{
+    const u=JSON.parse(localStorage.getItem(LS_USER)||"null");
+    if(u){
+      $("rName").value=u.name||"";
+      $("rEmail").value=u.email||"";      if($("lEmail")) $("lEmail").value=u.email||"";
+      if($("rPass2")) $("rPass2").value="";
+    }
+  }catch(e){}
+</script>
+
+<script>
+(function(){
+  const I18N_ACC={
+    es:{
+      title:"Mi Cuenta",
+      subtitle:"Regístrate o inicia sesión para gestionar tus pedidos",
+      create:"Crear cuenta",
+      createDesc:"Crea tu cuenta para gestionar tus pedidos en tiempo real.",
+      login:"Iniciar sesión",
+      loginDesc:"Ingresa con tu correo y contraseña para acceder a tu cuenta.",
+      fullName:"Nombre de usuario",
+      email:"Correo electrónico",
+      pass:"Contraseña",
+      pass2Lbl:"Confirmar contraseña",
+      register:"✓ Registrarme",
+      enter:"→ Entrar",
+      back:"← Volver a tienda",
+      orders:"📦 Mis pedidos",
+      phName:"Tu nombre",
+      phEmail:"tucorreo@email.com",
+      phPass:"Mínimo 6 caracteres",
+      phPass2:"Tu contraseña",
+      phPassConfirm:"Repite la contraseña",
+      eyebrow:"Acceso Clientes Exclusivos",
+    },
+    en:{
+      title:"My Account",
+      subtitle:"Sign up or log in to manage your orders",
+      create:"Create account",
+      createDesc:"Create your account to manage your orders in real time.",
+      login:"Sign in",
+      loginDesc:"Sign in with your email and password to access your account.",
+      fullName:"Username",
+      email:"Email",
+      pass:"Password",
+      pass2Lbl:"Confirm password",
+      register:"✓ Sign up",
+      enter:"→ Enter",
+      back:"← Back to store",
+      orders:"📦 My orders",
+      phName:"Your name",
+      phEmail:"you@email.com",
+      phPass:"Minimum 6 characters",
+      phPass2:"Your password",
+      phPassConfirm:"Repeat your password",
+      eyebrow:"Exclusive Access",
+    }
+  };
+  function getLang(){ return localStorage.getItem("pleaseme_lang") || document.documentElement.lang || "es"; }
+  function setLang(l){ const lang=(l==="en"?"en":"es"); localStorage.setItem("pleaseme_lang",lang); document.documentElement.lang=lang; apply(lang); }
+  function t(k){ const lang=getLang(); return (I18N_ACC[lang]&&I18N_ACC[lang][k])||k; }
+  function apply(){
+    document.title="Pleaseme — "+t("title");
+    const eb=document.querySelector(".page-eyebrow"); if(eb) eb.textContent=t("eyebrow");
+    const h2=document.querySelector(".page-title"); if(h2) h2.textContent=t("title");
+    const sub=document.querySelector(".page-sub"); if(sub) sub.textContent=t("subtitle");
+    const cards=document.querySelectorAll(".glass-card");
+    if(cards[0]){
+      cards[0].querySelector(".card-title").textContent=t("create");
+      cards[0].querySelector(".card-desc").textContent=t("createDesc");
+    }
+    if(cards[1]){
+      cards[1].querySelector(".card-title").textContent=t("login");
+      cards[1].querySelector(".card-desc").textContent=t("loginDesc");
+    }
+    const labels=document.querySelectorAll("label");
+    if(labels[0]) labels[0].textContent=t("fullName");
+    if(labels[1]) labels[1].textContent=t("email");
+    if(labels[2]) labels[2].textContent=t("pass");
+    const rPass2Lbl=document.getElementById("rPass2Lbl"); if(rPass2Lbl) rPass2Lbl.textContent=t("pass2Lbl");
+    if(labels[4]) labels[4].textContent=t("email");
+    if(labels[5]) labels[5].textContent=t("pass");
+    const rName=document.getElementById("rName"); if(rName) rName.placeholder=t("phName");
+    const rEmail=document.getElementById("rEmail"); if(rEmail) rEmail.placeholder=t("phEmail");
+    const rPass=document.getElementById("rPass"); if(rPass) rPass.placeholder=t("phPass");
+    const rPass2=document.getElementById("rPass2"); if(rPass2) rPass2.placeholder=t("phPassConfirm");    const lEmail=document.getElementById("lEmail"); if(lEmail) lEmail.placeholder=t("phEmail");
+    const lPass=document.getElementById("lPass"); if(lPass) lPass.placeholder=t("phPass2");
+    const back=document.querySelector('a.btn[href="index.html"]'); if(back) back.textContent=t("back");
+    const ord=document.querySelector('a.btn.primary[href="orders.html"]'); if(ord) ord.textContent=t("orders");
+    const reg=document.getElementById("register"); if(reg) reg.textContent=t("register");
+    const log=document.getElementById("login"); if(log) log.textContent=t("enter");
+  }
+  const btn=document.getElementById("langToggle");
+  if(btn){ btn.addEventListener("click", ()=> setLang(getLang()==="es"?"en":"es")); }
+  apply();
+})();
+</script>
+
+
+<script>
+// ════════════════════════════════════════════════
+//  SUPABASE — Autenticación de clientes
+// ════════════════════════════════════════════════
+const {createClient:sbCre} = window.supabase;
+const SBA = sbCre('https://bgyfrhcrqnoayqrntzom.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJneWZyaGNycW5vYXlxcm50em9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNzMwMTYsImV4cCI6MjA4Njk0OTAxNn0.aq3T_kk62CBtK7JEeruVMvNp-ccdsquvH1FvrEsAQPA');
+
+const $ = id => document.getElementById(id);
+const toast = (el, msg, type) => {
+  el.textContent = msg;
+  el.style.background = type==='ok' ? 'rgba(47,227,181,.15)' : type==='err' ? 'rgba(255,77,109,.15)' : 'rgba(245,166,35,.12)';
+  el.style.color = type==='ok' ? '#7af0d4' : type==='err' ? '#ff8fa3' : '#ffd580';
+  el.style.border = '1px solid '+(type==='ok'?'rgba(47,227,181,.3)':type==='err'?'rgba(255,77,109,.3)':'rgba(245,166,35,.2)');
+  el.style.padding = '10px 14px'; el.style.borderRadius = '10px';
+  el.style.fontSize = '13px'; el.style.marginTop = '12px';
+};
+
+// ── REGISTRO ──────────────────────────────────────────────
+$('register')?.addEventListener('click', async () => {
+  const name  = $('rName').value.trim();
+  const email = $('rEmail').value.trim();
+  const pass  = $('rPass').value;
+  const pass2 = $('rPass2').value;
+  const rt    = $('rToast');
+
+  if(!name||!email||!pass) { toast(rt,'Completa todos los campos.','err'); return; }
+  if(pass.length < 6)      { toast(rt,'La contraseña debe tener al menos 6 caracteres.','err'); return; }
+  if(pass !== pass2)       { toast(rt,'Las contraseñas no coinciden.','err'); return; }
+
+  const btn = $('register');
+  btn.textContent = 'Registrando...'; btn.disabled = true;
+
+  try {
+    // Verificar si ya existe
+    const {data:existing} = await SBA.from('clientes')
+      .select('id').eq('email', email).maybeSingle();
+
+    if(existing) { toast(rt,'Este correo ya está registrado. Inicia sesión.','warn'); return; }
+
+    // Crear cliente en Supabase
+    const id = 'c_' + Date.now().toString(36);
+    const now = new Date().toISOString();
+    const cliente = {
+      id, email, name,
+      phone:'', address:'', notes:'',
+      total_spent:0, order_count:0,
+      password_hash: btoa(pass),  // simple hash — mejora con bcrypt en producción
+      created_at: now, updated_at: now
+    };
+
+    const {error} = await SBA.from('clientes').insert({
+      id, email,
+      record: cliente,
+      created_at: now
+    });
+
+    if(error) { toast(rt, 'Error al registrar: '+error.message, 'err'); return; }
+
+    // Guardar sesión local
+    localStorage.setItem('pleaseme_session', JSON.stringify({id,name,email,created_at:now}));
+    toast(rt, '✓ Cuenta creada. ¡Bienvenida '+name+'!', 'ok');
+    setTimeout(()=>window.location.href='index.html', 1500);
+
+  } catch(e) {
+    toast(rt, 'Error de conexión. Intenta de nuevo.', 'err');
+    console.error('[SB] register:', e);
+  } finally {
+    btn.textContent = '✓ Registrarme'; btn.disabled = false;
+  }
+});
+
+// ── INICIO DE SESIÓN ──────────────────────────────────────
+$('login')?.addEventListener('click', async () => {
+  const email = $('lEmail').value.trim();
+  const pass  = $('lPass').value;
+  const lt    = $('lToast');
+
+  if(!email||!pass) { toast(lt,'Ingresa tu correo y contraseña.','err'); return; }
+
+  const btn = $('login');
+  btn.textContent = 'Entrando...'; btn.disabled = true;
+
+  try {
+    const {data, error} = await SBA.from('clientes')
+      .select('id, email, record').eq('email', email).maybeSingle();
+
+    if(error||!data) { toast(lt,'Correo no registrado.','err'); return; }
+
+    const stored = data.record?.password_hash;
+    if(stored !== btoa(pass)) { toast(lt,'Contraseña incorrecta.','err'); return; }
+
+    const session = {
+      id: data.id,
+      name: data.record?.name || email,
+      email,
+      created_at: data.record?.created_at
+    };
+    localStorage.setItem('pleaseme_session', JSON.stringify(session));
+    localStorage.setItem('pleaseme_logged_in_demo', email);
+    toast(lt, '→ Bienvenida, '+session.name+'!', 'ok');
+    setTimeout(()=>window.location.href='index.html', 1200);
+
+  } catch(e) {
+    toast(lt, 'Error de conexión. Intenta de nuevo.', 'err');
+    console.error('[SB] login:', e);
+  } finally {
+    btn.textContent = '→ Entrar'; btn.disabled = false;
+  }
+});
+
+// ── CERRAR SESIÓN ────────────────────────────────────────
+$('logout')?.addEventListener('click', () => {
+  localStorage.removeItem('pleaseme_session');
+  localStorage.removeItem('pleaseme_logged_in_demo');
+  window.location.reload();
+});
+
+// ── ESTADO SESIÓN ────────────────────────────────────────
+(function checkSession(){
+  const s = localStorage.getItem('pleaseme_session');
+  if(s){
+    try{
+      const {name, email} = JSON.parse(s);
+      const lt = $('lToast');
+      if(lt) toast(lt, '✓ Sesión activa: '+name+' ('+email+')', 'ok');
+      $('logout').style.display='inline-flex';
+    }catch(e){}
+  }
+})();
+</script>
+</body>
+</html>
