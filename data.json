@@ -1,0 +1,232 @@
+{
+  "config": {
+    "company": {
+      "name": "Pleaseme",
+      "whatsapp": "10000000000",
+      "email": "hello@pleaseme.com",
+      "instagram": "@pleasemejewels",
+      "address": "",
+      "logoUrl": ""
+    },
+    "storefront": {
+      "freeShip": 100,
+      "currency": "USD",
+      "ppEmail": "payments@pleaseme.com"
+    },
+    "admin": {
+      "passwordHash": "admin123"
+    }
+  },
+  "productos": [
+    {
+      "id": "j1",
+      "name": "Anillo Abrazo Dorado",
+      "cat": "Anillos",
+      "category": "Anillos",
+      "price": 38,
+      "old": 52,
+      "old_price": 52,
+      "desc": "Anillo abrazo de acero inoxidable con oro laminado. Sin manchas, resistente al agua. Un clásico moderno que queda perfecto en cualquier dedo.",
+      "description": "Anillo abrazo de acero inoxidable con oro laminado. Sin manchas, resistente al agua. Un clásico moderno que queda perfecto en cualquier dedo.",
+      "sizes": ["5 (XS)", "6 (S)", "7 (M)", "8 (L)", "9 (XL)"],
+      "colors": ["Oro Laminado", "Plata", "Oro Rosa"],
+      "stock": 12,
+      "isNew": true,
+      "is_new": true,
+      "active": true,
+      "imgs": [
+        "https://images.unsplash.com/photo-1602751584552-8ba73aad10e1?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1602751584552-8ba73aad10e1?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80"
+      ],
+      "created_at": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "j2",
+      "name": "Collar Letra Corazón",
+      "cat": "Collares",
+      "category": "Collares",
+      "price": 45,
+      "old": 62,
+      "old_price": 62,
+      "desc": "Collar personalizado con letra corazón en oro laminado. Disponible en letras A–Z. El regalo perfecto para alguien especial.",
+      "description": "Collar personalizado con letra corazón en oro laminado. Disponible en letras A–Z. El regalo perfecto para alguien especial.",
+      "sizes": ["40cm", "45cm", "50cm", "55cm"],
+      "colors": ["Oro Laminado", "Plata"],
+      "stock": 8,
+      "isNew": true,
+      "is_new": true,
+      "active": true,
+      "imgs": [
+        "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80"
+      ],
+      "created_at": "2025-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "j3",
+      "name": "Pulsera Cadena Dorada",
+      "cat": "Pulseras",
+      "category": "Pulseras",
+      "price": 35,
+      "old": null,
+      "old_price": null,
+      "desc": "Pulsera de cadena clásica en oro laminado. Cierre ajustable, ideal para todas las muñecas. Sin manchas.",
+      "description": "Pulsera de cadena clásica en oro laminado. Cierre ajustable, ideal para todas las muñecas. Sin manchas.",
+      "sizes": ["16cm", "18cm", "20cm"],
+      "colors": ["Oro Laminado", "Plata", "Oro Rosa"],
+      "stock": 2,
+      "isNew": false,
+      "is_new": false,
+      "active": true,
+      "imgs": [
+        "https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1603561596112-0a132b757442?auto=format&fit=crop&w=800&q=80"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1603561596112-0a132b757442?auto=format&fit=crop&w=800&q=80"
+      ],
+      "created_at": "2025-01-03T00:00:00.000Z"
+    },
+    {
+      "id": "j4",
+      "name": "Aretes Colgantes Cristal",
+      "cat": "Aretes",
+      "category": "Aretes",
+      "price": 28,
+      "old": 40,
+      "old_price": 40,
+      "desc": "Aretes colgantes de cristal elegantes con fijaciones de oro laminado. Ligeros y cómodos para uso todo el día.",
+      "description": "Aretes colgantes de cristal elegantes con fijaciones de oro laminado. Ligeros y cómodos para uso todo el día.",
+      "sizes": ["Talla Única"],
+      "colors": ["Dorado & Claro", "Dorado & Negro", "Plata & Claro"],
+      "stock": 0,
+      "isNew": false,
+      "is_new": false,
+      "active": true,
+      "imgs": [
+        "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1588444650736-5f8ba5f1fda0?auto=format&fit=crop&w=800&q=80"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1588444650736-5f8ba5f1fda0?auto=format&fit=crop&w=800&q=80"
+      ],
+      "created_at": "2025-01-04T00:00:00.000Z"
+    },
+    {
+      "id": "j5",
+      "name": "Set de Collares Capas",
+      "cat": "Sets",
+      "category": "Sets",
+      "price": 75,
+      "old": 98,
+      "old_price": 98,
+      "desc": "Set de tres collares con capas. Cada cadena a diferente largo para el look perfecto en capas.",
+      "description": "Set de tres collares con capas. Cada cadena a diferente largo para el look perfecto en capas.",
+      "sizes": ["35+40+45cm", "40+45+50cm"],
+      "colors": ["Oro Laminado", "Plata"],
+      "stock": 5,
+      "isNew": true,
+      "is_new": true,
+      "active": true,
+      "imgs": [
+        "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=800&q=80"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=800&q=80"
+      ],
+      "created_at": "2025-01-05T00:00:00.000Z"
+    },
+    {
+      "id": "j6",
+      "name": "Tobillera Cadena Dorada",
+      "cat": "Tobilleras",
+      "category": "Tobilleras",
+      "price": 30,
+      "old": null,
+      "old_price": null,
+      "desc": "Delicada tobillera de cadena en oro laminado. Largo ajustable, cierre de langosta seguro.",
+      "description": "Delicada tobillera de cadena en oro laminado. Largo ajustable, cierre de langosta seguro.",
+      "sizes": ["22cm", "24cm", "26cm"],
+      "colors": ["Oro Laminado", "Plata"],
+      "stock": 14,
+      "isNew": true,
+      "is_new": true,
+      "active": true,
+      "imgs": [
+        "https://images.unsplash.com/photo-1603561596112-0a132b757442?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1558882224-dda166733046?auto=format&fit=crop&w=800&q=80"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1603561596112-0a132b757442?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1558882224-dda166733046?auto=format&fit=crop&w=800&q=80"
+      ],
+      "created_at": "2025-01-06T00:00:00.000Z"
+    },
+    {
+      "id": "j7",
+      "name": "Set Charms Estrella & Luna",
+      "cat": "Charms",
+      "category": "Charms",
+      "price": 22,
+      "old": 32,
+      "old_price": 32,
+      "desc": "Set de 5 charms celestiales — luna, estrella, sol, creciente, cometa. Compatible con todas nuestras cadenas.",
+      "description": "Set de 5 charms celestiales — luna, estrella, sol, creciente, cometa. Compatible con todas nuestras cadenas.",
+      "sizes": ["Universal"],
+      "colors": ["Oro Laminado", "Plata"],
+      "stock": 20,
+      "isNew": false,
+      "is_new": false,
+      "active": true,
+      "imgs": [
+        "https://images.unsplash.com/photo-1588444650736-5f8ba5f1fda0?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1602751584552-8ba73aad10e1?auto=format&fit=crop&w=800&q=80"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1588444650736-5f8ba5f1fda0?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1602751584552-8ba73aad10e1?auto=format&fit=crop&w=800&q=80"
+      ],
+      "created_at": "2025-01-07T00:00:00.000Z"
+    },
+    {
+      "id": "j8",
+      "name": "Aretes Argolla Dorada",
+      "cat": "Aretes",
+      "category": "Aretes",
+      "price": 25,
+      "old": null,
+      "old_price": null,
+      "desc": "Aretes argolla clásicos en oro laminado. Disponibles en pequeño (20mm), mediano (30mm) y grande (40mm).",
+      "description": "Aretes argolla clásicos en oro laminado. Disponibles en pequeño (20mm), mediano (30mm) y grande (40mm).",
+      "sizes": ["20mm", "30mm", "40mm"],
+      "colors": ["Oro Laminado", "Plata", "Oro Rosa"],
+      "stock": 3,
+      "isNew": true,
+      "is_new": true,
+      "active": true,
+      "imgs": [
+        "https://images.unsplash.com/photo-1588444650736-5f8ba5f1fda0?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80"
+      ],
+      "images": [
+        "https://images.unsplash.com/photo-1588444650736-5f8ba5f1fda0?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80"
+      ],
+      "created_at": "2025-01-08T00:00:00.000Z"
+    }
+  ],
+  "pedidos": [],
+  "clientes": []
+}
