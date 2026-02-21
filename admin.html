@@ -548,7 +548,126 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-<div class="shell">
+
+<!-- ═══════════════════════════════════════════════
+     PANTALLA DE LOGIN — Admin y Sub-usuarios
+═══════════════════════════════════════════════ -->
+<div id="adminLoginScreen" style="
+  position:fixed;inset:0;z-index:99999;
+  background:#030303;
+  display:flex;align-items:center;justify-content:center;
+">
+  <div style="width:100%;max-width:400px;padding:24px">
+
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="width:58px;height:58px;border-radius:16px;margin:0 auto 14px;
+        background:linear-gradient(145deg,#c9963a 0%,#f7e9b8 45%,#8a6010 100%);
+        display:grid;place-items:center;
+        font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:#0d0900;
+        box-shadow:0 8px 24px rgba(180,130,30,.4)">P</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:26px;color:#e8c56e;font-weight:600">Pleaseme</div>
+      <div style="font-size:11px;color:rgba(240,223,160,.4);margin-top:4px;letter-spacing:.5px">PANEL ADMINISTRATIVO</div>
+    </div>
+
+    <!-- Card -->
+    <div style="
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(212,175,55,.2);
+      border-radius:20px;padding:28px;
+      box-shadow:0 20px 60px rgba(0,0,0,.6)
+    ">
+      <!-- Tabs: Admin vs Usuario -->
+      <div style="display:flex;gap:4px;background:rgba(0,0,0,.3);border-radius:10px;padding:3px;margin-bottom:22px">
+        <button id="lgTabAdmin" onclick="lgSwitchTab('admin')"
+          style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;
+            font-family:'Jost',sans-serif;font-size:12px;font-weight:600;
+            background:rgba(212,175,55,.12);color:#e8c56e;border:1px solid rgba(212,175,55,.2);
+            transition:all .2s">
+          🔑 Administrador
+        </button>
+        <button id="lgTabUser" onclick="lgSwitchTab('user')"
+          style="flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;
+            font-family:'Jost',sans-serif;font-size:12px;font-weight:600;
+            background:transparent;color:rgba(240,223,160,.45);
+            transition:all .2s">
+          👤 Personal
+        </button>
+      </div>
+
+      <!-- Admin login (password only) -->
+      <div id="lgPanelAdmin">
+        <div style="font-size:11px;color:rgba(240,223,160,.4);margin-bottom:14px;text-align:center;line-height:1.6">
+          Ingresa la contraseña maestra del panel
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Contraseña</label>
+          <input id="lgAdminPass" type="password" placeholder="••••••••"
+            style="width:100%;padding:11px 14px;border-radius:10px;
+              background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);
+              color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none"
+            autocomplete="current-password"/>
+        </div>
+        <div id="lgAdminToast" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:12px"></div>
+        <button id="lgAdminBtn" onclick="doAdminLogin()"
+          style="width:100%;padding:12px;border-radius:11px;border:none;cursor:pointer;
+            background:linear-gradient(135deg,#c9963a,#e8c56e);
+            color:#0d0900;font-family:'Jost',sans-serif;font-size:14px;font-weight:700;
+            transition:all .2s">
+          → Acceder como Admin
+        </button>
+      </div>
+
+      <!-- Staff login (email + password) -->
+      <div id="lgPanelUser" style="display:none">
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Correo electrónico</label>
+          <input id="lgUserEmail" type="email" placeholder="usuario@correo.com"
+            style="width:100%;padding:11px 14px;border-radius:10px;
+              background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);
+              color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none"
+            autocomplete="email"/>
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Contraseña</label>
+          <input id="lgUserPass" type="password" placeholder="••••••••"
+            style="width:100%;padding:11px 14px;border-radius:10px;
+              background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);
+              color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none"
+            autocomplete="current-password"/>
+        </div>
+        <div id="lgUserToast" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:12px"></div>
+        <button id="lgUserBtn" onclick="doStaffLogin()"
+          style="width:100%;padding:12px;border-radius:11px;border:none;cursor:pointer;
+            background:linear-gradient(135deg,#c9963a,#e8c56e);
+            color:#0d0900;font-family:'Jost',sans-serif;font-size:14px;font-weight:700;
+            transition:all .2s">
+          → Acceder
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ADMIN USER BADGE in header (hidden until login) -->
+<style>
+  #adminSessionBadge{
+    display:none;align-items:center;gap:8px;
+    padding:5px 12px;border-radius:20px;
+    font-size:11px;font-weight:600;cursor:pointer;
+    border:1px solid rgba(212,175,55,.2);
+    background:rgba(212,175,55,.08);color:#e8c56e;
+    transition:all .2s;
+  }
+  #adminSessionBadge:hover{background:rgba(212,175,55,.15)}
+  #adminSessionBadge .badge-dot{
+    width:7px;height:7px;border-radius:50%;
+    background:#2fe3b5;flex-shrink:0;
+  }
+</style>
+
+<div class="shell" id="adminShell" style="display:none">
 
 <!-- ═══ HEADER ═══ -->
 <header>
@@ -577,7 +696,12 @@
           <option value="en">English</option>
         </select>
       </div>
-<a class="btn" href="index.html">← Ver Tienda</a>
+<div id="adminSessionBadge" onclick="showAdminLogoutMenu()">
+        <div class="badge-dot"></div>
+        <span id="adminBadgeName">Admin</span>
+        <span style="color:rgba(240,223,160,.35);font-size:10px">▾</span>
+      </div>
+      <a class="btn" href="index.html">← Ver Tienda</a>
       <button class="btn ok" id="exportBtn">↓ Exportar</button>
       <label class="btn" for="importFile" style="cursor:pointer">↑ Importar</label>
       <input id="importFile" type="file" accept="application/json" style="display:none"/>
@@ -602,6 +726,9 @@
       </button>
       <button class="tab-btn" data-tab="productos">
         ◈ Productos <span class="tab-count" id="tcProductos">0</span>
+      </button>
+      <button class="tab-btn admin-only" data-tab="usuarios" id="tabBtnUsuarios">
+        ◈ Usuarios <span class="tab-count" id="tcUsuarios">0</span>
       </button>
     </div>
   </div>
@@ -1216,6 +1343,157 @@
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════
+     TAB: USUARIOS DEL PANEL
+══════════════════════════════════════ -->
+<div class="page" id="tab-usuarios">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+    <div>
+      <h2 style="font-family:var(--fd);font-size:22px;color:var(--gold2)">👥 Usuarios del Panel</h2>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">Gestiona quién accede al panel y qué puede ver o hacer.</p>
+    </div>
+    <button class="btn gold" onclick="openUserModal()">+ Nuevo usuario</button>
+  </div>
+
+  <!-- USER CARDS GRID -->
+  <div id="usersGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
+    <div style="text-align:center;padding:40px;color:var(--muted);grid-column:1/-1">Cargando usuarios...</div>
+  </div>
+</div>
+
+<!-- ══ MODAL: CREAR / EDITAR USUARIO ══ -->
+<div class="ovl" id="userModal" style="display:none">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">
+      <b id="userModalTitle">👤 Nuevo usuario</b>
+      <button class="btn sm" onclick="closeUserModal()">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Nombre completo</label>
+          <input id="uName" placeholder="Nombre del usuario"/>
+        </div>
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <input id="uEmail" type="email" placeholder="usuario@correo.com"/>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input id="uPass" type="password" placeholder="Mínimo 6 caracteres"/>
+          <small id="uPassHint" style="color:var(--muted);font-size:10px;display:none">Deja vacío para no cambiar</small>
+        </div>
+        <div class="form-group">
+          <label>Rol</label>
+          <select id="uRole" onchange="applyRolePreset()">
+            <option value="staff">Staff — permisos asignados</option>
+            <option value="manager">Manager — casi todo</option>
+            <option value="readonly">Solo lectura</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- PERMISOS DE MÓDULOS -->
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">
+          Módulos visibles
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="permModules">
+          <label class="perm-row"><input type="checkbox" id="pDashboard"/> <span class="perm-icon">📊</span> Dashboard</label>
+          <label class="perm-row"><input type="checkbox" id="pPedidos"/> <span class="perm-icon">📦</span> Pedidos</label>
+          <label class="perm-row"><input type="checkbox" id="pInventario"/> <span class="perm-icon">🗂</span> Inventario</label>
+          <label class="perm-row"><input type="checkbox" id="pClientes"/> <span class="perm-icon">👥</span> Clientes</label>
+          <label class="perm-row"><input type="checkbox" id="pProductos"/> <span class="perm-icon">💎</span> Productos</label>
+        </div>
+      </div>
+
+      <!-- PERMISOS DE ACCIÓN -->
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">
+          Acciones permitidas
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <label class="perm-row"><input type="checkbox" id="pCanEdit"/> <span class="perm-icon">✏️</span> Editar</label>
+          <label class="perm-row"><input type="checkbox" id="pCanDelete"/> <span class="perm-icon">🗑</span> Eliminar</label>
+          <label class="perm-row"><input type="checkbox" id="pCanExport"/> <span class="perm-icon">📤</span> Exportar</label>
+        </div>
+      </div>
+
+      <!-- ESTADO -->
+      <label class="perm-row" style="background:rgba(47,227,181,.05);border-color:rgba(47,227,181,.15)">
+        <input type="checkbox" id="uActive" checked/>
+        <span class="perm-icon">✅</span> Usuario activo
+      </label>
+
+      <div id="userModalToast" class="toast" style="display:none"></div>
+    </div>
+    <div class="modal-foot" style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeUserModal()">Cancelar</button>
+      <button class="btn gold" id="btnSaveUser" onclick="saveAdminUser()">💾 Guardar usuario</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .perm-row{
+    display:flex;align-items:center;gap:8px;
+    padding:8px 12px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:var(--surface);
+    font-size:12px;color:var(--text2);transition:all .18s;
+  }
+  .perm-row:hover{border-color:var(--line2);background:rgba(212,175,55,.05)}
+  .perm-row input[type=checkbox]{accent-color:var(--gold);width:14px;height:14px;flex-shrink:0}
+  .perm-icon{font-size:14px}
+
+  .user-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:18px;transition:all .2s;
+  }
+  .user-card:hover{border-color:var(--line2);box-shadow:0 4px 20px rgba(0,0,0,.3)}
+  .user-card-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .user-card-avatar{
+    width:42px;height:42px;border-radius:50%;flex-shrink:0;
+    display:grid;place-items:center;
+    font-family:var(--fd);font-size:18px;font-weight:700;color:#0d0900;
+  }
+  .user-card-avatar.active{background:linear-gradient(145deg,#c9963a,#f7e9b8)}
+  .user-card-avatar.inactive{background:rgba(255,255,255,.1);color:var(--muted)}
+  .user-card-info{flex:1}
+  .user-card-name{font-size:15px;font-weight:600;color:var(--text)}
+  .user-card-email{font-size:11px;color:var(--muted);margin-top:2px}
+  .user-card-role{
+    display:inline-block;padding:2px 9px;border-radius:20px;
+    font-size:9px;font-weight:700;letter-spacing:.5px;margin-top:4px;
+  }
+  .role-manager{background:rgba(77,184,255,.12);color:#4db8ff;border:1px solid rgba(77,184,255,.25)}
+  .role-staff{background:rgba(212,175,55,.1);color:#e8c56e;border:1px solid rgba(212,175,55,.2)}
+  .role-readonly{background:rgba(255,255,255,.06);color:var(--muted);border:1px solid var(--line)}
+  .role-admin{background:rgba(47,227,181,.1);color:#2fe3b5;border:1px solid rgba(47,227,181,.2)}
+
+  .perm-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+  .perm-chip{
+    padding:3px 9px;border-radius:20px;font-size:9px;font-weight:600;
+    background:rgba(212,175,55,.08);color:rgba(240,223,160,.6);
+    border:1px solid rgba(212,175,55,.12);
+  }
+  .perm-chip.on{background:rgba(212,175,55,.15);color:#e8c56e;border-color:rgba(212,175,55,.25)}
+  .perm-chip.action-on{background:rgba(47,227,181,.1);color:#7af0d4;border-color:rgba(47,227,181,.2)}
+
+  .user-card-actions{display:flex;gap:8px}
+  .user-card-btn{flex:1;padding:7px;border-radius:8px;border:1px solid var(--line);
+    background:transparent;color:var(--muted);font-size:11px;cursor:pointer;
+    font-family:var(--fb);transition:all .18s;text-align:center}
+  .user-card-btn:hover{border-color:var(--line2);color:var(--text2)}
+  .user-card-btn.danger:hover{border-color:rgba(255,77,109,.4);color:var(--danger);background:var(--danger-dim)}
+
+  .badge-inactive{padding:3px 8px;border-radius:6px;font-size:9px;background:rgba(255,77,109,.1);color:var(--danger);border:1px solid rgba(255,77,109,.2)}
+</style>
+
 <script>
 // ══════════════════════════════════════
 //  PLEASEME <span data-i18n="adminBadge">ADMIN</span> — DATA ENGINE
@@ -1255,12 +1533,69 @@ async function sbPATCH(table, id, body){
   }catch(e){ console.warn('[SB] PATCH:', e.message); }
 }
 
-function fromRow(r){ return {...(r.record||{}), id:r.id, created_at:r.created_at}; }
+function fromRow(r){
+  // Merge real columns on top of record so both are available
+  const rec = r.record||{};
+  const merged = {...rec, id:r.id, created_at:r.created_at};
+  // Prefer real columns when they have data
+  if(r.name             !== undefined && r.name             !== '') merged.name             = r.name;
+  if(r.email            !== undefined && r.email            !== '') merged.email            = r.email;
+  if(r.phone            !== undefined && r.phone            !== '') merged.phone            = r.phone;
+  if(r.status           !== undefined)                              merged.status           = r.status;
+  if(r.total            !== undefined && r.total            >  0)  merged.total            = r.total;
+  if(r.stock            !== undefined)                              merged.stock            = r.stock;
+  if(r.active           !== undefined)                              merged.active           = r.active;
+  if(r.category         !== undefined && r.category         !== '') merged.category         = r.category;
+  if(r.client_name      !== undefined && r.client_name      !== '') merged.clientName       = r.client_name;
+  if(r.client_email     !== undefined && r.client_email     !== '') merged.clientEmail      = r.client_email;
+  if(r.shipping_address !== undefined && r.shipping_address !== '') merged.shippingAddress  = r.shipping_address;
+  if(r.tracking_num     !== undefined && r.tracking_num     !== '') merged.trackingNum      = r.tracking_num;
+  if(r.payment_method   !== undefined && r.payment_method   !== '') merged.method           = r.payment_method;
+  if(r.preferred_payment!== undefined && r.preferred_payment!=='') merged.preferred_payment= r.preferred_payment;
+  if(r.orders_count     !== undefined)                              merged.orders_count     = r.orders_count;
+  if(r.updated_at       !== undefined)                              merged.updated_at       = r.updated_at;
+  return merged;
+}
 function toRow(table, item){
   const base = {id:item.id, record:{...item}, created_at:item.created_at||new Date().toISOString()};
-  if(table==='productos') base.active = item.active!==false;
-  if(table==='pedidos')   base.status = item.status||'pendiente';
-  if(table==='clientes')  base.email  = item.email||'';
+
+  if(table==='productos'){
+    base.active     = item.active !== false;
+    base.name       = item.name      || '';
+    base.category   = item.category  || item.cat || '';
+    base.price      = Number(item.price    || 0);
+    base.old_price  = Number(item.old      || 0);
+    base.stock      = Number(item.stock    || 0);
+    base.is_new     = Boolean(item.isNew   || false);
+    base.updated_at = item.updated_at || new Date().toISOString();
+  }
+
+  if(table==='pedidos'){
+    base.status           = item.status           || 'pendiente';
+    base.client_name      = item.clientName        || item.name  || '';
+    base.client_email     = item.clientEmail       || item.email || '';
+    base.client_phone     = item.clientPhone       || item.phone || '';
+    base.total            = Number(item.total      || 0);
+    base.subtotal         = Number(item.subtotal   || 0);
+    base.shipping_cost    = Number(item.shipping   || 0);
+    base.shipping_address = item.shippingAddress   || item.address || '';
+    base.payment_method   = item.method            || '';
+    base.items_count      = (item.items||[]).length;
+    base.tracking_num     = item.trackingNum       || '';
+    base.updated_at       = item.updated_at || new Date().toISOString();
+  }
+
+  if(table==='clientes'){
+    base.email             = item.email              || '';
+    base.name              = item.name               || '';
+    base.phone             = item.phone              || '';
+    base.shipping_address  = item.shipping_address   || '';
+    base.billing_address   = item.billing_address    || '';
+    base.preferred_payment = item.preferred_payment  || 'card';
+    base.orders_count      = Number(item.orders_count || 0);
+    base.updated_at        = item.updated_at || new Date().toISOString();
+  }
+
   return base;
 }
 
@@ -1270,7 +1605,7 @@ async function sbUpsert(table, items){
 }
 
 async function sbFetch(table){
-  const data = await sbGET(table+'?select=id,record,created_at&order=created_at.desc');
+  const data = await sbGET(table+'?select=*&order=created_at.desc');
   if(data===null) return null;
   return data.map(fromRow);
 }
@@ -2145,12 +2480,21 @@ let currentTab = "dashboard";
 document.querySelectorAll(".tab-btn").forEach(btn=>{
   btn.addEventListener("click",()=>{
     const tab = btn.dataset.tab;
+    // Permission check for sub-users
+    if(adminSession && !adminSession.isRoot){
+      const permMap={dashboard:'perm_dashboard',pedidos:'perm_pedidos',inventario:'perm_inventario',clientes:'perm_clientes',productos:'perm_productos',usuarios:false};
+      const perm = permMap[tab];
+      if(perm===false||(perm&&!adminSession.perms[perm])){
+        toast('No tienes permiso para acceder a este módulo.','warn'); return;
+      }
+    }
     document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
     document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
     btn.classList.add("active");
     $("tab-"+tab).classList.add("active");
     currentTab = tab;
     renderTab(tab);
+    if(tab==="usuarios") renderUsersGrid();
   });
 });
 
@@ -2171,6 +2515,7 @@ function updateCounts(){
   $("tcInventario").textContent = DB.products.length;
   $("tcClientes").textContent = DB.clients.length;
   $("tcProductos").textContent = DB.products.length;
+  const tcU=document.getElementById("tcUsuarios"); if(tcU) tcU.textContent=(DB.adminUsers||[]).length;
 }
 
 // ══════════════════════════════════════
@@ -3250,6 +3595,401 @@ document.getElementById("refundOrderBtn")?.addEventListener("click", ()=>{
 
 
 initDB();
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN LOGIN & ACCESS CONTROL SYSTEM
+// ══════════════════════════════════════════════════════════════
+const ADMIN_SESSION_KEY = 'pm_admin_session';
+let adminSession = null;
+
+function getAdminSession(){ try{return JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY)||'null');}catch(e){return null;} }
+function saveAdminSession(s){ localStorage.setItem(ADMIN_SESSION_KEY,JSON.stringify(s)); }
+function clearAdminSession(){ localStorage.removeItem(ADMIN_SESSION_KEY); }
+function isRoot(){ return adminSession&&adminSession.isRoot; }
+function hasPerm(p){ if(!adminSession)return false; if(adminSession.isRoot)return true; return adminSession.perms&&adminSession.perms[p]===true; }
+
+// ── Login tab switch ──────────────────────────────────────────
+function lgSwitchTab(tab){
+  const isAdmin = tab==='admin';
+  const tA=document.getElementById('lgTabAdmin'), tU=document.getElementById('lgTabUser');
+  const pA=document.getElementById('lgPanelAdmin'), pU=document.getElementById('lgPanelUser');
+  const on='background:rgba(212,175,55,.12);color:#e8c56e;border:1px solid rgba(212,175,55,.2)';
+  const off='background:transparent;color:rgba(240,223,160,.45);border:none';
+  if(tA) tA.style.cssText+=';'+( isAdmin?on:off);
+  if(tU) tU.style.cssText+=';'+(!isAdmin?on:off);
+  if(pA) pA.style.display= isAdmin?'block':'none';
+  if(pU) pU.style.display=!isAdmin?'block':'none';
+}
+
+function lgToast(id,msg,type){
+  const el=document.getElementById(id); if(!el)return;
+  el.textContent=msg; el.style.display='block';
+  el.style.cssText+=`;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;display:block;background:${type==='err'?'rgba(255,77,109,.12)':'rgba(47,227,181,.1)'};color:${type==='err'?'#ff8fa3':'#7af0d4'};border:1px solid ${type==='err'?'rgba(255,77,109,.25)':'rgba(47,227,181,.2)'}`;
+}
+
+// ── ROOT ADMIN login (password only) ─────────────────────────
+async function doAdminLogin(){
+  const pass = document.getElementById('lgAdminPass')?.value||'';
+  const btn  = document.getElementById('lgAdminBtn');
+  if(!pass){ lgToast('lgAdminToast','Ingresa la contraseña.','err'); return; }
+  if(btn){btn.textContent='Verificando...';btn.disabled=true;}
+
+  try{
+    // Load admin_auth from Supabase
+    const rows = await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>null);
+    const storedHash = (rows&&rows.length) ? rows[0].password_hash : (localStorage.getItem('pleaseme_admin_pass')||'admin123');
+    const inputHash  = btoa(unescape(encodeURIComponent(pass)));
+    // Also accept plain text match for legacy
+    if(storedHash !== inputHash && storedHash !== pass){
+      lgToast('lgAdminToast','Contraseña incorrecta.','err'); return;
+    }
+    const session = {isRoot:true, name:'Administrador', email:'admin', role:'admin'};
+    saveAdminSession(session);
+    adminSession = session;
+    enterPanel();
+  }catch(e){ lgToast('lgAdminToast','Error de conexión.','err'); }
+  finally{ if(btn){btn.textContent='→ Acceder como Admin';btn.disabled=false;} }
+}
+
+// ── STAFF login (email + password) ───────────────────────────
+async function doStaffLogin(){
+  const email = document.getElementById('lgUserEmail')?.value.trim().toLowerCase()||'';
+  const pass  = document.getElementById('lgUserPass')?.value||'';
+  const btn   = document.getElementById('lgUserBtn');
+  if(!email||!pass){ lgToast('lgUserToast','Ingresa correo y contraseña.','err'); return; }
+  if(btn){btn.textContent='Verificando...';btn.disabled=true;}
+
+  try{
+    const rows = await fetch(SB_URL+'/rest/v1/admin_users?email=eq.'+encodeURIComponent(email)+'&select=*&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>[]);
+    if(!rows||!rows.length){ lgToast('lgUserToast','Usuario no encontrado.','err'); return; }
+    const u = rows[0];
+    if(u.active===false){ lgToast('lgUserToast','Cuenta desactivada. Contacta al administrador.','err'); return; }
+    const hash = btoa(unescape(encodeURIComponent(pass)));
+    if(u.password_hash!==hash){ lgToast('lgUserToast','Contraseña incorrecta.','err'); return; }
+
+    const session = {
+      isRoot:false, id:u.id, name:u.name, email:u.email, role:u.role,
+      perms:{
+        perm_dashboard: u.perm_dashboard,  perm_pedidos:u.perm_pedidos,
+        perm_inventario:u.perm_inventario, perm_clientes:u.perm_clientes,
+        perm_productos: u.perm_productos,
+        can_edit:u.can_edit, can_delete:u.can_delete, can_export:u.can_export,
+      }
+    };
+    saveAdminSession(session);
+    adminSession = session;
+    // Update last_login
+    fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+u.id,{method:'PATCH',headers:{...SB_H,'Prefer':'return=minimal'},body:JSON.stringify({last_login:new Date().toISOString()})}).catch(()=>{});
+    enterPanel();
+  }catch(e){ lgToast('lgUserToast','Error de conexión.','err'); }
+  finally{ if(btn){btn.textContent='→ Acceder';btn.disabled=false;} }
+}
+
+// ── Enter panel after successful login ────────────────────────
+function enterPanel(){
+  const screen = document.getElementById('adminLoginScreen');
+  const shell  = document.getElementById('adminShell');
+  if(screen) screen.style.display='none';
+  if(shell)  shell.style.display='';
+
+  // Show badge
+  const badge = document.getElementById('adminSessionBadge');
+  const bname = document.getElementById('adminBadgeName');
+  if(badge){ badge.style.display='flex'; }
+  if(bname){ bname.textContent = adminSession.isRoot ? '🔑 Admin' : ('👤 '+adminSession.name); }
+
+  applyPermissionsToUI();
+  initDB();
+  loadAdminUsers();
+}
+
+// ── Apply permissions to UI ───────────────────────────────────
+function applyPermissionsToUI(){
+  if(!adminSession) return;
+
+  const tabPerms = {
+    dashboard: 'perm_dashboard', pedidos:'perm_pedidos',
+    inventario:'perm_inventario', clientes:'perm_clientes',
+    productos: 'perm_productos',  usuarios: '__admin_only__'
+  };
+
+  let firstAllowed = null;
+  document.querySelectorAll('[data-tab]').forEach(btn=>{
+    const tab  = btn.dataset.tab;
+    const perm = tabPerms[tab];
+    const allowed = adminSession.isRoot ||
+      (perm && perm!=='__admin_only__' && adminSession.perms && adminSession.perms[perm]);
+    btn.style.display = allowed ? '' : 'none';
+    if(allowed && !firstAllowed) firstAllowed = tab;
+  });
+
+  // Hide edit/delete buttons for no-permission users
+  if(!adminSession.isRoot){
+    if(!adminSession.perms?.can_edit){
+      document.querySelectorAll('.edit-action,.btn-edit-action').forEach(el=>el.style.display='none');
+    }
+    if(!adminSession.perms?.can_delete){
+      document.querySelectorAll('.delete-action,.btn-delete-action').forEach(el=>el.style.display='none');
+    }
+    if(!adminSession.perms?.can_export){
+      document.getElementById('exportBtn')?.style && (document.getElementById('exportBtn').style.display='none');
+    }
+    // Hide admin-only header buttons for staff
+    ['wipeBtn','importFile','openAdminPassBtn'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.style.display='none';
+    });
+  }
+
+  // Navigate to first allowed tab
+  if(firstAllowed){
+    const btn = document.querySelector(`[data-tab="${firstAllowed}"]`);
+    if(btn) btn.click();
+  }
+}
+
+// ── Logout ────────────────────────────────────────────────────
+function showAdminLogoutMenu(){
+  if(!confirm(`Cerrar sesión${adminSession?' como '+(adminSession.name||'admin'):''}?`)) return;
+  clearAdminSession();
+  adminSession = null;
+  location.reload();
+}
+
+// ── Users management ──────────────────────────────────────────
+let editingUserId = null;
+
+async function loadAdminUsers(){
+  try{
+    const rows = await fetch(SB_URL+'/rest/v1/admin_users?select=*&order=created_at.desc',{headers:SB_H}).then(r=>r.json()).catch(()=>[]);
+    DB.adminUsers = rows||[];
+    renderUsersGrid();
+    const tc=document.getElementById('tcUsuarios'); if(tc) tc.textContent=DB.adminUsers.length;
+  }catch(e){ console.warn('[SB] loadAdminUsers:',e); }
+}
+
+function openUserModal(userId=null){
+  editingUserId=userId;
+  const isEdit=!!userId;
+  const t=document.getElementById('userModalTitle');
+  if(t) t.textContent=isEdit?'✏️ Editar usuario':'👤 Nuevo usuario';
+  const hint=document.getElementById('uPassHint');
+  if(hint) hint.style.display=isEdit?'block':'none';
+
+  // Reset form
+  ['uName','uEmail','uPass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const setC=(id,v)=>{const el=document.getElementById(id);if(el)el.checked=v;};
+  setC('pDashboard',false);setC('pPedidos',false);setC('pInventario',false);
+  setC('pClientes',false);setC('pProductos',false);
+  setC('pCanEdit',false);setC('pCanDelete',false);setC('pCanExport',false);
+  setC('uActive',true);
+  const r=document.getElementById('uRole');if(r)r.value='staff';
+
+  if(isEdit){
+    const u=(DB.adminUsers||[]).find(x=>x.id===userId);
+    if(u){
+      const g=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
+      g('uName',u.name);g('uEmail',u.email);
+      if(r) r.value=u.role||'staff';
+      setC('pDashboard', u.perm_dashboard); setC('pPedidos',    u.perm_pedidos);
+      setC('pInventario',u.perm_inventario);setC('pClientes',   u.perm_clientes);
+      setC('pProductos', u.perm_productos); setC('pCanEdit',    u.can_edit);
+      setC('pCanDelete', u.can_delete);     setC('pCanExport',  u.can_export);
+      setC('uActive',    u.active!==false);
+    }
+  }
+  const m=document.getElementById('userModal');
+  if(m){m.style.display='flex';m.classList.add('open');}
+}
+
+function closeUserModal(){
+  const m=document.getElementById('userModal');
+  if(m){m.style.display='none';m.classList.remove('open');}
+  editingUserId=null;
+}
+
+function applyRolePreset(){
+  const role=document.getElementById('uRole')?.value;
+  const P={
+    manager: {d:true, p:true, i:true, c:true,  pr:true,  e:true,  del:false,exp:true},
+    staff:   {d:true, p:true, i:false,c:false, pr:false, e:true,  del:false,exp:false},
+    readonly:{d:true, p:true, i:true, c:true,  pr:true,  e:false, del:false,exp:false},
+  };
+  const p=P[role]; if(!p) return;
+  const s=(id,v)=>{const el=document.getElementById(id);if(el)el.checked=v;};
+  s('pDashboard',p.d);s('pPedidos',p.p);s('pInventario',p.i);
+  s('pClientes',p.c);s('pProductos',p.pr);
+  s('pCanEdit',p.e);s('pCanDelete',p.del);s('pCanExport',p.exp);
+}
+
+async function saveAdminUser(){
+  const btn   = document.getElementById('btnSaveUser');
+  const name  = document.getElementById('uName')?.value.trim()||'';
+  const email = document.getElementById('uEmail')?.value.trim().toLowerCase()||'';
+  const pass  = document.getElementById('uPass')?.value||'';
+  const role  = document.getElementById('uRole')?.value||'staff';
+  const active= document.getElementById('uActive')?.checked!==false;
+  const gC    = id=>document.getElementById(id)?.checked||false;
+
+  if(!name||!email){toast('Nombre y correo son requeridos.','err');return;}
+  if(!editingUserId&&!pass){toast('La contraseña es requerida para nuevos usuarios.','err');return;}
+  if(pass&&pass.length<6){toast('La contraseña debe tener al menos 6 caracteres.','err');return;}
+
+  if(btn){btn.textContent='Guardando...';btn.disabled=true;}
+  try{
+    const existing=(DB.adminUsers||[]).find(u=>u.id===editingUserId);
+    const id = editingUserId||('au_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5));
+    const now= new Date().toISOString();
+    const hashPass = pass ? btoa(unescape(encodeURIComponent(pass))) : (existing?.password_hash||'');
+
+    const userData={
+      id,name,email,role,active,
+      password_hash:  hashPass,
+      perm_dashboard: gC('pDashboard'), perm_pedidos:   gC('pPedidos'),
+      perm_inventario:gC('pInventario'),perm_clientes:  gC('pClientes'),
+      perm_productos: gC('pProductos'),
+      can_edit:       gC('pCanEdit'),   can_delete:     gC('pCanDelete'),
+      can_export:     gC('pCanExport'),
+      created_by:'admin',
+      created_at:existing?.created_at||now,
+      updated_at:now,
+    };
+
+    // Upsert to Supabase
+    const res = await fetch(SB_URL+'/rest/v1/admin_users',{
+      method:'POST',
+      headers:{...SB_H,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify(userData)
+    });
+    if(!res.ok) throw new Error(await res.text());
+
+    // Update local
+    if(!DB.adminUsers) DB.adminUsers=[];
+    const li=DB.adminUsers.findIndex(u=>u.id===id);
+    if(li>=0) DB.adminUsers[li]=userData; else DB.adminUsers.unshift(userData);
+
+    toast('Usuario guardado ✅','ok');
+    closeUserModal();
+    renderUsersGrid();
+    const tc=document.getElementById('tcUsuarios'); if(tc) tc.textContent=DB.adminUsers.length;
+  }catch(e){ toast('Error: '+e.message,'err'); }
+  finally{ if(btn){btn.textContent='💾 Guardar usuario';btn.disabled=false;} }
+}
+
+async function toggleUserActive(id){
+  const u=(DB.adminUsers||[]).find(x=>x.id===id); if(!u) return;
+  u.active=!u.active; u.updated_at=new Date().toISOString();
+  await fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+id,{
+    method:'PATCH',headers:{...SB_H,'Prefer':'return=minimal'},
+    body:JSON.stringify({active:u.active,updated_at:u.updated_at})
+  }).catch(()=>{});
+  renderUsersGrid();
+  toast(u.active?'Usuario activado.':'Usuario desactivado.','ok');
+}
+
+async function deleteAdminUser(id){
+  if(!confirm('¿Eliminar este usuario permanentemente?')) return;
+  await fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+id,{method:'DELETE',headers:SB_H}).catch(()=>{});
+  DB.adminUsers=(DB.adminUsers||[]).filter(u=>u.id!==id);
+  renderUsersGrid();
+  const tc=document.getElementById('tcUsuarios'); if(tc) tc.textContent=DB.adminUsers.length;
+  toast('Usuario eliminado.','ok');
+}
+
+function renderUsersGrid(){
+  const grid=document.getElementById('usersGrid'); if(!grid) return;
+  const users=DB.adminUsers||[];
+  if(!users.length){
+    grid.innerHTML='<div style="text-align:center;padding:50px;color:rgba(240,223,160,.35);grid-column:1/-1;font-size:13px">No hay usuarios.<br/><small style="font-size:11px">Haz clic en "+ Nuevo usuario" para agregar personal.</small></div>';
+    return;
+  }
+  const RL={admin:'Admin',manager:'Manager',staff:'Staff',readonly:'Solo lectura'};
+  const MODS=[
+    {k:'perm_dashboard',l:'Dashboard',i:'📊'},{k:'perm_pedidos',l:'Pedidos',i:'📦'},
+    {k:'perm_inventario',l:'Inventario',i:'🗂'},{k:'perm_clientes',l:'Clientes',i:'👥'},
+    {k:'perm_productos',l:'Productos',i:'💎'},
+  ];
+  const ACTS=[
+    {k:'can_edit',l:'Editar',i:'✏️'},{k:'can_delete',l:'Eliminar',i:'🗑'},{k:'can_export',l:'Exportar',i:'📤'}
+  ];
+  grid.innerHTML=users.map(u=>{
+    const ini=(u.name||u.email).charAt(0).toUpperCase();
+    const isActive=u.active!==false;
+    const lastLogin=u.last_login?new Date(u.last_login).toLocaleString('es-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'Nunca';
+    return `<div class="user-card">
+      <div class="user-card-head">
+        <div class="user-card-avatar ${isActive?'active':'inactive'}">${esc(ini)}</div>
+        <div class="user-card-info">
+          <div class="user-card-name">${esc(u.name||'')}</div>
+          <div class="user-card-email">${esc(u.email||'')}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+            <span class="user-card-role role-${u.role||'staff'}">${RL[u.role]||u.role}</span>
+            ${!isActive?'<span style="padding:2px 7px;border-radius:6px;font-size:9px;background:rgba(255,77,109,.1);color:#ff8fa3;border:1px solid rgba(255,77,109,.2)">Inactivo</span>':''}
+          </div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:rgba(240,223,160,.3);margin-bottom:8px">⏰ Último acceso: ${lastLogin}</div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.8px;color:rgba(212,175,55,.35);text-transform:uppercase;margin-bottom:6px">Módulos</div>
+      <div class="perm-chips" style="margin-bottom:10px">
+        ${MODS.map(m=>`<span class="perm-chip ${u[m.k]?'on':''}">${m.i} ${m.l}</span>`).join('')}
+      </div>
+      <div style="font-size:9px;font-weight:700;letter-spacing:.8px;color:rgba(212,175,55,.35);text-transform:uppercase;margin-bottom:6px">Acciones</div>
+      <div class="perm-chips" style="margin-bottom:12px">
+        ${ACTS.map(a=>`<span class="perm-chip ${u[a.k]?'action-on':''}">${a.i} ${a.l}</span>`).join('')}
+      </div>
+      <div class="user-card-actions">
+        <button class="user-card-btn" onclick="openUserModal('${u.id}')">✏️ Editar</button>
+        <button class="user-card-btn" onclick="toggleUserActive('${u.id}')">${isActive?'⏸ Pausar':'▶ Activar'}</button>
+        <button class="user-card-btn danger" onclick="deleteAdminUser('${u.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Tab permission check ──────────────────────────────────────
+// Patch existing tab click handler to enforce permissions
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  const originalClick = btn.onclick;
+  btn.addEventListener('click', e=>{
+    if(!adminSession) return;
+    const tab=btn.dataset.tab;
+    const P={dashboard:'perm_dashboard',pedidos:'perm_pedidos',inventario:'perm_inventario',clientes:'perm_clientes',productos:'perm_productos'};
+    const perm=P[tab];
+    if(!adminSession.isRoot && perm && !adminSession.perms?.[perm]){
+      e.stopImmediatePropagation();
+      toast('Sin permiso para este módulo.','warn');
+    }
+    if(tab==='usuarios') renderUsersGrid();
+  },true);
+});
+
+// ── Auto-login on reload if session saved ─────────────────────
+(function checkSavedSession(){
+  const s = getAdminSession();
+  if(s){
+    adminSession = s;
+    // Skip login screen
+    const screen=document.getElementById('adminLoginScreen');
+    const shell =document.getElementById('adminShell');
+    if(screen) screen.style.display='none';
+    if(shell)  shell.style.display='';
+    const badge=document.getElementById('adminSessionBadge');
+    const bname=document.getElementById('adminBadgeName');
+    if(badge) badge.style.display='flex';
+    if(bname) bname.textContent=s.isRoot?'🔑 Admin':('👤 '+s.name);
+    // initDB will be called by existing page init
+    setTimeout(()=>{ applyPermissionsToUI(); loadAdminUsers(); },800);
+  }
+  // Set up Enter key for login fields
+  ['lgAdminPass'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') doAdminLogin(); });
+  });
+  ['lgUserPass','lgUserEmail'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') doStaffLogin(); });
+  });
+})();
+
 </script>
 </body>
 </html>
