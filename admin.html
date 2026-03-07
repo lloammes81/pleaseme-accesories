@@ -4617,39 +4617,48 @@ let _nomItems = [];   // [{id,name,price,qty,size,color,custom}]
 
 // ── Open / Close ──────────────────────────────────────────────
 function openNewOrderModal(){
-  try{
-  _nomItems = [];
-  // Reset all fields
-  ['nomClientName','nomClientEmail','nomClientPhone','nomAddress','nomTracking','nomNotes'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value='';
-  });
-  const method=document.getElementById('nomMethod'); if(method) method.value='card';
-  const ostatus=document.getElementById('nomOrderStatus'); if(ostatus) ostatus.value='pendiente';
-  const istatus=document.getElementById('nomInvStatus');   if(istatus) istatus.value='pendiente';
-  const ship=document.getElementById('nomShipping'); if(ship){ship.value='0';ship.disabled=false;}
-  const free=document.getElementById('nomFreeShip'); if(free) free.checked=false;
-  nomRenderItems();
-  nomRecalc();
-
-  const preview=document.getElementById('nomInvoicePreview');
-  if(preview){
-    const yr=new Date().getFullYear();
-    const seq=Date.now().toString().slice(-6);
-    preview.textContent='No. F-'+yr+'-'+seq+' (se asignará al guardar)';
-  }
-
+  // 1. Abrir modal PRIMERO
   const m=document.getElementById('newOrderModal');
-  if(m){
-    m.style.display='flex';
-    m.classList.add('open');
-    setTimeout(()=>{ try{ attachPlacesTo('nomAddress'); }catch(e){} }, 100);
-  }
-  }catch(err){ console.error('[NOM open]',err); }
+  if(m){ m.style.display='flex'; m.classList.add('open'); }
+
+  // 2. Reset después de que el modal sea visible
+  setTimeout(()=>{
+    try{
+      _nomItems = [];
+      ['nomClientName','nomClientEmail','nomClientPhone','nomAddress',
+       'nomTracking','nomNotes'].forEach(id=>{
+        const el=document.getElementById(id); if(el) el.value='';
+      });
+      const g = id => document.getElementById(id);
+      if(g('nomMethod'))      g('nomMethod').value      = 'card';
+      if(g('nomOrderStatus')) g('nomOrderStatus').value = 'pendiente';
+      if(g('nomInvStatus'))   g('nomInvStatus').value   = 'pendiente';
+      if(g('nomPaymentType')) g('nomPaymentType').value = 'contado';
+      if(g('nomDiscountVal')) g('nomDiscountVal').value = '0';
+      if(g('nomShipping')){ g('nomShipping').value='0'; g('nomShipping').disabled=false; }
+      if(g('nomFreeShip')) g('nomFreeShip').checked=false;
+      if(g('nomCreditBox')) g('nomCreditBox').style.display='none';
+
+      const preview=g('nomInvoicePreview');
+      if(preview){
+        const yr=new Date().getFullYear();
+        const seq=Date.now().toString().slice(-6);
+        preview.textContent='No. F-'+yr+'-'+seq+' (se asignará al guardar)';
+      }
+
+      nomRenderItems();
+      nomRecalc();
+      setTimeout(()=>{ try{ attachPlacesTo('nomAddress'); }catch(e){} }, 200);
+    }catch(err){
+      console.error('[NOM init]', err);
+    }
+  }, 30);
 }
 
 function closeNewOrderModal(){
   const m=document.getElementById('newOrderModal');
   if(m){ m.style.display='none'; m.classList.remove('open'); }
+  const p=document.getElementById('nomProdPortal'); if(p) p.style.display='none';
 }
 
 // ── Items management ──────────────────────────────────────────
@@ -5046,7 +5055,7 @@ function selectClientForInvoice(id){
 let _nomSuggestIdx = -1;
 
 function nomFilterProducts(q){
-  const dd=document.getElementById('nomProdDropdown'); if(!dd) return;
+  const dd=document.getElementById('nomProdPortal'); if(!dd) return;
   const val=(q||'').trim();
   if(!val){ dd.style.display='none'; _nomSuggestIdx=-1; return; }
 
@@ -5072,6 +5081,14 @@ function nomFilterProducts(q){
         <span style="font-family:var(--fd);font-size:15px;color:var(--gold)">$${Number(p.price||0).toFixed(2)}</span>
       </div>`).join('');
   }
+  // Position fixed dropdown relative to input
+  const inp = document.getElementById('nomItemNameIn');
+  if(inp){
+    const r = inp.getBoundingClientRect();
+    dd.style.top  = (r.bottom + 6) + 'px';
+    dd.style.left = r.left + 'px';
+    dd.style.width = Math.max(320, r.width + 200) + 'px';
+  }
   dd.style.display='block';
   _nomSuggestIdx=-1;
 }
@@ -5082,7 +5099,7 @@ function nomSelectProduct(id){
   document.getElementById('nomItemPriceIn').value = Number(p.price||0).toFixed(2);
   document.getElementById('nomItemQtyIn').value   = 1;
   document.getElementById('nomItemSizeIn').value  = (p.sizes&&p.sizes[0])||'';
-  document.getElementById('nomProdDropdown').style.display='none';
+  document.getElementById('nomProdPortal').style.display='none';
   document.getElementById('nomItemQtyIn').focus();
   document.getElementById('nomItemQtyIn').select();
   // Store ref
@@ -5167,7 +5184,7 @@ function nomCommitItem(){
   if(qtyEl)  qtyEl.value='1';
   if(priceEl) priceEl.value='';
   if(sizeEl)  sizeEl.value='';
-  document.getElementById('nomProdDropdown').style.display='none';
+  document.getElementById('nomProdPortal').style.display='none';
   _nomSuggestIdx=-1;
   nameEl?.focus();
 }
@@ -5261,7 +5278,7 @@ function nomUpdateRowTotal(idx, changedEl){
     box-shadow:0 24px 80px rgba(0,0,0,.9),0 0 60px rgba(180,130,30,.08);
     display:flex;
     flex-direction:column;
-    overflow:hidden;
+    overflow:visible;
   ">
 
     <!-- ── HEADER ── -->
@@ -5279,7 +5296,7 @@ function nomUpdateRowTotal(idx, changedEl){
     </div>
 
     <!-- ── BODY: two columns ── -->
-    <div style="display:grid;grid-template-columns:340px 1fr;flex:1;overflow:hidden;min-height:0">
+    <div style="display:grid;grid-template-columns:340px 1fr;flex:1;overflow:visible;min-height:0">
 
       <!-- LEFT: Cliente + Factura options -->
       <div style="overflow-y:auto;padding:16px;border-right:1px solid rgba(212,175,55,.08);display:flex;flex-direction:column;gap:14px">
@@ -5420,7 +5437,7 @@ function nomUpdateRowTotal(idx, changedEl){
       </div>
 
       <!-- RIGHT: Artículos -->
-      <div style="display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;flex-direction:column;overflow:visible">
 
         <!-- Input row sticky at top -->
         <div style="flex-shrink:0;padding:12px 16px 10px;border-bottom:1px solid rgba(212,175,55,.08);
@@ -5449,7 +5466,7 @@ function nomUpdateRowTotal(idx, changedEl){
                   style="width:100%;background:transparent;border:none;color:var(--text);
                          font-size:13px;font-family:var(--fb);outline:none;padding:2px 0"/>
                 <div id="nomProdDropdown"
-                  style="display:none;position:absolute;top:calc(100% + 8px);left:-10px;right:-160px;
+                  style="display:none;position:fixed;
                          background:#0d0a04;border:1px solid rgba(212,175,55,.3);border-radius:12px;
                          z-index:9999;max-height:220px;overflow-y:auto;
                          box-shadow:0 12px 40px rgba(0,0,0,.85)"></div>
@@ -5568,7 +5585,7 @@ function nomUpdateRowTotal(idx, changedEl){
 <!-- ══════════════════════════════════════════════════════════
      MODAL: SELECTOR DE CLIENTE
 ══════════════════════════════════════════════════════════ -->
-<div class="modal-overlay" id="clientPickerModal" style="display:none">
+<div class="modal-overlay" id="clientPickerModal" style="display:none;z-index:1000">
   <div class="modal" style="max-width:620px;width:95vw">
     <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">
       <div>
@@ -5612,6 +5629,12 @@ function nomUpdateRowTotal(idx, changedEl){
     color:var(--gold);border:1px solid rgba(212,175,55,.2);
     border-radius:20px;padding:2px 8px;white-space:nowrap}
 </style>
+
+<!-- Portal: dropdown artículos (encima de todo) -->
+<div id="nomProdPortal" style="display:none;position:fixed;
+     background:#0d0a04;border:1px solid rgba(212,175,55,.3);border-radius:12px;
+     z-index:1100;max-height:220px;overflow-y:auto;
+     box-shadow:0 12px 40px rgba(0,0,0,.85);min-width:300px"></div>
 
 </body>
 </html>
