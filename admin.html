@@ -559,6 +559,14 @@
     document.head.appendChild(s);
   }
 </script>
+
+<style>
+@keyframes nomRowIn {
+  from { opacity:0; transform:translateY(-4px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.nom-lb-row { animation: nomRowIn .18s ease; }
+</style>
 </head>
 <body>
 
@@ -1227,6 +1235,18 @@
           </small>
         </div>
         <div class="form-group">
+          <label>📦 EasyPost API Key
+            <small style="color:var(--muted);font-weight:400">
+              — <a href="https://www.easypost.com/signup" target="_blank" style="color:var(--gold)">Regístrate gratis</a>
+              · Soporta USPS, UPS, FedEx, DHL
+            </small>
+          </label>
+          <input id="coEasyPostKey" placeholder="EZTKxxxx..." type="password" autocomplete="off"/>
+          <small style="color:var(--muted);font-size:10px">
+            Necesario para generar labels de envío reales con tarifas en vivo
+          </small>
+        </div>
+        <div class="form-group">
           <label>Moneda principal</label>
           <select id="coCurrency">
             <option value="USD">🇺🇸 USD — Dólares</option>
@@ -1654,6 +1674,7 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 // ── Configuración global del panel ──────────────────────────
 const CFG = {
   googleKey: '',
+  easypostKey: '',
   cur: 'USD',
   wa: '',
 };
@@ -1661,7 +1682,8 @@ const CFG = {
 (function(){
   try{
     const sc = JSON.parse(localStorage.getItem('pm_config')||'{}');
-    if(sc.googleKey) CFG.googleKey = sc.googleKey;
+    if(sc.googleKey)    CFG.googleKey    = sc.googleKey;
+    if(sc.easypostKey) CFG.easypostKey = sc.easypostKey;
     if(sc.cur)       CFG.cur       = sc.cur;
     if(sc.wa)        CFG.wa        = sc.wa;
   }catch(e){}
@@ -2504,36 +2526,44 @@ function saveCompanyInfo(){
   const logoUrl  = $("coLogoUrl").value.trim();
   const logoData = DB.company?.logo_data || '';   // base64 subido
   const c = {
-    name:      $("coName").value.trim(),
-    email:     $("coEmail").value.trim(),
-    whatsapp:  $("coWhatsApp").value.trim(),
-    instagram: $("coInstagram").value.trim(),
-    address:   $("coAddress").value.trim(),
-    logo_url:  logoUrl,
-    logo_data: logoData,
-    // compatibilidad con código existente
-    logoUrl:   logoData || logoUrl,
-    updated_at: new Date().toISOString()
+    name:         $("coName").value.trim(),
+    email:        $("coEmail").value.trim(),
+    whatsapp:     $("coWhatsApp").value.trim(),
+    instagram:    $("coInstagram").value.trim(),
+    address:      $("coAddress").value.trim(),
+    logo_url:     logoUrl,
+    logo_data:    logoData,
+    google_key:   $("coGoogleKey")?.value.trim()||'',
+    easypost_key: $("coEasyPostKey")?.value.trim()||'',
+    currency:     $("coCurrency")?.value||'USD',
+    logoUrl:      logoData || logoUrl,
+    updated_at:   new Date().toISOString()
   };
   // Cache local
   DB.company = c;
   localStorage.setItem(LS_COMPANY, JSON.stringify(c));
   let cfg = {};
   try{ cfg = JSON.parse(localStorage.getItem("pm_config")||"{}") || {}; }catch(e){}
-  if(c.whatsapp) cfg.wa = c.whatsapp;
-  if(c.email) cfg.contactEmail = c.email;
+  if(c.whatsapp)     cfg.wa          = c.whatsapp;
+  if(c.email)        cfg.contactEmail = c.email;
+  if(c.google_key)   { cfg.googleKey   = c.google_key;   CFG.googleKey   = c.google_key;   initGooglePlaces(); }
+  if(c.easypost_key) { cfg.easypostKey = c.easypost_key; CFG.easypostKey = c.easypost_key; }
+  if(c.currency)     { cfg.cur         = c.currency;     CFG.cur         = c.currency; }
   localStorage.setItem("pm_config", JSON.stringify(cfg));
 
   // Guardar en tabla company (UPDATE fila id=1)
   sbPATCH('company', 1, {
-    name:      c.name,
-    email:     c.email,
-    whatsapp:  c.whatsapp,
-    instagram: c.instagram,
-    address:   c.address,
-    logo_url:  c.logo_url,
-    logo_data: c.logo_data,
-    updated_at: c.updated_at
+    name:         c.name,
+    email:        c.email,
+    whatsapp:     c.whatsapp,
+    instagram:    c.instagram,
+    address:      c.address,
+    logo_url:     c.logo_url,
+    logo_data:    c.logo_data,
+    google_key:   c.google_key,
+    easypost_key: c.easypost_key,
+    currency:     c.currency,
+    updated_at:   c.updated_at
   }).catch(e=>console.error('[SB] company save:',e));
 
   // También sync config storefront
@@ -3053,7 +3083,15 @@ $("saveNotesBtn").addEventListener("click",()=>{
 $("printOrderBtn").addEventListener("click",()=>{
   const o=DB.orders.find(x=>x.id===currentOrderId); if(!o) return;
   const w=window.open("","_blank");
-  w.document.write(`<html><head><title>Pedido ${o.id}</title><style>body{font-family:Georgia,serif;padding:30px;color:#111;max-width:600px}h1{font-size:24px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}td,th{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f5f5f5}.total{font-size:18px;font-weight:bold;text-align:right}</style></head><body>
+  w.document.write(`<html><head><title>Pedido ${o.id}</title><style>body{font-family:Georgia,serif;padding:30px;color:#111;max-width:600px}h1{font-size:24px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:16px}td,th{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f5f5f5}.total{font-size:18px;font-weight:bold;text-align:right}</style>
+<style>
+@keyframes nomRowIn {
+  from { opacity:0; transform:translateY(-4px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.nom-lb-row { animation: nomRowIn .18s ease; }
+</style>
+</head><body>
     <h1>Pleaseme · ${o.id}</h1>
     <p>Cliente: <strong>${o.clientName}</strong> · ${o.clientEmail}</p>
     <p>Fecha: ${fmtDateTime(o.created_at)} · Estado: ${o.status.toUpperCase()}</p>
@@ -4613,7 +4651,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 // ══════════════════════════════════════════════════════════════
 //  NUEVA FACTURA / PEDIDO MANUAL
 // ══════════════════════════════════════════════════════════════
-let _nomItems = [];   // [{id,name,price,qty,size,color,custom}]
+let _nomItems = [];
+window._nomEditIdx = -1;   // [{id,name,price,qty,size,color,custom}]
 
 // ── Open / Close ──────────────────────────────────────────────
 function openNewOrderModal(){
@@ -4624,7 +4663,7 @@ function openNewOrderModal(){
   // 2. Reset después de que el modal sea visible
   setTimeout(()=>{
     try{
-      _nomItems = [];
+      _nomItems = []; window._nomEditIdx = -1;
       ['nomClientName','nomClientEmail','nomClientPhone','nomAddress',
        'nomTracking','nomNotes'].forEach(id=>{
         const el=document.getElementById(id); if(el) el.value='';
@@ -4761,7 +4800,9 @@ async function saveNewOrder(action){
   const phone   = document.getElementById('nomClientPhone')?.value.trim()||'';
   const address = document.getElementById('nomAddress')?.value.trim()||'';
   const method  = document.getElementById('nomMethod')?.value||'card';
-  const ostatus = document.getElementById('nomOrderStatus')?.value||'pendiente';
+  // Status: 'pendiente' on save, 'procesando' only when printed
+  const ostatus_sel = document.getElementById('nomOrderStatus')?.value||'pendiente';
+  const ostatus = ostatus_sel; // will be overridden to 'procesando' on print
   const istatus = document.getElementById('nomInvStatus')?.value||'pendiente';
   const tracking= document.getElementById('nomTracking')?.value.trim()||'';
   const notes   = document.getElementById('nomNotes')?.value.trim()||'';
@@ -4841,11 +4882,19 @@ async function saveNewOrder(action){
 
     // Post-save actions
     if(action==='invoice'||action==='print'){
-      setTimeout(()=>{
+      setTimeout(async ()=>{
         if(action==='invoice'){
           downloadInvoice(id);
         } else {
+          // Print → mark as procesando
           printInvoice(id);
+          const o = DB.orders.find(x=>x.id===id);
+          if(o){
+            o.status = 'procesando';
+            save(LS_ORDERS, DB.orders);
+            await sbUpdate('pedidos', id, {status:'procesando', updated_at: new Date().toISOString()});
+            renderOrders(); renderDashboard(); renderFacturas();
+          }
         }
         closeNewOrderModal();
       }, 600);
@@ -5179,14 +5228,25 @@ function nomCommitItem(){
     nomRenderItems(); nomRecalc();
   }
 
-  // Clear inputs and refocus name
+  // Clear inputs, flash row, refocus
   if(nameEl){ nameEl.value=''; nameEl.dataset.prodId=''; }
   if(qtyEl)  qtyEl.value='1';
   if(priceEl) priceEl.value='';
   if(sizeEl)  sizeEl.value='';
   document.getElementById('nomProdPortal').style.display='none';
   _nomSuggestIdx=-1;
-  nameEl?.focus();
+
+  // Flash last added row
+  setTimeout(()=>{
+    const rows = document.querySelectorAll('#nomItemsList .nom-lb-row');
+    const last = rows[rows.length-1];
+    if(last){
+      last.style.transition='none';
+      last.style.background='rgba(212,175,55,.18)';
+      setTimeout(()=>{ last.style.transition='background .6s'; last.style.background=''; }, 50);
+    }
+    nameEl?.focus();
+  }, 30);
 }
 
 // Save new product to catalog (no duplicates)
@@ -5219,49 +5279,288 @@ function nomRenderItems(){
 
   if(!_nomItems.length){
     if(empty) empty.style.display='block';
-    else list.innerHTML='<div id="nomEmptyItems" style="text-align:center;padding:16px;color:var(--muted);font-size:12px">Sin artículos — escribe arriba y presiona Enter</div>';
+    else list.innerHTML=`<div id="nomEmptyItems" style="text-align:center;padding:32px 20px;
+         color:var(--muted);font-size:13px">
+         <div style="font-size:28px;margin-bottom:8px;opacity:.4">🛍</div>
+         Escribe un artículo arriba y presiona <b style="color:var(--gold)">Enter</b></div>`;
     return;
   }
   if(empty) empty.style.display='none';
 
-  list.innerHTML=_nomItems.map((item,i)=>`
-    <div style="display:grid;grid-template-columns:1fr 56px 80px 52px 72px 26px;
-                gap:0;align-items:center;padding:7px 14px;
-                border-bottom:1px solid rgba(255,255,255,.04);
-                transition:background .12s"
-         onmouseenter="this.style.background='rgba(212,175,55,.04)'"
-         onmouseleave="this.style.background=''">
-      <div>
-        <div style="font-size:13px;color:var(--text);font-weight:500">${esc(item.name)}</div>
-        ${item.size?'<div style="font-size:10px;color:var(--muted)">Talla: '+esc(item.size)+'</div>':''}
-      </div>
-      <div style="text-align:center">
-        <input type="number" min="1" value="${item.qty}"
-          onchange="_nomItems[${i}].qty=Math.max(1,Number(this.value)||1);nomRecalc();nomUpdateRowTotal(${i},this)"
-          style="width:44px;text-align:center;padding:3px 4px;border-radius:6px;font-size:12px"/>
-      </div>
-      <div style="text-align:right">
-        <input type="number" min="0" step="0.01" value="${Number(item.price).toFixed(2)}"
-          onchange="_nomItems[${i}].price=Number(this.value)||0;nomRecalc();nomUpdateRowTotal(${i},this)"
-          style="width:72px;text-align:right;padding:3px 6px;border-radius:6px;font-size:12px"/>
-      </div>
-      <div style="text-align:center;font-size:11px;color:var(--muted)">${esc(item.size||'—')}</div>
-      <div style="text-align:right;font-family:var(--fd);font-size:14px;color:var(--gold2);font-weight:600"
-           id="nom-row-total-${i}">
-        $${(Number(item.price)*Number(item.qty)).toFixed(2)}
-      </div>
-      <button onclick="nomRemoveItem(${i})"
-        style="width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,77,109,.2);
-               background:rgba(255,77,109,.06);color:var(--danger);cursor:pointer;font-size:11px;
-               display:grid;place-items:center;justify-self:center">✕</button>
-    </div>
-  `).join('');
+  list.innerHTML=_nomItems.map((item,i)=>{
+    // Editing mode for this row?
+    const isEditing = (window._nomEditIdx === i);
+    if(isEditing) return `
+      <div class="nom-lb-row" style="background:rgba(212,175,55,.07);padding:8px 12px;
+           border-bottom:1px solid rgba(212,175,55,.15);animation:nomRowIn .2s ease">
+        <div style="display:grid;grid-template-columns:1fr 58px 90px 58px;gap:6px;margin-bottom:6px">
+          <input id="nomEdit_name"  value="${esc(item.name)}"  placeholder="Nombre"
+            style="padding:5px 8px;border-radius:7px;font-size:13px;font-weight:600;
+                   border:1px solid rgba(212,175,55,.4);background:rgba(212,175,55,.06);color:var(--gold2)"/>
+          <input id="nomEdit_qty"   type="number" min="1" value="${item.qty}" placeholder="Cant."
+            style="text-align:center;padding:5px 4px;border-radius:7px;font-size:13px"/>
+          <input id="nomEdit_price" type="number" min="0" step="0.01" value="${Number(item.price).toFixed(2)}" placeholder="Precio"
+            style="text-align:right;padding:5px 6px;border-radius:7px;font-size:13px"/>
+          <input id="nomEdit_size"  value="${esc(item.size||'')}" placeholder="Talla"
+            style="text-align:center;padding:5px 6px;border-radius:7px;font-size:13px"/>
+        </div>
+        <div style="display:flex;gap:6px;justify-content:flex-end">
+          <button onclick="nomCancelEdit()" style="padding:4px 10px;border-radius:7px;
+            border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);
+            cursor:pointer;font-size:11px">Cancelar</button>
+          <button onclick="nomSaveEdit(${i})" style="padding:4px 12px;border-radius:7px;
+            border:none;background:linear-gradient(135deg,#c9963a,#e8c56e);
+            color:#0d0900;font-weight:700;cursor:pointer;font-size:11px">✓ Guardar</button>
+        </div>
+      </div>`;
+
+    const even = i%2===0;
+    return `
+      <div class="nom-lb-row" data-idx="${i}"
+           style="display:grid;grid-template-columns:1fr 52px 82px 50px 74px 54px;
+                  gap:0;align-items:center;padding:8px 14px;
+                  background:${even?'rgba(212,175,55,.025)':'transparent'};
+                  border-bottom:1px solid rgba(212,175,55,.06);
+                  transition:background .15s;cursor:default"
+           onmouseenter="this.style.background='rgba(212,175,55,.07)'"
+           onmouseleave="this.style.background='${even?'rgba(212,175,55,.025)':'transparent'}'">
+
+        <!-- Artículo name + badge -->
+        <div style="min-width:0">
+          <div style="font-size:13px;font-family:var(--fd);color:var(--gold3);
+                      font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+                      letter-spacing:.3px">${esc(item.name)}</div>
+          ${item.size?`<span style="display:inline-block;margin-top:2px;padding:1px 7px;
+            border-radius:20px;font-size:9px;font-weight:700;letter-spacing:.6px;
+            background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.2);
+            color:rgba(212,175,55,.7);text-transform:uppercase">${esc(item.size)}</span>`:''}
+        </div>
+
+        <!-- Qty -->
+        <div style="text-align:center;font-family:var(--fd);font-size:15px;
+                    color:var(--text2);font-weight:700">${item.qty}×</div>
+
+        <!-- Price -->
+        <div style="text-align:right;font-size:12px;color:var(--muted)">
+          $${Number(item.price).toFixed(2)}
+        </div>
+
+        <!-- Size label (hidden since badge above, used for spacing) -->
+        <div></div>
+
+        <!-- Line total -->
+        <div style="text-align:right;font-family:var(--fd);font-size:15px;
+                    color:var(--gold);font-weight:700" id="nom-row-total-${i}">
+          $${(Number(item.price)*Number(item.qty)).toFixed(2)}
+        </div>
+
+        <!-- Actions: edit + remove -->
+        <div style="display:flex;gap:4px;justify-content:flex-end;align-items:center">
+          <button onclick="nomStartEdit(${i})" title="Editar"
+            style="width:22px;height:22px;border-radius:6px;
+                   border:1px solid rgba(212,175,55,.2);
+                   background:rgba(212,175,55,.07);color:var(--gold);
+                   cursor:pointer;font-size:11px;display:grid;place-items:center">✏️</button>
+          <button onclick="nomRemoveItem(${i})" title="Eliminar"
+            style="width:22px;height:22px;border-radius:6px;
+                   border:1px solid rgba(255,77,109,.2);
+                   background:rgba(255,77,109,.06);color:var(--danger);
+                   cursor:pointer;font-size:11px;display:grid;place-items:center">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Edit helpers ──────────────────────────────
+function nomStartEdit(i){
+  window._nomEditIdx = i;
+  nomRenderItems();
+  setTimeout(()=>document.getElementById('nomEdit_name')?.focus(), 30);
+}
+function nomCancelEdit(){
+  window._nomEditIdx = -1;
+  nomRenderItems();
+}
+function nomSaveEdit(i){
+  const item = _nomItems[i]; if(!item) return;
+  const name  = (document.getElementById('nomEdit_name')?.value||'').trim();
+  const qty   = Math.max(1, Number(document.getElementById('nomEdit_qty')?.value)||1);
+  const price = Number(document.getElementById('nomEdit_price')?.value)||0;
+  const size  = (document.getElementById('nomEdit_size')?.value||'').trim();
+  if(!name) return;
+  _nomItems[i] = {...item, name, qty, price, size};
+  window._nomEditIdx = -1;
+  nomRenderItems();
+  nomRecalc();
 }
 
 function nomUpdateRowTotal(idx, changedEl){
   const item=_nomItems[idx]; if(!item) return;
   const el=document.getElementById('nom-row-total-'+idx);
   if(el) el.textContent='$'+(Number(item.price)*Number(item.qty)).toFixed(2);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+//  EASYPOST — Label de envío real
+//  Requiere: CFG.easypostKey y dirección de la compañía en DB
+// ══════════════════════════════════════════════════════════════
+async function createEasyPostLabel(order){
+  const key = CFG.easypostKey;
+  if(!key){
+    toast('Configura tu EasyPost API Key en ⚙️ Compañía primero','warn');
+    return null;
+  }
+
+  const co = DB.company || {};
+  const fromAddr = co.address || '';
+
+  if(!fromAddr){
+    toast('Agrega la dirección de tu tienda en ⚙️ Compañía','warn');
+    return null;
+  }
+  if(!(order.shippingAddress||order.address)){
+    toast('El pedido no tiene dirección de envío','warn');
+    return null;
+  }
+
+  try{
+    const BASE = 'https://api.easypost.com/v2';
+    const H = {
+      'Content-Type':'application/json',
+      'Authorization':'Basic '+btoa(key+':')
+    };
+
+    // 1. Crear dirección origen
+    const fromRes = await fetch(BASE+'/addresses',{
+      method:'POST', headers:H,
+      body: JSON.stringify({ address:{
+        company: co.name||'Pleaseme',
+        street1: fromAddr,
+        phone:   co.whatsapp||'',
+        email:   co.email||''
+      }})
+    });
+    const from = await fromRes.json();
+    if(from.error) throw new Error('Origen: '+from.error.message);
+
+    // 2. Crear dirección destino
+    const toRes = await fetch(BASE+'/addresses',{
+      method:'POST', headers:H,
+      body: JSON.stringify({ address:{
+        name:    order.clientName||order.name||'Cliente',
+        street1: order.shippingAddress||order.address,
+        phone:   order.clientPhone||order.phone||'',
+        email:   order.clientEmail||order.email||''
+      }})
+    });
+    const to = await toRes.json();
+    if(to.error) throw new Error('Destino: '+to.error.message);
+
+    // 3. Crear shipment
+    const shipRes = await fetch(BASE+'/shipments',{
+      method:'POST', headers:H,
+      body: JSON.stringify({ shipment:{
+        from_address: { id: from.id },
+        to_address:   { id: to.id   },
+        parcel:{ length:10, width:8, height:4, weight:16 } // default parcel
+      }})
+    });
+    const shipment = await shipRes.json();
+    if(shipment.error) throw new Error('Shipment: '+shipment.error.message);
+
+    // 4. Mostrar modal de tarifas
+    return await showRatePickerModal(shipment, order, key, BASE, H);
+
+  }catch(err){
+    toast('EasyPost error: '+err.message, 'err');
+    console.error('[EasyPost]', err);
+    return null;
+  }
+}
+
+// Modal selector de tarifas EasyPost
+function showRatePickerModal(shipment, order, key, BASE, H){
+  return new Promise(resolve=>{
+    const rates = (shipment.rates||[]).sort((a,b)=>Number(a.rate)-Number(b.rate));
+    const m = document.getElementById('easypostRateModal');
+    if(!m){ resolve(null); return; }
+
+    document.getElementById('epCarrier').innerHTML = rates.map((r,i)=>`
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+             border-radius:10px;cursor:pointer;border:1px solid rgba(212,175,55,.1);
+             margin-bottom:6px;transition:background .12s"
+             onmouseenter="this.style.background='rgba(212,175,55,.07)'"
+             onmouseleave="this.style.background=''">
+        <input type="radio" name="epRate" value="${r.id}" ${i===0?'checked':''}
+          style="accent-color:var(--gold)"/>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">
+            ${r.carrier} — ${r.service}
+          </div>
+          <div style="font-size:11px;color:var(--muted)">
+            ${r.est_delivery_days ? r.est_delivery_days+' días estimados' : ''}
+          </div>
+        </div>
+        <div style="font-family:var(--fd);font-size:16px;color:var(--gold);font-weight:700">
+          $${Number(r.rate).toFixed(2)}
+        </div>
+      </label>`).join('');
+
+    m.style.display='flex';
+
+    document.getElementById('epBuyBtn').onclick = async ()=>{
+      const sel = document.querySelector('input[name="epRate"]:checked');
+      if(!sel){ toast('Selecciona una tarifa','warn'); return; }
+      const rateId = sel.value;
+      const btn = document.getElementById('epBuyBtn');
+      btn.disabled=true; btn.textContent='Comprando...';
+      try{
+        const buyRes = await fetch(BASE+'/shipments/'+shipment.id+'/buy',{
+          method:'POST', headers:H,
+          body: JSON.stringify({ rate:{id:rateId} })
+        });
+        const bought = await buyRes.json();
+        if(bought.error) throw new Error(bought.error.message);
+        m.style.display='none';
+        const tracking = bought.tracking_code||'';
+        const labelUrl  = bought.postage_label?.label_url||'';
+        toast('✅ Label creado! Tracking: '+tracking,'ok');
+        if(labelUrl) window.open(labelUrl,'_blank');
+        resolve({ tracking, labelUrl, shipmentId: bought.id });
+      }catch(err){
+        toast('Error al comprar: '+err.message,'err');
+        btn.disabled=false; btn.textContent='🛒 Comprar Label';
+        resolve(null);
+      }
+    };
+    document.getElementById('epCancelBtn').onclick = ()=>{
+      m.style.display='none'; resolve(null);
+    };
+  });
+}
+
+
+function openEasyPostForOrder(orderId){
+  const o = DB.orders.find(x=>x.id===orderId);
+  if(!o){ toast('Pedido no encontrado','err'); return; }
+  createEasyPostLabel(o).then(result=>{
+    if(!result) return;
+    // Save tracking to order
+    o.trackingNum = result.tracking;
+    o.status = 'procesando';
+    save(LS_ORDERS, DB.orders);
+    sbUpdate('pedidos', orderId, {
+      tracking_num: result.tracking,
+      status: 'procesando',
+      updated_at: new Date().toISOString()
+    });
+    renderOrders(); renderDashboard();
+    if(document.getElementById('orderModal')?.style.display!=='none'){
+      document.getElementById('modalTracking').value = result.tracking;
+    }
+    toast('Tracking guardado: '+result.tracking,'ok');
+  });
 }
 
 </script>
@@ -5635,6 +5934,31 @@ function nomUpdateRowTotal(idx, changedEl){
      background:#0d0a04;border:1px solid rgba(212,175,55,.3);border-radius:12px;
      z-index:1100;max-height:220px;overflow-y:auto;
      box-shadow:0 12px 40px rgba(0,0,0,.85);min-width:300px"></div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: EASYPOST — Seleccionar tarifa
+════════════════════════════════════════════ -->
+<div class="modal-overlay" id="easypostRateModal" style="display:none;z-index:1200">
+  <div class="modal" style="max-width:500px;width:95vw">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <b style="font-size:16px;color:var(--gold2)">📦 Seleccionar servicio de envío</b>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Tarifas en tiempo real · EasyPost</div>
+      </div>
+      <button class="btn sm" id="epCancelBtn">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="epCarrier" style="max-height:340px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end;gap:8px">
+      <button class="btn" id="epCancelBtn2" onclick="document.getElementById('easypostRateModal').style.display='none'">Cancelar</button>
+      <button class="btn gold" id="epBuyBtn"
+        style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700">
+        🛒 Comprar Label
+      </button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
