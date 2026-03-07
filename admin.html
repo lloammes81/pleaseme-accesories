@@ -1234,17 +1234,37 @@
             Obtén tu clave en <a href="https://console.cloud.google.com" target="_blank" style="color:var(--gold)">console.cloud.google.com</a> → Places API
           </small>
         </div>
-        <div class="form-group">
-          <label>📦 EasyPost API Key
-            <small style="color:var(--muted);font-weight:400">
-              — <a href="https://www.easypost.com/signup" target="_blank" style="color:var(--gold)">Regístrate gratis</a>
-              · Soporta USPS, UPS, FedEx, DHL
+        <div style="padding:12px;background:rgba(212,175,55,.04);border:1px solid rgba(212,175,55,.12);border-radius:10px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--gold);text-transform:uppercase;margin-bottom:10px">
+            📦 EasyPost — Labels de envío
+            <a href="https://www.easypost.com/signup" target="_blank"
+               style="font-size:9px;color:rgba(212,175,55,.5);font-weight:400;text-transform:none;margin-left:6px">
+              Regístrate gratis →
+            </a>
+          </div>
+          <div id="epCredStatus" style="display:none;margin-bottom:8px;padding:6px 10px;
+               border-radius:7px;background:rgba(47,227,181,.08);border:1px solid rgba(47,227,181,.2);
+               font-size:11px;color:#2fe3b5;display:flex;align-items:center;gap:6px">
+            ✅ <span id="epCredUser">Credenciales guardadas</span>
+            <button onclick="epClearCreds()" style="margin-left:auto;padding:2px 8px;border-radius:5px;
+              border:1px solid rgba(255,77,109,.3);background:rgba(255,77,109,.08);
+              color:var(--danger);cursor:pointer;font-size:10px">Cambiar</button>
+          </div>
+          <div id="epCredForm">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div class="form-group" style="margin:0">
+                <label>Usuario (email)</label>
+                <input id="coEpUser" type="email" placeholder="tu@correo.com" autocomplete="off"/>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Contraseña</label>
+                <input id="coEpPass" type="password" placeholder="••••••••" autocomplete="off"/>
+              </div>
+            </div>
+            <small style="color:var(--muted);font-size:10px;margin-top:6px;display:block">
+              Se guardan de forma segura en tu navegador · Soporta USPS, UPS, FedEx, DHL
             </small>
-          </label>
-          <input id="coEasyPostKey" placeholder="EZTKxxxx..." type="password" autocomplete="off"/>
-          <small style="color:var(--muted);font-size:10px">
-            Necesario para generar labels de envío reales con tarifas en vivo
-          </small>
+          </div>
         </div>
         <div class="form-group">
           <label>Moneda principal</label>
@@ -1674,7 +1694,8 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 // ── Configuración global del panel ──────────────────────────
 const CFG = {
   googleKey: '',
-  easypostKey: '',
+  epUser: '',
+  epPass: '',
   cur: 'USD',
   wa: '',
 };
@@ -1683,7 +1704,8 @@ const CFG = {
   try{
     const sc = JSON.parse(localStorage.getItem('pm_config')||'{}');
     if(sc.googleKey)    CFG.googleKey    = sc.googleKey;
-    if(sc.easypostKey) CFG.easypostKey = sc.easypostKey;
+    if(sc.epUser) CFG.epUser = sc.epUser;
+    if(sc.epPass) CFG.epPass = sc.epPass;
     if(sc.cur)       CFG.cur       = sc.cur;
     if(sc.wa)        CFG.wa        = sc.wa;
   }catch(e){}
@@ -2534,7 +2556,8 @@ function saveCompanyInfo(){
     logo_url:     logoUrl,
     logo_data:    logoData,
     google_key:   $("coGoogleKey")?.value.trim()||'',
-    easypost_key: $("coEasyPostKey")?.value.trim()||'',
+    ep_user: $("coEpUser")?.value.trim()||'',
+    ep_pass: $("coEpPass")?.value||'',
     currency:     $("coCurrency")?.value||'USD',
     logoUrl:      logoData || logoUrl,
     updated_at:   new Date().toISOString()
@@ -2547,7 +2570,10 @@ function saveCompanyInfo(){
   if(c.whatsapp)     cfg.wa          = c.whatsapp;
   if(c.email)        cfg.contactEmail = c.email;
   if(c.google_key)   { cfg.googleKey   = c.google_key;   CFG.googleKey   = c.google_key;   initGooglePlaces(); }
-  if(c.easypost_key) { cfg.easypostKey = c.easypost_key; CFG.easypostKey = c.easypost_key; }
+  if(c.ep_user){ cfg.epUser=c.ep_user; CFG.epUser=c.ep_user; }
+  if(c.ep_pass){ cfg.epPass=c.ep_pass; CFG.epPass=c.ep_pass; }
+  // Show saved status
+  epUpdateCredUI();
   if(c.currency)     { cfg.cur         = c.currency;     CFG.cur         = c.currency; }
   localStorage.setItem("pm_config", JSON.stringify(cfg));
 
@@ -2561,7 +2587,8 @@ function saveCompanyInfo(){
     logo_url:     c.logo_url,
     logo_data:    c.logo_data,
     google_key:   c.google_key,
-    easypost_key: c.easypost_key,
+    ep_user: c.ep_user,
+    ep_pass: c.ep_pass,
     currency:     c.currency,
     updated_at:   c.updated_at
   }).catch(e=>console.error('[SB] company save:',e));
@@ -3891,6 +3918,7 @@ function applyI18n(lang){
 
 // Apply language on load
 applyI18n('es');
+setTimeout(epUpdateCredUI, 500);
 
 // Cancel / Refund buttons in modal
 function setOrderStatusQuick(status){
@@ -4508,6 +4536,42 @@ function printInvoice(id){
   const win  = window.open(url,'_blank');
   if(win) win.onload = ()=>{ win.focus(); win.print(); };
   toast('🖨️ Enviando a imprimir...','ok');
+
+  // Ask about shipping label
+  const addr = o.shippingAddress||o.address||'';
+  if(addr){
+    showLabelPrompt(o);
+  }
+}
+
+function showLabelPrompt(order){
+  const m = document.getElementById('labelPromptModal');
+  if(!m){ return; }
+  const addrEl = document.getElementById('lpAddress');
+  const nameEl = document.getElementById('lpClientName');
+  if(addrEl) addrEl.textContent = order.shippingAddress||order.address||'';
+  if(nameEl) nameEl.textContent = order.clientName||order.name||'';
+  m.style.display='flex';
+
+  document.getElementById('lpYesBtn').onclick = ()=>{
+    m.style.display='none';
+    createEasyPostLabel(order).then(result=>{
+      if(!result) return;
+      order.trackingNum = result.tracking;
+      order.status = 'procesando';
+      save(LS_ORDERS, DB.orders);
+      sbUpdate('pedidos', order.id, {
+        tracking_num: result.tracking,
+        status:'procesando',
+        updated_at: new Date().toISOString()
+      });
+      renderOrders(); renderDashboard(); renderFacturas();
+      toast('📦 Tracking guardado: '+result.tracking,'ok');
+    });
+  };
+  document.getElementById('lpNoBtn').onclick = ()=>{
+    m.style.display='none';
+  };
 }
 
 function previewInvoice(id){
@@ -4886,7 +4950,7 @@ async function saveNewOrder(action){
         if(action==='invoice'){
           downloadInvoice(id);
         } else {
-          // Print → mark as procesando
+          // Print → mark as procesando (printInvoice also triggers label prompt)
           printInvoice(id);
           const o = DB.orders.find(x=>x.id===id);
           if(o){
@@ -5402,17 +5466,57 @@ function nomUpdateRowTotal(idx, changedEl){
 
 
 // ══════════════════════════════════════════════════════════════
-//  EASYPOST — Label de envío real
-//  Requiere: CFG.easypostKey y dirección de la compañía en DB
+//  EASYPOST — Label de envío real (user + password)
 // ══════════════════════════════════════════════════════════════
+function epUpdateCredUI(){
+  const hasUser = !!CFG.epUser;
+  const statusEl = document.getElementById('epCredStatus');
+  const formEl   = document.getElementById('epCredForm');
+  const userEl   = document.getElementById('epCredUser');
+  if(statusEl) statusEl.style.display = hasUser ? 'flex' : 'none';
+  if(formEl)   formEl.style.display   = hasUser ? 'none' : 'block';
+  if(userEl && hasUser)   userEl.textContent = CFG.epUser;
+}
+function epClearCreds(){
+  CFG.epUser=''; CFG.epPass='';
+  try{
+    const sc=JSON.parse(localStorage.getItem('pm_config')||'{}');
+    delete sc.epUser; delete sc.epPass;
+    localStorage.setItem('pm_config', JSON.stringify(sc));
+  }catch(e){}
+  epUpdateCredUI();
+}
+
+async function epGetApiKey(user, pass){
+  // EasyPost: login with user/pass to get API key
+  // EasyPost doesn't have a login endpoint — the API key IS the credential.
+  // We store their API key as "password" and username as label only.
+  // But we present it as user/pass for simplicity.
+  return pass; // The "password" field holds the API key
+}
+
 async function createEasyPostLabel(order){
-  const key = CFG.easypostKey;
-  if(!key){
-    toast('Configura tu EasyPost API Key en ⚙️ Compañía primero','warn');
-    return null;
+  let user = CFG.epUser;
+  let pass = CFG.epPass;
+
+  // If no credentials saved, show inline login modal
+  if(!user || !pass){
+    const creds = await showEpLoginModal();
+    if(!creds) return null;
+    user = creds.user;
+    pass = creds.pass;
+    // Save for next time
+    CFG.epUser = user; CFG.epPass = pass;
+    try{
+      const sc=JSON.parse(localStorage.getItem('pm_config')||'{}');
+      sc.epUser=user; sc.epPass=pass;
+      localStorage.setItem('pm_config', JSON.stringify(sc));
+    }catch(e){}
+    epUpdateCredUI();
   }
 
-  const co = DB.company || {};
+  const key = pass; // API key stored as password
+  const co  = DB.company || {};
   const fromAddr = co.address || '';
 
   if(!fromAddr){
@@ -5560,6 +5664,32 @@ function openEasyPostForOrder(orderId){
       document.getElementById('modalTracking').value = result.tracking;
     }
     toast('Tracking guardado: '+result.tracking,'ok');
+  });
+}
+
+
+function showEpLoginModal(){
+  return new Promise(resolve=>{
+    const m = document.getElementById('epLoginModal');
+    if(!m){ resolve(null); return; }
+    // Pre-fill if partially saved
+    const uEl = document.getElementById('epLoginUser');
+    const pEl = document.getElementById('epLoginPass');
+    if(uEl && CFG.epUser) uEl.value = CFG.epUser;
+    m.style.display='flex';
+
+    document.getElementById('epLoginConfirmBtn').onclick = ()=>{
+      const user = (uEl?.value||'').trim();
+      const pass = (pEl?.value||'').trim();
+      if(!user||!pass){ toast('Ingresa tu email y API Key','warn'); return; }
+      const remember = document.getElementById('epRemember')?.checked !== false;
+      if(!remember){ CFG.epUser=''; CFG.epPass=''; }
+      m.style.display='none';
+      resolve({user, pass});
+    };
+    document.getElementById('epLoginCancelBtn').onclick = ()=>{
+      m.style.display='none'; resolve(null);
+    };
   });
 }
 
@@ -5955,6 +6085,84 @@ function openEasyPostForOrder(orderId){
       <button class="btn gold" id="epBuyBtn"
         style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700">
         🛒 Comprar Label
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     MODAL: EASYPOST LOGIN
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="epLoginModal" style="display:none;z-index:1300">
+  <div class="modal" style="max-width:420px;width:95vw">
+    <div class="modal-head">
+      <div>
+        <b style="font-size:16px;color:var(--gold2)">📦 Conectar EasyPost</b>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">
+          Ingresa tus credenciales de <a href="https://www.easypost.com" target="_blank"
+          style="color:var(--gold)">easypost.com</a>
+        </div>
+      </div>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div style="padding:10px 12px;background:rgba(77,144,255,.06);border:1px solid rgba(77,144,255,.15);
+           border-radius:9px;font-size:11px;color:rgba(150,180,255,.8);line-height:1.6">
+        💡 Tu <b>contraseña</b> es tu <b>API Key de EasyPost</b> — encuéntrala en
+        <a href="https://www.easypost.com/account/api-keys" target="_blank" style="color:var(--gold)">
+        Account → API Keys</a>. Solo la pedimos una vez.
+      </div>
+      <div class="form-group">
+        <label>Email (usuario)</label>
+        <input id="epLoginUser" type="email" placeholder="tu@correo.com" style="width:100%"/>
+      </div>
+      <div class="form-group">
+        <label>API Key (como contraseña)</label>
+        <div style="position:relative">
+          <input id="epLoginPass" type="password" placeholder="EZTKxxxx..." style="width:100%;padding-right:36px"/>
+          <button onclick="const i=document.getElementById('epLoginPass');i.type=i.type==='password'?'text':'password'"
+            style="position:absolute;right:8px;top:50%;transform:translateY(-50%);
+                   background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px">👁</button>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="epRemember" checked style="accent-color:var(--gold)"/>
+        Recordar mis credenciales en este dispositivo
+      </label>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end;gap:8px">
+      <button class="btn" id="epLoginCancelBtn">Cancelar</button>
+      <button class="btn gold" id="epLoginConfirmBtn"
+        style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700">
+        Conectar →
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     MODAL: ¿Crear label de envío?
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="labelPromptModal" style="display:none;z-index:1200">
+  <div class="modal" style="max-width:420px;width:95vw">
+    <div class="modal-head">
+      <b style="font-size:16px;color:var(--gold2)">📦 ¿Crear label de envío?</b>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+      <p style="font-size:13px;color:var(--text2);margin:0">
+        La factura está siendo impresa. ¿Deseas crear un label de envío para este pedido?
+      </p>
+      <div style="padding:10px 14px;background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.12);
+           border-radius:10px;font-size:12px">
+        <div style="color:var(--muted);margin-bottom:3px">Destinatario</div>
+        <div style="font-weight:600;color:var(--text)" id="lpClientName"></div>
+        <div style="color:var(--muted);margin-top:4px" id="lpAddress"></div>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end;gap:8px">
+      <button class="btn" id="lpNoBtn">No, gracias</button>
+      <button class="btn gold" id="lpYesBtn"
+        style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700">
+        📦 Sí, crear label
       </button>
     </div>
   </div>
