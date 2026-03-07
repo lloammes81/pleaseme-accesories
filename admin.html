@@ -546,6 +546,19 @@
   .carrier-btn:hover { transform:translateY(-2px);filter:brightness(1.2); }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Google Places (se carga dinámicamente con la API key del admin) -->
+<script>
+  window._placesCallbackQueue = [];
+  function gplacesReady(){ window._googlePlacesReady=true; window._placesCallbackQueue.forEach(fn=>fn()); }
+  function loadGooglePlaces(key){
+    if(!key||document.getElementById('googlePlacesScript')) return;
+    const s=document.createElement('script');
+    s.id='googlePlacesScript';
+    s.src='https://maps.googleapis.com/maps/api/js?key='+key+'&libraries=places&callback=gplacesReady';
+    s.async=true; s.defer=true;
+    document.head.appendChild(s);
+  }
+</script>
 </head>
 <body>
 
@@ -689,13 +702,7 @@
       <button class="btn ghost" id="openAdminPassBtn">🔐 Contraseña</button>
       <button class="btn ghost" id="openSalesReportsBtn" onclick="openSalesReportsModal()">📊 Reportes</button>
       
-      <div class="form-group" style="min-width:140px;max-width:160px">
-        <label data-i18n="langLabel"><span data-i18n="langLabel">Idioma</span></label>
-        <select id="langSel" aria-label="Idioma">
-          <option value="es">Español</option>
-          <option value="en">English</option>
-        </select>
-      </div>
+
 <div id="adminSessionBadge" onclick="showAdminLogoutMenu()">
         <div class="badge-dot"></div>
         <span id="adminBadgeName">Admin</span>
@@ -726,6 +733,9 @@
       </button>
       <button class="tab-btn" data-tab="productos">
         ◈ Productos <span class="tab-count" id="tcProductos">0</span>
+      </button>
+      <button class="tab-btn" data-tab="facturas" id="tabBtnFacturas">
+        ◈ Facturas <span class="tab-count" id="tcFacturas">0</span>
       </button>
       <button class="tab-btn admin-only" data-tab="usuarios" id="tabBtnUsuarios">
         ◈ Usuarios <span class="tab-count" id="tcUsuarios">0</span>
@@ -1109,6 +1119,7 @@
         <button class="btn ok" id="printOrderBtn"><span data-i18n="print">🖨 Imprimir</span></button>
         <button class="btn ok" id="invoiceBtn" onclick="generateInvoice()" style="background:rgba(47,227,181,.15);border-color:rgba(47,227,181,.4);color:#2fe3b5">🧾 Factura PDF</button>
         <button class="btn ok" id="labelBtn" onclick="generateLabel()" style="background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.4);color:var(--gold)">📦 Label Envío</button>
+        <button class="btn ok" id="confirmAndLabelBtn" onclick="confirmAndLabel()" style="background:linear-gradient(135deg,rgba(201,150,58,.2),rgba(232,197,110,.15));border-color:rgba(212,175,55,.6);color:var(--gold2);font-weight:700">✅ Confirmar + Label</button>
         <button class="btn warn" id="cancelOrderBtn"><span data-i18n="cancelOrder">✖ Cancelar pedido</span></button>
         <button class="btn danger" id="refundOrderBtn"><span data-i18n="refundOrder">↩ Devolución/Reembolso</span></button>
       </div>
@@ -1204,6 +1215,29 @@
         <div class="form-group">
           <label>Dirección completa</label>
           <textarea id="coAddress" rows="3" placeholder="2892 Tennis Club Dr, Apt 602, West Palm Beach, FL 33417"></textarea>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>🔑 Google Places API Key <small style="color:var(--muted);font-weight:400">(para auto-llenado de direcciones)</small></label>
+          <input id="coGoogleKey" placeholder="AIzaSy..." type="password" autocomplete="off"/>
+          <small style="color:var(--muted);font-size:10px">
+            Obtén tu clave en <a href="https://console.cloud.google.com" target="_blank" style="color:var(--gold)">console.cloud.google.com</a> → Places API
+          </small>
+        </div>
+        <div class="form-group">
+          <label>Moneda principal</label>
+          <select id="coCurrency">
+            <option value="USD">🇺🇸 USD — Dólares</option>
+            <option value="MXN">🇲🇽 MXN — Pesos Mexicanos</option>
+            <option value="DOP">🇩🇴 DOP — Pesos Dominicanos</option>
+            <option value="COP">🇨🇴 COP — Pesos Colombianos</option>
+            <option value="CLP">🇨🇱 CLP — Pesos Chilenos</option>
+            <option value="ARS">🇦🇷 ARS — Pesos Argentinos</option>
+            <option value="PEN">🇵🇪 PEN — Soles</option>
+            <option value="EUR">🇪🇺 EUR — Euros</option>
+          </select>
         </div>
       </div>
 
@@ -1343,6 +1377,108 @@
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════
+     TAB: FACTURAS
+══════════════════════════════════════ -->
+<div class="page" id="tab-facturas">
+
+  <!-- KPI bar -->
+  <div class="kpi-grid" style="margin-bottom:20px">
+    <div class="kpi-card">
+      <div class="kpi-icon">🧾</div>
+      <div class="kpi-val" id="fkpiTotal">0</div>
+      <div class="kpi-label">Total Facturas</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">✅</div>
+      <div class="kpi-val" id="fkpiPagadas">0</div>
+      <div class="kpi-label">Pagadas</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">⏳</div>
+      <div class="kpi-val" id="fkpiPendientes">0</div>
+      <div class="kpi-label">Pendientes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-val" id="fkpiMonto">$0</div>
+      <div class="kpi-label">Monto Total</div>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar" style="margin-bottom:16px">
+    <div class="form-group">
+      <label>Buscar</label>
+      <input id="facQ" placeholder="Cliente, ID, factura..."/>
+    </div>
+    <div class="form-group">
+      <label>Estado</label>
+      <select id="facStatus">
+        <option value="">Todos</option>
+        <option value="pagada">Pagada</option>
+        <option value="pendiente">Pendiente</option>
+        <option value="cancelada">Cancelada</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Período</label>
+      <select id="facPeriod">
+        <option value="">Todo</option>
+        <option value="today">Hoy</option>
+        <option value="week">Esta semana</option>
+        <option value="month">Este mes</option>
+        <option value="year">Este año</option>
+      </select>
+    </div>
+    <button class="btn ok" onclick="exportFacturasCSV()" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">
+      📊 Exportar CSV
+    </button>
+    <button class="btn gold" onclick="printAllFacturas()">
+      🖨️ Imprimir Selección
+    </button>
+    <button class="btn gold" onclick="openNewOrderModal()" style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;font-weight:700;border:none">
+      ✦ Nueva Factura / Pedido
+    </button>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="orders-table" id="facTable">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="facSelectAll" onclick="toggleSelectAllFac(this)" style="accent-color:var(--gold)"/> </th>
+            <th>No. Factura</th>
+            <th>Pedido</th>
+            <th>Cliente</th>
+            <th>Fecha</th>
+            <th>Artículos</th>
+            <th>Subtotal</th>
+            <th>Envío</th>
+            <th>Total</th>
+            <th>Pago</th>
+            <th>Estado Factura</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="facBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Factura status badges */
+  .fac-badge{padding:3px 10px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:.4px}
+  .fac-pagada{background:rgba(47,227,181,.12);color:#2fe3b5;border:1px solid rgba(47,227,181,.25)}
+  .fac-pendiente{background:rgba(245,166,35,.12);color:#f5a623;border:1px solid rgba(245,166,35,.25)}
+  .fac-cancelada{background:rgba(255,77,109,.12);color:#ff4d6d;border:1px solid rgba(255,77,109,.25)}
+  .fac-row-sel td{background:rgba(212,175,55,.05)!important}
+  #facTable tbody tr:hover td{background:rgba(212,175,55,.03);cursor:pointer}
+  .fac-chk{accent-color:var(--gold)}
+</style>
 
 <!-- ══════════════════════════════════════
      TAB: USUARIOS DEL PANEL
@@ -1503,7 +1639,33 @@
 //  SUPABASE — REST API directa (sin SDK, sin workers)
 // ════════════════════════════════════════════════
 const SB_URL = 'https://sqcggascnbcnfkymqcql.supabase.co';
+// ── Detectar si se abre como archivo local ───────────────────
+if(location.protocol === 'file:'){
+  document.addEventListener('DOMContentLoaded',()=>{
+    const warn = document.createElement('div');
+    warn.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c2d12;color:#fef3c7;padding:10px 16px;font-size:12px;text-align:center;font-family:sans-serif';
+    warn.innerHTML='⚠️ <b>Abre este archivo desde un servidor web</b> (GitHub Pages, localhost, etc.) — Las conexiones a Supabase no funcionan con <code>file://</code>';
+    document.body?.prepend(warn);
+  });
+}
+
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY2dnYXNjbmJjbmZreW1xY3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODQ2NzIsImV4cCI6MjA4NzI2MDY3Mn0.q0C_q3gOZZzcr6dWPrIhWS63gst5OBYIg9FDxThaKt4';
+
+// ── Configuración global del panel ──────────────────────────
+const CFG = {
+  googleKey: '',
+  cur: 'USD',
+  wa: '',
+};
+// Cargar configuración guardada
+(function(){
+  try{
+    const sc = JSON.parse(localStorage.getItem('pm_config')||'{}');
+    if(sc.googleKey) CFG.googleKey = sc.googleKey;
+    if(sc.cur)       CFG.cur       = sc.cur;
+    if(sc.wa)        CFG.wa        = sc.wa;
+  }catch(e){}
+})();
 const SB_H   = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
 
 async function sbGET(path){
@@ -1813,14 +1975,27 @@ function buildInvoicePDF(o){
   doc.line(W-80, y, W-12, y);
   y += 5;
 
+  // Currency symbol
+  const cur  = o.currency||'USD';
+  const sym  = {USD:'$',MXN:'$',DOP:'RD$',DOP:'RD$',COP:'$',CLP:'$',ARS:'$',PEN:'S/',EUR:'€'}[cur]||'$';
+  const fmtC = n => sym+Number(n||0).toFixed(2)+(cur!=='USD'?' '+cur:'');
+
   const rows=[
-    ['Subtotal:', money2(o.subtotal)],
-    ['Envío:',    money2(o.shipping)],
+    ['Subtotal:', fmtC(o.subtotal)],
   ];
-  rows.forEach(([label,val])=>{
+  if(Number(o.discountAmount||0)>0){
+    rows.push(['Descuento'+(o.discountType==='pct'?' ('+o.discountValue+'%)':'')+':', '− '+fmtC(o.discountAmount)]);
+  }
+  rows.push(['Envío:', Number(o.shipping||0)===0 ? 'GRATIS' : fmtC(o.shipping)]);
+
+  rows.forEach(([label,val], ri)=>{
     doc.setFont('helvetica','normal');
     doc.setFontSize(9);
     doc.setTextColor(...gray);
+    // Highlight discount row
+    if(label.startsWith('Descuento')){
+      doc.setTextColor(220,150,20);
+    }
     doc.text(label, W-60, y);
     doc.text(val,   W-16, y,{align:'right'});
     y += 7;
@@ -1833,8 +2008,43 @@ function buildInvoicePDF(o){
   doc.setFontSize(11);
   doc.setTextColor(8,6,3);
   doc.text('TOTAL:', W-75, y+4);
-  doc.text(money2(o.total), W-16, y+4,{align:'right'});
-  y += 20;
+  doc.text(fmtC(o.total), W-16, y+4,{align:'right'});
+  y += 14;
+
+  // ── Payment type / Credit block
+  const payType = o.paymentType||'contado';
+  if(payType==='credito'||payType==='anticipo'){
+    const blue=[60,140,220];
+    doc.setFillColor(14,24,45);
+    doc.roundedRect(W-80, y-3, 68, payType==='anticipo'?22:16, 2,2,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...blue);
+    doc.text(payType==='credito'?'VENTA A CRÉDITO':'ANTICIPO PARCIAL', W-76, y+3);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(160,185,220);
+    if(o.dueDate) doc.text('Vence: '+o.dueDate, W-76, y+9);
+    if(o.creditDays) doc.text('Plazo: '+o.creditDays+' días', W-40, y+9);
+    if(payType==='anticipo'&&Number(o.deposit||0)>0){
+      doc.setTextColor(...blue);
+      doc.text('Anticipo: '+fmtC(o.deposit), W-76, y+16);
+      doc.text('Saldo: '+fmtC(o.balanceDue||o.total-o.deposit), W-40, y+16);
+    }
+    y += payType==='anticipo' ? 28 : 22;
+  } else {
+    y += 6;
+  }
+
+  // Payment method badge
+  const pIcon = {card:'Tarjeta de Crédito/Débito', paypal:'PayPal', whatsapp:'WhatsApp/Efectivo', cash:'Efectivo', transfer:'Transferencia Bancaria'}[o.method||'']||o.method||'';
+  if(pIcon){
+    doc.setFont('helvetica','italic');
+    doc.setFontSize(8);
+    doc.setTextColor(...gray);
+    doc.text('Forma de pago: '+pIcon, W-60, y, {align:'left'});
+    y += 8;
+  }
 
   // ── Footer
   doc.setDrawColor(...gold);
@@ -2013,9 +2223,77 @@ function confirmLabel(carrier){
   if(!o) return;
   const tracking = (document.getElementById('trackingInput')?.value||'').trim();
   const service  = document.getElementById('serviceSelect')?.value||'Standard';
+
+  // Save tracking number to order
+  if(tracking){
+    o.trackingNum = tracking;
+    o.updated_at  = new Date().toISOString();
+    persist();
+    sbUpdate('pedidos', o.id, {tracking_num:tracking, updated_at:o.updated_at}).catch(console.error);
+    // Refresh order detail if open
+    const tEl = document.getElementById('orderTracking');
+    if(tEl) tEl.value = tracking;
+  }
+
+  // Generate PDF
   const doc = buildLabelPDF(o, carrier, tracking, service);
-  doc.save('Label-'+carrier+'-'+o.id+'.pdf');
-  toast('📦 Label '+carrier+' generado para pedido '+o.id,'ok');
+
+  // Auto-print if setting is on, else just save
+  const autoPrint = localStorage.getItem('pm_auto_print_label') === 'true';
+  if(autoPrint){
+    // Open PDF in new tab for printing
+    const blob = doc.output('blob');
+    const url  = URL.createObjectURL(blob);
+    const win  = window.open(url, '_blank');
+    if(win){
+      win.onload = ()=>{ win.focus(); win.print(); };
+    } else {
+      doc.save('Label-'+carrier+'-'+o.id+'.pdf');
+    }
+    toast('🖨️ Label '+carrier+' enviado a imprimir — Pedido '+o.id,'ok');
+  } else {
+    doc.save('Label-'+carrier+'-'+o.id+'.pdf');
+    toast('📦 Label '+carrier+' descargado — Pedido '+o.id,'ok');
+  }
+
+  // If triggered by confirmAndLabel, update status to "procesando"
+  if(window._confirmAndLabelPending){
+    window._confirmAndLabelPending = false;
+    setOrderStatusQuick('procesando');
+    toast('✅ Pedido confirmado y en procesamiento','ok');
+    // Notify client via WA if phone available
+    sendClientConfirmWA(o);
+  }
+
+  renderTab('pedidos');
+}
+
+// ── Confirm order AND generate label in one click ─────────────
+function confirmAndLabel(){
+  window._confirmAndLabelPending = true;
+  generateLabel();
+}
+
+// ── Send WhatsApp confirmation to client ──────────────────────
+function sendClientConfirmWA(o){
+  const phone = (o.clientPhone||o.phone||'').replace(/\D/g,'');
+  if(!phone) return;
+  const co = getCompanyInfo();
+  const msg = [
+    '✦ *'+co.name+'* — Confirmación de Pedido',
+    '',
+    'Hola '+esc(o.clientName||o.name||'')+'! 🎉',
+    '',
+    'Tu pedido *#'+o.id+'* ha sido confirmado y está en procesamiento.',
+    '',
+    '🛍 Artículos: '+(o.items||[]).slice(0,3).map(i=>i.name+' ×'+i.qty).join(', '),
+    '💰 Total: $'+Number(o.total||0).toFixed(2),
+    o.trackingNum ? '📦 Tracking: '+o.trackingNum : '',
+    '',
+    '¡Gracias por tu compra! ✨',
+  ].filter(Boolean).join('\n');
+  const url = 'https://wa.me/'+phone+'?text='+encodeURIComponent(msg);
+  window.open(url, '_blank');
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2064,21 +2342,20 @@ function showNewOrderAlert(o){
   alert.style.animation = 'none';
   requestAnimationFrame(()=>{ alert.style.animation='slideUp .4s ease'; });
 
-  // Sonido de notificación
+  // Play sound
   try{
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    [523,659,784].forEach((freq,i)=>{
-      const osc = ctx.createOscillator();
-      const gain= ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = freq;
-      osc.type = 'sine';
-      gain.gain.setValueAtTime(0.2,ctx.currentTime+i*0.15);
-      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*0.15+0.3);
-      osc.start(ctx.currentTime+i*0.15);
-      osc.stop(ctx.currentTime+i*0.15+0.3);
+    [[523,.0],[659,.15],[784,.3],[1047,.5]].forEach(([freq,t])=>{
+      const osc=ctx.createOscillator(), g=ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.frequency.value=freq; osc.type='sine';
+      g.gain.setValueAtTime(0.18,ctx.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.3);
+      osc.start(ctx.currentTime+t); osc.stop(ctx.currentTime+t+0.4);
     });
   }catch(e){}
+
+  // (sound handled above)
 
   // Auto-cerrar en 12 segundos
   setTimeout(()=>{ if(alert) alert.style.display='none'; }, 12000);
@@ -2102,6 +2379,16 @@ function invoiceNewOrder(){
 function labelNewOrder(){
   document.getElementById('newOrderAlert').style.display='none';
   if(_newestAlertId){ _labelTargetId=_newestAlertId; openCarrierModal(); }
+}
+
+function confirmAndLabelNew(){
+  document.getElementById('newOrderAlert').style.display='none';
+  if(_newestAlertId){
+    window.__activeOrderId = _newestAlertId;
+    _labelTargetId = _newestAlertId;
+    window._confirmAndLabelPending = true;
+    openCarrierModal();
+  }
 }
 
 // Iniciar polling después de que cargue la DB
@@ -2508,6 +2795,7 @@ renderDashboard();
   if(tab==="clientes")   renderClients();
   if(tab==="productos")  renderProducts();
   updateCounts();
+  if(tab==="facturas") renderFacturas();
 }
 
 function updateCounts(){
@@ -2516,6 +2804,7 @@ function updateCounts(){
   $("tcClientes").textContent = DB.clients.length;
   $("tcProductos").textContent = DB.products.length;
   const tcU=document.getElementById("tcUsuarios"); if(tcU) tcU.textContent=(DB.adminUsers||[]).length;
+  const tcF=document.getElementById("tcFacturas"); if(tcF) tcF.textContent=(DB.orders||[]).length;
 }
 
 // ══════════════════════════════════════
@@ -2794,6 +3083,9 @@ $("printOrderBtn").addEventListener("click",()=>{
       style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">✕</button>
   </div>
   <div id="alertBody" style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:14px"></div>
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <button onclick="confirmAndLabelNew()" class="btn" style="flex:1;font-size:12px;font-weight:700;background:linear-gradient(135deg,rgba(201,150,58,.25),rgba(232,197,110,.15));border-color:rgba(212,175,55,.5);color:var(--gold2)">✅ Confirmar + Label</button>
+  </div>
   <div style="display:flex;gap:8px">
     <button onclick="viewNewOrder()" class="btn primary" style="flex:1;font-size:12px">Ver pedido</button>
     <button onclick="invoiceNewOrder()" class="btn ok" style="font-size:12px;background:rgba(47,227,181,.15);border-color:rgba(47,227,181,.4);color:#2fe3b5">🧾 Factura</button>
@@ -2843,10 +3135,18 @@ $("printOrderBtn").addEventListener("click",()=>{
           <option value="Ground">Ground</option>
           <option value="2-Day">2-Day Air</option>
         </select>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px;background:rgba(212,175,55,.05);border-radius:9px;border:1px solid rgba(212,175,55,.1)">
+          <input type="checkbox" id="autoPrintToggle" style="accent-color:var(--gold);width:15px;height:15px;flex-shrink:0"
+            onchange="localStorage.setItem('pm_auto_print_label',this.checked)"/>
+          <label for="autoPrintToggle" style="font-size:12px;color:var(--text2);cursor:pointer;line-height:1.4">
+            🖨️ Imprimir automáticamente al generar label
+          </label>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
 
 </body></html>`);
   w.document.close(); w.print();
@@ -3528,17 +3828,9 @@ const I18N = {
   }
 };
 
-function getLang(){
-  return localStorage.getItem("pleaseme_lang") || document.documentElement.lang || "es";
-}
-function setLang(lang){
-  const l = (lang==="en"?"en":"es");
-  localStorage.setItem("pleaseme_lang", l);
-  document.documentElement.lang = l;
-  applyI18n(l);
-  // re-render current tab to refresh dynamic texts
-  try{ renderTab(currentTab); }catch(e){}
-}
+function getLang(){ return "es"; }
+function setLang(){ }
+
 function t(key){
   const lang = getLang();
   return (I18N[lang] && I18N[lang][key]) || (I18N.es[key]||key);
@@ -3557,17 +3849,10 @@ function applyI18n(lang){
     el.setAttribute("placeholder", t(k));
   });
   // Select values: keep selected option value; only labels change via data-i18n on options (already handled above)
-  const sel = document.getElementById("langSel");
-  if(sel) sel.value = lang;
 }
 
-// Language selector
-const __langSel = document.getElementById("langSel");
-if(__langSel){
-  __langSel.addEventListener("change", e => setLang(e.target.value));
-}
 // Apply language on load
-applyI18n(getLang());
+applyI18n('es');
 
 // Cancel / Refund buttons in modal
 function setOrderStatusQuick(status){
@@ -3708,7 +3993,7 @@ function applyPermissionsToUI(){
   if(!adminSession) return;
 
   const tabPerms = {
-    dashboard: 'perm_dashboard', pedidos:'perm_pedidos',
+    dashboard: 'perm_dashboard', pedidos:'perm_pedidos', facturas:'perm_pedidos',
     inventario:'perm_inventario', clientes:'perm_clientes',
     productos: 'perm_productos',  usuarios: '__admin_only__'
   };
@@ -3979,6 +4264,10 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     // initDB will be called by existing page init
     setTimeout(()=>{ applyPermissionsToUI(); loadAdminUsers(); },800);
   }
+  // Restore auto-print toggle
+  const apt = document.getElementById('autoPrintToggle');
+  if(apt) apt.checked = localStorage.getItem('pm_auto_print_label')==='true';
+
   // Set up Enter key for login fields
   ['lgAdminPass'].forEach(id=>{
     const el=document.getElementById(id);
@@ -3990,6 +4279,1339 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
   });
 })();
 
+
+// ══════════════════════════════════════════════════════════════
+//  FACTURAS — Sistema completo conectado a tabla pedidos
+// ══════════════════════════════════════════════════════════════
+
+// Invoice number generator: F-YYYY-XXXXXX
+function genInvoiceNum(orderId, date){
+  const yr  = (date||new Date().toISOString()).slice(0,4);
+  const seq = orderId ? orderId.replace(/\D/g,'').slice(-6).padStart(6,'0') : Date.now().toString().slice(-6);
+  return 'F-'+yr+'-'+seq;
+}
+
+// Get or assign invoice data to an order
+function getInvoiceData(o){
+  const invNum = o.invoiceNum || genInvoiceNum(o.id, o.created_at||o.date);
+  // Determine invoice status from order status
+  let invStatus = o.invoiceStatus || 'pendiente';
+  if(o.status==='entregado' || o.status==='enviado') invStatus = o.invoiceStatus||'pagada';
+  if(o.status==='cancelado' || o.status==='reembolsado') invStatus = 'cancelada';
+  return {invNum, invStatus};
+}
+
+// ── Render facturas table ─────────────────────────────────────
+function renderFacturas(){
+  const q      = (document.getElementById('facQ')?.value||'').toLowerCase();
+  const status = document.getElementById('facStatus')?.value||'';
+  const period = document.getElementById('facPeriod')?.value||'';
+
+  let list = [...DB.orders];
+
+  // Filters
+  if(q) list = list.filter(o=>{
+    const inv = getInvoiceData(o);
+    return (o.clientName+o.id+o.clientEmail+inv.invNum).toLowerCase().includes(q);
+  });
+
+  if(status) list = list.filter(o=> getInvoiceData(o).invStatus === status);
+
+  if(period){
+    const now = new Date();
+    list = list.filter(o=>{
+      const d = new Date(o.created_at||o.date);
+      if(period==='today') return d.toDateString()===now.toDateString();
+      if(period==='week'){
+        const wk = new Date(now); wk.setDate(now.getDate()-7);
+        return d >= wk;
+      }
+      if(period==='month') return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+      if(period==='year')  return d.getFullYear()===now.getFullYear();
+      return true;
+    });
+  }
+
+  list.sort((a,b)=>new Date(b.created_at||b.date)-new Date(a.created_at||a.date));
+
+  // Update KPIs
+  const allInv    = DB.orders.map(o=>getInvoiceData(o));
+  const pagadas   = allInv.filter(i=>i.invStatus==='pagada').length;
+  const pendientes= allInv.filter(i=>i.invStatus==='pendiente').length;
+  const monto     = DB.orders.filter(o=>getInvoiceData(o).invStatus!=='cancelada').reduce((s,o)=>s+Number(o.total||0),0);
+  const kpiEl = id=>document.getElementById(id);
+  if(kpiEl('fkpiTotal'))     kpiEl('fkpiTotal').textContent     = DB.orders.length;
+  if(kpiEl('fkpiPagadas'))   kpiEl('fkpiPagadas').textContent   = pagadas;
+  if(kpiEl('fkpiPendientes'))kpiEl('fkpiPendientes').textContent= pendientes;
+  if(kpiEl('fkpiMonto'))     kpiEl('fkpiMonto').textContent     = money(monto);
+
+  // Update tab count
+  const tc=document.getElementById('tcFacturas'); if(tc) tc.textContent=DB.orders.length;
+
+  const payIcons = {card:'💳',paypal:'🅿️',whatsapp:'💬','':'—'};
+  const methodLabel = m=>({card:'Tarjeta',paypal:'PayPal',whatsapp:'WhatsApp'}[m]||m||'—');
+
+  const body = document.getElementById('facBody');
+  if(!body) return;
+
+  if(!list.length){
+    body.innerHTML='<tr><td colspan="12" class="empty-row">No hay facturas con esos filtros.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = list.map(o=>{
+    const {invNum, invStatus} = getInvoiceData(o);
+    const date   = fmtDate(o.created_at||o.date);
+    const items  = (o.items||[]).reduce((s,i)=>s+i.qty,0);
+    const ship   = Number(o.shipping||0);
+    const sub    = Number(o.subtotal||o.total||0) - ship;
+    const total  = Number(o.total||0);
+    const method = o.method||o.paymentMethod||'';
+
+    return `<tr class="fac-row" data-id="${esc(o.id)}" onclick="facRowClick(this,'${esc(o.id)}')">
+      <td onclick="event.stopPropagation()">
+        <input type="checkbox" class="fac-chk" data-id="${esc(o.id)}"
+          onchange="this.closest('tr').classList.toggle('fac-row-sel',this.checked)"/>
+      </td>
+      <td style="font-family:var(--fd);font-size:14px;color:var(--gold2);font-weight:600">${esc(invNum)}</td>
+      <td><span class="order-id">#${esc(o.id)}</span></td>
+      <td>
+        <div style="font-size:13px;color:var(--text)">${esc(o.clientName||'—')}</div>
+        <div class="order-meta">${esc(o.clientEmail||'')}</div>
+      </td>
+      <td style="font-size:12px;color:var(--muted)">${date}</td>
+      <td style="font-size:13px;text-align:center">${items} art.</td>
+      <td style="font-family:var(--fd);font-size:15px;color:var(--text2)">${money(sub>0?sub:total)}</td>
+      <td style="font-size:12px;color:var(--muted)">${ship>0?money(ship):'Gratis'}</td>
+      <td style="font-family:var(--fd);font-size:16px;color:var(--gold);font-weight:600">${money(total)}</td>
+      <td style="font-size:11px;color:var(--muted)">${payIcons[method]||'—'} ${methodLabel(method)}</td>
+      <td onclick="event.stopPropagation()">
+        <select class="fac-status-sel" data-id="${esc(o.id)}"
+          onchange="updateInvoiceStatus('${esc(o.id)}',this.value)"
+          style="background:transparent;border:none;font-size:10px;cursor:pointer;color:inherit"
+          onclick="event.stopPropagation()">
+          <option value="pendiente"  ${invStatus==='pendiente' ?'selected':''}>⏳ Pendiente</option>
+          <option value="pagada"     ${invStatus==='pagada'    ?'selected':''}>✅ Pagada</option>
+          <option value="cancelada"  ${invStatus==='cancelada' ?'selected':''}>❌ Cancelada</option>
+        </select>
+        <span class="fac-badge fac-${invStatus}" id="fac-badge-${esc(o.id)}">${
+          {pendiente:'Pendiente',pagada:'Pagada',cancelada:'Cancelada'}[invStatus]||invStatus
+        }</span>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <button class="btn sm" onclick="previewInvoice('${esc(o.id)}')"
+            style="background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.3);color:var(--gold)" title="Ver factura">👁</button>
+          <button class="btn sm" onclick="downloadInvoice('${esc(o.id)}')"
+            style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5" title="Descargar PDF">⬇️</button>
+          <button class="btn sm" onclick="printInvoice('${esc(o.id)}')"
+            title="Imprimir">🖨️</button>
+          <button class="btn sm" onclick="sendInvoiceWA('${esc(o.id)}')"
+            style="background:rgba(37,211,102,.08);border-color:rgba(37,211,102,.3);color:#25d366" title="Enviar por WA">📲</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Row click → open order detail ────────────────────────────
+function facRowClick(row, id){
+  if(window.event?.target?.tagName==='INPUT'||window.event?.target?.tagName==='SELECT'||window.event?.target?.tagName==='BUTTON') return;
+  openOrderModal(id);
+}
+
+// ── Update invoice status (saved to order record) ─────────────
+function updateInvoiceStatus(orderId, status){
+  const o = DB.orders.find(x=>x.id===orderId); if(!o) return;
+  o.invoiceStatus = status;
+  o.invoiceNum    = o.invoiceNum || genInvoiceNum(o.id, o.created_at);
+  o.updated_at    = new Date().toISOString();
+  persist();
+  sbUpdate('pedidos', orderId, {record:{...o}}).catch(console.error);
+  // Update badge inline
+  const badge = document.getElementById('fac-badge-'+orderId);
+  if(badge){
+    badge.className = 'fac-badge fac-'+status;
+    badge.textContent = {pendiente:'Pendiente',pagada:'Pagada',cancelada:'Cancelada'}[status]||status;
+  }
+  renderFacturasKPIs();
+  toast('Factura '+(o.invoiceNum)+' → '+status,'ok');
+}
+
+function renderFacturasKPIs(){
+  const allInv     = DB.orders.map(o=>getInvoiceData(o));
+  const pagadas    = allInv.filter(i=>i.invStatus==='pagada').length;
+  const pendientes = allInv.filter(i=>i.invStatus==='pendiente').length;
+  const monto      = DB.orders.filter(o=>getInvoiceData(o).invStatus!=='cancelada').reduce((s,o)=>s+Number(o.total||0),0);
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('fkpiTotal',     DB.orders.length);
+  set('fkpiPagadas',   pagadas);
+  set('fkpiPendientes',pendientes);
+  set('fkpiMonto',     money(monto));
+}
+
+// ── Invoice actions ───────────────────────────────────────────
+function downloadInvoice(id){
+  const o = DB.orders.find(x=>x.id===id); if(!o) return;
+  const inv = getInvoiceData(o);
+  o.invoiceNum = inv.invNum; // Assign if not set
+  const doc = buildInvoicePDF(o);
+  doc.save('Factura-'+inv.invNum+'.pdf');
+  toast('⬇️ Factura '+inv.invNum+' descargada','ok');
+}
+
+function printInvoice(id){
+  const o = DB.orders.find(x=>x.id===id); if(!o) return;
+  const inv = getInvoiceData(o);
+  o.invoiceNum = inv.invNum;
+  const doc  = buildInvoicePDF(o);
+  const blob = doc.output('blob');
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url,'_blank');
+  if(win) win.onload = ()=>{ win.focus(); win.print(); };
+  toast('🖨️ Enviando a imprimir...','ok');
+}
+
+function previewInvoice(id){
+  const o = DB.orders.find(x=>x.id===id); if(!o) return;
+  const inv = getInvoiceData(o);
+  o.invoiceNum = inv.invNum;
+  const doc  = buildInvoicePDF(o);
+  const blob = doc.output('blob');
+  const url  = URL.createObjectURL(blob);
+  window.open(url,'_blank');
+}
+
+function sendInvoiceWA(id){
+  const o = DB.orders.find(x=>x.id===id); if(!o) return;
+  const inv = getInvoiceData(o);
+  o.invoiceNum = inv.invNum;
+  const phone = (o.clientPhone||o.phone||'').replace(/\D/g,'');
+  const co = getCompanyInfo();
+  const msg = [
+    '✦ *'+co.name+'* — Tu Factura',
+    '',
+    'Hola '+(o.clientName||'')+'! 🌟',
+    'Te enviamos el detalle de tu compra:',
+    '',
+    '🧾 *Factura: '+inv.invNum+'*',
+    '🆔 Pedido: #'+o.id,
+    '📅 Fecha: '+(o.created_at||o.date||'').slice(0,10),
+    '',
+    '🛍 Artículos:',
+    ...(o.items||[]).slice(0,5).map(i=>'  • '+i.name+' ×'+i.qty+' — $'+Number(i.price*i.qty).toFixed(2)),
+    '',
+    '💰 Total: *$'+Number(o.total||0).toFixed(2)+'*',
+    '✅ Estado: '+(inv.invStatus==='pagada'?'Pagada ✅':'Pendiente ⏳'),
+    '',
+    '¡Gracias por tu compra! 💛✨',
+  ].join('\n');
+
+  const wa = phone || (co.whatsapp||'').replace(/\D/g,'');
+  if(!wa){ toast('Sin número de teléfono del cliente','warn'); return; }
+  window.open('https://wa.me/'+wa+'?text='+encodeURIComponent(msg),'_blank');
+  toast('📲 Abriendo WhatsApp...','ok');
+}
+
+// ── Select all checkboxes ─────────────────────────────────────
+function toggleSelectAllFac(cb){
+  document.querySelectorAll('.fac-chk').forEach(c=>{
+    c.checked = cb.checked;
+    c.closest('tr').classList.toggle('fac-row-sel', cb.checked);
+  });
+}
+
+// ── Print selected invoices ───────────────────────────────────
+function printAllFacturas(){
+  const selected = [...document.querySelectorAll('.fac-chk:checked')].map(c=>c.dataset.id);
+  if(!selected.length){ toast('Selecciona al menos una factura','warn'); return; }
+
+  const {jsPDF} = window.jspdf;
+  // Generate a combined PDF with all selected invoices
+  let combinedDoc = null;
+  selected.forEach((id,i)=>{
+    const o = DB.orders.find(x=>x.id===id); if(!o) return;
+    const inv = getInvoiceData(o);
+    o.invoiceNum = inv.invNum;
+    const doc = buildInvoicePDF(o);
+    if(i===0){
+      combinedDoc = doc;
+    } else {
+      // Add each as new page to first doc
+      const pdfData = doc.output('arraybuffer');
+      combinedDoc.addPage('letter','portrait');
+      // Note: jsPDF doesn't support merging natively, so open each separately
+      const blob = doc.output('blob');
+      const url  = URL.createObjectURL(blob);
+      window.open(url,'_blank');
+    }
+  });
+
+  if(combinedDoc){
+    const blob = combinedDoc.output('blob');
+    const url  = URL.createObjectURL(blob);
+    const win  = window.open(url,'_blank');
+    if(win) win.onload=()=>{ win.focus(); win.print(); };
+  }
+  toast('🖨️ Imprimiendo '+selected.length+' factura(s)','ok');
+}
+
+// ── Export CSV ────────────────────────────────────────────────
+function exportFacturasCSV(){
+  const q      = (document.getElementById('facQ')?.value||'').toLowerCase();
+  const status = document.getElementById('facStatus')?.value||'';
+  let list = [...DB.orders];
+  if(q) list=list.filter(o=>{const i=getInvoiceData(o);return(o.clientName+o.id+o.clientEmail+i.invNum).toLowerCase().includes(q);});
+  if(status) list=list.filter(o=>getInvoiceData(o).invStatus===status);
+
+  const rows=[['No. Factura','Pedido','Cliente','Email','Teléfono','Fecha','Artículos','Subtotal','Envío','Total','Método de Pago','Estado Factura','Estado Pedido','Dirección']];
+  list.forEach(o=>{
+    const {invNum,invStatus}=getInvoiceData(o);
+    const ship=Number(o.shipping||0);
+    const sub =Number(o.subtotal||0)||(Number(o.total||0)-ship);
+    rows.push([
+      invNum, o.id,
+      o.clientName||'', o.clientEmail||'', o.clientPhone||'',
+      (o.created_at||o.date||'').slice(0,10),
+      (o.items||[]).reduce((s,i)=>s+i.qty,0),
+      sub.toFixed(2), ship.toFixed(2), Number(o.total||0).toFixed(2),
+      o.method||'', invStatus, o.status||'',
+      o.shippingAddress||o.address||''
+    ]);
+  });
+
+  const csv = rows.map(r=>r.map(v=>'"'+(String(v||'').replace(/"/g,'""'))+'"').join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href=url; a.download='Facturas-Pleaseme-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+  toast('📊 CSV exportado ('+list.length+' facturas)','ok');
+}
+
+// ── Update invoice number in existing buildInvoicePDF call ────
+// Patch buildInvoicePDF to use o.invoiceNum if available
+const _origBuildInvoicePDF = buildInvoicePDF;
+buildInvoicePDF = function(o){
+  if(!o.invoiceNum){
+    o.invoiceNum = genInvoiceNum(o.id, o.created_at||o.date);
+  }
+  return _origBuildInvoicePDF(o);
+};
+
+// ── Attach tab + filter events ────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  ['facQ','facStatus','facPeriod'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('change',renderFacturas);
+  });
+  const facQ=document.getElementById('facQ');
+  if(facQ) facQ.addEventListener('input',renderFacturas);
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  NUEVA FACTURA / PEDIDO MANUAL
+// ══════════════════════════════════════════════════════════════
+let _nomItems = [];   // [{id,name,price,qty,size,color,custom}]
+
+// ── Open / Close ──────────────────────────────────────────────
+function openNewOrderModal(){
+  try{
+  _nomItems = [];
+  // Reset all fields
+  ['nomClientName','nomClientEmail','nomClientPhone','nomAddress','nomTracking','nomNotes'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  const method=document.getElementById('nomMethod'); if(method) method.value='card';
+  const ostatus=document.getElementById('nomOrderStatus'); if(ostatus) ostatus.value='pendiente';
+  const istatus=document.getElementById('nomInvStatus');   if(istatus) istatus.value='pendiente';
+  const ship=document.getElementById('nomShipping'); if(ship){ship.value='0';ship.disabled=false;}
+  const free=document.getElementById('nomFreeShip'); if(free) free.checked=false;
+  nomRenderItems();
+  nomRecalc();
+
+  const preview=document.getElementById('nomInvoicePreview');
+  if(preview){
+    const yr=new Date().getFullYear();
+    const seq=Date.now().toString().slice(-6);
+    preview.textContent='No. F-'+yr+'-'+seq+' (se asignará al guardar)';
+  }
+
+  const m=document.getElementById('newOrderModal');
+  if(m){
+    m.style.display='flex';
+    m.classList.add('open');
+    setTimeout(()=>{ try{ attachPlacesTo('nomAddress'); }catch(e){} }, 100);
+  }
+  }catch(err){ console.error('[NOM open]',err); }
+}
+
+function closeNewOrderModal(){
+  const m=document.getElementById('newOrderModal');
+  if(m){ m.style.display='none'; m.classList.remove('open'); }
+}
+
+// ── Items management ──────────────────────────────────────────
+
+
+
+function nomRemoveItem(idx){
+  _nomItems.splice(idx,1);
+  nomRenderItems();
+  nomRecalc();
+}
+
+
+function nomRecalc(){
+  const subtotal    = _nomItems.reduce((s,i)=>s+Number(i.price)*Number(i.qty),0);
+  const shipFree    = document.getElementById('nomFreeShip')?.checked;
+  const ship        = shipFree ? 0 : Number(document.getElementById('nomShipping')?.value||0);
+  const discVal     = Number(document.getElementById('nomDiscountVal')?.value||0);
+  const discType    = document.getElementById('nomDiscountType')?.value||'pct';
+  const deposit     = Number(document.getElementById('nomDeposit')?.value||0);
+  const cur         = document.getElementById('nomCurrency')?.value||CFG.cur||'USD';
+  const sym         = nomCurrencySymbol(cur);
+
+  // Descuento
+  let discAmt = 0;
+  if(discVal > 0){
+    discAmt = discType==='pct' ? (subtotal*(discVal/100)) : Math.min(discVal, subtotal);
+  }
+  const afterDisc  = subtotal - discAmt;
+  const total      = afterDisc + ship;
+  const balance    = total - deposit;
+
+  const fmt = n => sym+Number(n).toFixed(2);
+  const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('nomSubtotal',    fmt(subtotal));
+  set('nomTotal',       fmt(total));
+  set('nomShipDisplay', shipFree ? 'Gratis' : fmt(shipCost));
+
+  // Discount label
+  const dLbl = document.getElementById('nomDiscountLabel');
+  if(dLbl){
+    dLbl.textContent = discAmt>0
+      ? '— Ahorro: '+fmt(discAmt)+(discType==='pct'?' ('+discVal+'%)':'')
+      : '';
+  }
+
+  // Add discount line to totals display
+  const discRow = document.getElementById('nomDiscountRow');
+  if(discRow) discRow.style.display = discAmt>0 ? 'flex' : 'none';
+  const discAmtEl = document.getElementById('nomDiscountAmt');
+  if(discAmtEl) discAmtEl.textContent = '− '+fmt(discAmt);
+
+  // Credit balance
+  const csEl = document.getElementById('nomCreditSummary');
+  const payType = document.getElementById('nomPaymentType')?.value;
+  if(csEl && payType==='credito'){
+    csEl.innerHTML = '<b>Saldo pendiente:</b> '+fmt(balance)+
+      (deposit>0 ? ' <span style="color:#2fe3b5">(anticipo recibido: '+fmt(deposit)+')</span>' : '');
+  } else if(csEl && payType==='anticipo'){
+    csEl.innerHTML = deposit>0
+      ? 'Anticipo: '+fmt(deposit)+' — Saldo: '+fmt(balance)
+      : 'Ingresa el anticipo recibido arriba.';
+  }
+
+  // Update credit due date when days change
+  nomUpdateDueDate();
+}
+
+function nomCurrencySymbol(cur){
+  return {USD:'$',MXN:'$',DOP:'RD$',COP:'$',CLP:'$',ARS:'$',PEN:'S/',EUR:'€'}[cur]||'$';
+}
+
+function nomUpdateDueDate(){
+  const daysEl = document.getElementById('nomCreditDays');
+  const dueEl  = document.getElementById('nomDueDate');
+  if(!daysEl||!dueEl) return;
+  if(daysEl.value==='custom') return;
+  const days = Number(daysEl.value||30);
+  const due  = new Date();
+  due.setDate(due.getDate()+days);
+  dueEl.value = due.toISOString().slice(0,10);
+}
+
+function nomToggleCredit(){
+  const type  = document.getElementById('nomPaymentType')?.value;
+  const box   = document.getElementById('nomCreditBox');
+  if(box) box.style.display = (type==='credito'||type==='anticipo') ? 'block' : 'none';
+  if(type==='credito'||type==='anticipo') nomUpdateDueDate();
+  nomRecalc();
+}
+
+// ── Product picker ────────────────────────────────────────────
+
+// ── Search existing client ────────────────────────────────────
+
+// ── Save order ────────────────────────────────────────────────
+async function saveNewOrder(action){
+  const name    = document.getElementById('nomClientName')?.value.trim()||'';
+  const email   = document.getElementById('nomClientEmail')?.value.trim().toLowerCase()||'';
+  const phone   = document.getElementById('nomClientPhone')?.value.trim()||'';
+  const address = document.getElementById('nomAddress')?.value.trim()||'';
+  const method  = document.getElementById('nomMethod')?.value||'card';
+  const ostatus = document.getElementById('nomOrderStatus')?.value||'pendiente';
+  const istatus = document.getElementById('nomInvStatus')?.value||'pendiente';
+  const tracking= document.getElementById('nomTracking')?.value.trim()||'';
+  const notes   = document.getElementById('nomNotes')?.value.trim()||'';
+  const ship      = Number(document.getElementById('nomShipping')?.value||0);
+  const freeShip  = document.getElementById('nomFreeShip')?.checked||false;
+  const currency  = document.getElementById('nomCurrency')?.value||CFG.cur||'USD';
+  const discVal   = Number(document.getElementById('nomDiscountVal')?.value||0);
+  const discType  = document.getElementById('nomDiscountType')?.value||'pct';
+  const payType   = document.getElementById('nomPaymentType')?.value||'contado';
+  const creditDays= document.getElementById('nomCreditDays')?.value||'';
+  const dueDate   = document.getElementById('nomDueDate')?.value||'';
+  const deposit   = Number(document.getElementById('nomDeposit')?.value||0);
+
+  if(!name){ nomToast('El nombre del cliente es requerido.','err'); return; }
+  if(!_nomItems.length){ nomToast('Agrega al menos un artículo.','err'); return; }
+  const emptyName=_nomItems.find(i=>!i.name.trim());
+  if(emptyName){ nomToast('Todos los artículos necesitan nombre.','err'); return; }
+
+  const btns=['nomBtnSaveOnly','nomBtnSaveInvoice','nomBtnSavePrint'].map(id=>document.getElementById(id));
+  btns.forEach(b=>{ if(b){b.disabled=true;} });
+
+  try{
+    const now      = new Date().toISOString();
+    const id       = 'PM'+Date.now().toString().slice(-6);
+    const subtotal  = _nomItems.reduce((s,i)=>s+Number(i.price)*Number(i.qty),0);
+    const discAmt   = discVal>0 ? (discType==='pct'?subtotal*(discVal/100):Math.min(discVal,subtotal)) : 0;
+    const afterDisc = subtotal - discAmt;
+    const shipCost  = freeShip ? 0 : ship;
+    const total     = afterDisc + shipCost;
+    const balance   = total - deposit;
+    const invNum    = genInvoiceNum(id, now);
+
+    const order = {
+      id, method,
+      clientName:      name,
+      clientEmail:     email,
+      clientPhone:     phone,
+      email, name,
+      shippingAddress: address,
+      address,
+      items: _nomItems.map(i=>({
+        id:i.prodId||i.id, name:i.name,
+        price:Number(i.price), qty:Number(i.qty),
+        size:i.size||'', color:i.color||''
+      })),
+      subtotal,
+      discountValue:   discVal,
+      discountType:    discType,
+      discountAmount:  discAmt,
+      shipping:        shipCost,
+      total,
+      currency,
+      paymentType:     payType,   // contado | credito | anticipo
+      creditDays:      payType!=='contado' ? (creditDays||30) : 0,
+      dueDate:         payType!=='contado' ? dueDate : '',
+      deposit:         payType!=='contado' ? deposit : 0,
+      balanceDue:      payType!=='contado' ? balance : 0,
+      status:          ostatus,
+      invoiceStatus:   istatus,
+      invoiceNum:      invNum,
+      trackingNum:     tracking,
+      notes,
+      created_at:      now,
+      updated_at:      now,
+    };
+
+    // Save to DB & Supabase
+    DB.orders.unshift(order);
+    save(LS_ORDERS, DB.orders);
+    await sbSaveOrder(order);
+    updateCounts();
+    renderFacturas();
+    if(currentTab==='pedidos') renderOrders();
+    renderDashboard();
+
+    nomToast('✅ Pedido #'+id+' creado correctamente','ok');
+
+    // Post-save actions
+    if(action==='invoice'||action==='print'){
+      setTimeout(()=>{
+        if(action==='invoice'){
+          downloadInvoice(id);
+        } else {
+          printInvoice(id);
+        }
+        closeNewOrderModal();
+      }, 600);
+    } else {
+      setTimeout(closeNewOrderModal, 1200);
+    }
+
+  }catch(e){
+    nomToast('Error al guardar: '+e.message,'err');
+    console.error('[NOM]',e);
+  }finally{
+    btns.forEach(b=>{ if(b){b.disabled=false;} });
+  }
+}
+
+function nomToast(msg, type='ok'){
+  const el=document.getElementById('nomToast'); if(!el) return;
+  el.textContent=msg; el.style.display='block';
+  const colors={ok:'rgba(47,227,181,.15)',err:'rgba(255,77,109,.15)',warn:'rgba(245,166,35,.15)'};
+  const borders={ok:'rgba(47,227,181,.3)',err:'rgba(255,77,109,.3)',warn:'rgba(245,166,35,.3)'};
+  const text={ok:'#2fe3b5',err:'#ff4d6d',warn:'#f5a623'};
+  el.style.background=colors[type]||colors.ok;
+  el.style.border='1px solid '+(borders[type]||borders.ok);
+  el.style.color=text[type]||text.ok;
+  el.style.borderRadius='8px'; el.style.padding='8px 12px'; el.style.fontSize='12px';
+  setTimeout(()=>{ el.style.display='none'; },4000);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+//  GOOGLE PLACES AUTOCOMPLETE — Auto-llenado de direcciones
+// ══════════════════════════════════════════════════════════════
+let _placesInited = false;
+
+function initGooglePlaces(key){
+  const k = key || CFG.googleKey || (typeof DB!=='undefined'&&DB.company?.google_key) || '';
+  if(!k){ console.log('[Places] No API key configured'); return; }
+  if(_placesInited && window._googlePlacesReady){ attachAllPlaces(); return; }
+  if(!window._googlePlacesReady){
+    window._placesCallbackQueue = window._placesCallbackQueue||[];
+    window._placesCallbackQueue.push(()=>{ _placesInited=true; attachAllPlaces(); });
+  }
+  if(typeof loadGooglePlaces === 'function') loadGooglePlaces(k);
+}
+
+// Attach autocomplete to every address input/textarea in the page
+function attachAllPlaces(){
+  const IDS = [
+    'nomAddress',   // Nueva factura
+    'acAddress',    // Cliente modal
+    'coAddress',    // Company info
+    'orderShipAddr','orderAddr',    // Order detail (if editable)
+  ];
+  IDS.forEach(id => attachPlacesTo(id));
+
+  // Also observe for dynamically added inputs
+  document.querySelectorAll('[data-places]').forEach(el => attachPlacesEl(el));
+}
+
+function attachPlacesTo(id){
+  const el = document.getElementById(id); if(!el) return;
+  if(el._placesAttached) return;
+  attachPlacesEl(el);
+}
+
+function attachPlacesEl(el){
+  if(!el || el._placesAttached) return;
+  if(!window.google?.maps?.places) return;
+  try{
+    const ac = new google.maps.places.Autocomplete(el, {
+      types: ['address'],
+      componentRestrictions: { country: ['us','mx','do','co','cl','ar','pe'] },
+      fields: ['formatted_address','address_components','geometry']
+    });
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      if(!place.formatted_address) return;
+      el.value = place.formatted_address;
+      el.dispatchEvent(new Event('input', {bubbles:true}));
+      // Parse components for split-field forms
+      parsePlaceComponents(place, el.id);
+    });
+    el._placesAttached = true;
+
+    // Prevent form submit on Enter
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter') e.preventDefault(); });
+  }catch(err){ console.warn('[Places]', id, err); }
+}
+
+// Parse address components and fill split fields
+function parsePlaceComponents(place, sourceId){
+  const c = {};
+  (place.address_components||[]).forEach(comp=>{
+    comp.types.forEach(t=>{ c[t]=comp.long_name; c[t+'_short']=comp.short_name; });
+  });
+
+  const street = [(c.street_number||''), (c.route||'')].filter(Boolean).join(' ');
+  const city   = c.locality || c.sublocality_level_1 || c.administrative_area_level_2 || '';
+  const state  = c.administrative_area_level_1_short || c.administrative_area_level_1 || '';
+  const zip    = c.postal_code || '';
+  const country= c.country || '';
+
+  // Map source field → companion fields
+  const MAP = {
+    // Admin client modal
+    acAddress: { addr1:'acAddr1', city:'acCity', state:'acState', zip:'acZip' },
+    // Company modal
+    coAddress: { addr1:'coAddress' },
+    // New order modal (single field)
+    nomAddress: { addr1:'nomAddress' },
+    // Order edit
+    orderShipAddr: { addr1:'orderShipAddr' },
+  };
+
+  const targets = MAP[sourceId]||{};
+  const trySet = (id,val)=>{ const el=document.getElementById(id); if(el&&val) el.value=val; };
+
+  if(targets.addr1 && street) trySet(targets.addr1, street);
+  if(targets.city  && city)   trySet(targets.city,  city);
+  if(targets.state && state)  trySet(targets.state, state);
+  if(targets.zip   && zip)    trySet(targets.zip,   zip);
+}
+
+// Init on DB load
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Delay to let DB load first
+  setTimeout(()=>{
+    const key = CFG.googleKey || (typeof DB!=='undefined'&&DB.company?.google_key)||'';
+    if(key) initGooglePlaces(key);
+  }, 1500);
+
+  // Attach credit days change listener
+  const cdEl = document.getElementById('nomCreditDays');
+  if(cdEl) cdEl.addEventListener('change', nomUpdateDueDate);
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  SELECTOR DE CLIENTE — ventana emergente
+// ══════════════════════════════════════════════════════════════
+function openClientPicker(){
+  renderClientPicker();
+  const m=document.getElementById('clientPickerModal');
+  if(m){ m.style.display='flex'; m.classList.add('open'); }
+  setTimeout(()=>document.getElementById('cpSearch')?.focus(), 80);
+}
+function closeClientPicker(){
+  const m=document.getElementById('clientPickerModal');
+  if(m){ m.style.display='none'; m.classList.remove('open'); }
+}
+
+function renderClientPicker(){
+  const q=(document.getElementById('cpSearch')?.value||'').toLowerCase().trim();
+  const list=document.getElementById('cpList');
+  const countEl=document.getElementById('cpCount');
+  if(!list) return;
+
+  let clients=[...DB.clients||[]];
+  if(q) clients=clients.filter(c=>
+    (c.name||'').toLowerCase().includes(q)||
+    (c.email||'').toLowerCase().includes(q)||
+    (c.phone||'').toLowerCase().includes(q)
+  );
+  clients.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+
+  if(countEl) countEl.textContent=clients.length+' cliente'+(clients.length!==1?'s':'');
+
+  if(!clients.length){
+    list.innerHTML='<div style="text-align:center;padding:28px;color:var(--muted);font-size:13px">Sin resultados</div>';
+    return;
+  }
+
+  list.innerHTML=clients.map(c=>{
+    const orders=DB.orders.filter(o=>o.clientEmail===c.email||o.email===c.email).length;
+    const addr=c.shipping_address||c.record?.shipping_address||c.address||'';
+    return `<div class="cp-row" onclick="selectClientForInvoice('${esc(c.id)}')">
+      <div class="cp-avatar">${(c.name||'?').slice(0,1).toUpperCase()}</div>
+      <div>
+        <div class="cp-name">${esc(c.name||'Sin nombre')}</div>
+        <div class="cp-sub">${esc(c.email||'')}${c.phone?' · '+esc(c.phone):''}</div>
+        ${addr?'<div class="cp-sub" style="color:rgba(212,175,55,.5)">📍 '+esc(addr.slice(0,50))+'</div>':''}
+      </div>
+      <div style="text-align:right">
+        <div class="cp-badge">${orders} pedido${orders!==1?'s':''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectClientForInvoice(id){
+  const c=DB.clients.find(x=>x.id===id); if(!c) return;
+  const r=c.record||{};
+  const set=(elId,v)=>{ const el=document.getElementById(elId); if(el) el.value=v||''; };
+  set('nomClientName',  c.name||r.name||'');
+  set('nomClientEmail', c.email||r.email||'');
+  set('nomClientPhone', c.phone||r.phone||'');
+  set('nomAddress',     c.shipping_address||r.shipping_address||r.addr1||'');
+  closeClientPicker();
+  toast('Cliente cargado: '+(c.name||c.email),'ok');
+  // Focus first item input
+  setTimeout(()=>document.getElementById('nomItemNameIn')?.focus(), 150);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ARTÍCULOS — autocomplete + listbox + Enter navigation
+// ══════════════════════════════════════════════════════════════
+let _nomSuggestIdx = -1;
+
+function nomFilterProducts(q){
+  const dd=document.getElementById('nomProdDropdown'); if(!dd) return;
+  const val=(q||'').trim();
+  if(!val){ dd.style.display='none'; _nomSuggestIdx=-1; return; }
+
+  const prods=(DB.products||[]).filter(p=>
+    p.active!==false && (p.name||'').toLowerCase().includes(val.toLowerCase())
+  ).slice(0,8);
+
+  if(!prods.length){
+    dd.innerHTML=`<div style="padding:10px 14px;font-size:12px;color:var(--muted)">
+      Sin resultados — presiona Enter para agregar "<b style="color:var(--gold)">${esc(val)}</b>"
+    </div>`;
+  } else {
+    dd.innerHTML=prods.map((p,i)=>`
+      <div class="nom-dd-item" data-idx="${i}" onmousedown="event.preventDefault()" onclick="nomSelectProduct('${esc(p.id)}')"
+        style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;
+               border-bottom:1px solid rgba(255,255,255,.04);transition:background .1s"
+        onmouseenter="this.style.background='rgba(212,175,55,.08)'" onmouseleave="this.style.background=''">
+        <span style="font-size:18px">💎</span>
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--text)">${esc(p.name)}</div>
+          <div style="font-size:10px;color:var(--muted)">${p.category||''} · Stock: ${p.stock||0}</div>
+        </div>
+        <span style="font-family:var(--fd);font-size:15px;color:var(--gold)">$${Number(p.price||0).toFixed(2)}</span>
+      </div>`).join('');
+  }
+  dd.style.display='block';
+  _nomSuggestIdx=-1;
+}
+
+function nomSelectProduct(id){
+  const p=DB.products.find(x=>x.id===id); if(!p) return;
+  document.getElementById('nomItemNameIn').value  = p.name||'';
+  document.getElementById('nomItemPriceIn').value = Number(p.price||0).toFixed(2);
+  document.getElementById('nomItemQtyIn').value   = 1;
+  document.getElementById('nomItemSizeIn').value  = (p.sizes&&p.sizes[0])||'';
+  document.getElementById('nomProdDropdown').style.display='none';
+  document.getElementById('nomItemQtyIn').focus();
+  document.getElementById('nomItemQtyIn').select();
+  // Store ref
+  document.getElementById('nomItemNameIn').dataset.prodId=p.id;
+}
+
+function nomItemKeydown(e, fieldId){
+  const dd=document.getElementById('nomProdDropdown');
+  const items=dd?.querySelectorAll('.nom-dd-item')||[];
+
+  // Arrow navigation in dropdown
+  if(e.key==='ArrowDown'&&items.length){
+    e.preventDefault();
+    _nomSuggestIdx=Math.min(_nomSuggestIdx+1,items.length-1);
+    items.forEach((el,i)=>el.style.background=i===_nomSuggestIdx?'rgba(212,175,55,.12)':'');
+    return;
+  }
+  if(e.key==='ArrowUp'&&items.length){
+    e.preventDefault();
+    _nomSuggestIdx=Math.max(_nomSuggestIdx-1,-1);
+    items.forEach((el,i)=>el.style.background=i===_nomSuggestIdx?'rgba(212,175,55,.12)':'');
+    return;
+  }
+  if(e.key==='Escape'){ dd.style.display='none'; _nomSuggestIdx=-1; return; }
+
+  // Enter: select suggestion or advance/commit
+  if(e.key==='Enter'){
+    e.preventDefault();
+    if(items.length&&_nomSuggestIdx>=0){
+      items[_nomSuggestIdx].click(); return;
+    }
+    // Advance through fields: name→qty→price→size→commit
+    const ORDER=['nomItemNameIn','nomItemQtyIn','nomItemPriceIn','nomItemSizeIn'];
+    const idx=ORDER.indexOf(fieldId);
+    if(idx<ORDER.length-1){
+      const next=document.getElementById(ORDER[idx+1]);
+      if(next){ next.focus(); next.select(); }
+    } else {
+      nomCommitItem();
+    }
+    return;
+  }
+
+  // Tab: advance fields
+  if(e.key==='Tab'){
+    dd.style.display='none';
+  }
+}
+
+function nomCommitItem(){
+  const nameEl  = document.getElementById('nomItemNameIn');
+  const qtyEl   = document.getElementById('nomItemQtyIn');
+  const priceEl = document.getElementById('nomItemPriceIn');
+  const sizeEl  = document.getElementById('nomItemSizeIn');
+
+  const name  = (nameEl?.value||'').trim();
+  const qty   = Math.max(1, Number(qtyEl?.value)||1);
+  const price = Number(priceEl?.value)||0;
+  const size  = (sizeEl?.value||'').trim();
+  const prodId= nameEl?.dataset.prodId||'';
+
+  if(!name){ nameEl?.focus(); return; }
+
+  // Check for duplicate name (case insensitive)
+  const dup=_nomItems.find(i=>i.name.toLowerCase()===name.toLowerCase());
+  if(dup){
+    // Increase qty instead of adding duplicate
+    dup.qty+=qty;
+    nomRenderItems(); nomRecalc();
+    toast('Cantidad actualizada: '+name+' ('+dup.qty+'×)','ok');
+  } else {
+    // If product not found in catalog and has price, save it to products
+    if(!prodId && price>0){
+      nomSaveNewProduct(name, price);
+    }
+    _nomItems.push({ id:prodId||'custom_'+Date.now(), name, price, qty, size, color:'', custom:!prodId, prodId });
+    nomRenderItems(); nomRecalc();
+  }
+
+  // Clear inputs and refocus name
+  if(nameEl){ nameEl.value=''; nameEl.dataset.prodId=''; }
+  if(qtyEl)  qtyEl.value='1';
+  if(priceEl) priceEl.value='';
+  if(sizeEl)  sizeEl.value='';
+  document.getElementById('nomProdDropdown').style.display='none';
+  _nomSuggestIdx=-1;
+  nameEl?.focus();
+}
+
+// Save new product to catalog (no duplicates)
+async function nomSaveNewProduct(name, price){
+  const exists=(DB.products||[]).find(p=>(p.name||'').toLowerCase()===name.toLowerCase());
+  if(exists) return; // Already in catalog
+  const now=new Date().toISOString();
+  const np={
+    id:'prod_'+Date.now(), name, price, old_price:0, stock:99,
+    category:'General', is_new:false, active:true,
+    images:[], sizes:[], colors:[],
+    updated_at:now, created_at:now
+  };
+  DB.products.push(np);
+  save(LS_PRODUCTS||'pm_products', DB.products);
+  // Save to Supabase in background
+  sbPOST('productos',{
+    id:np.id, name:np.name, category:np.category,
+    price:np.price, old_price:0, stock:np.stock,
+    is_new:false, active:true,
+    updated_at:now, created_at:now,
+    record:{...np}
+  }).catch(console.warn);
+}
+
+function nomRenderItems(){
+  const list=document.getElementById('nomItemsList');
+  const empty=document.getElementById('nomEmptyItems');
+  if(!list) return;
+
+  if(!_nomItems.length){
+    if(empty) empty.style.display='block';
+    else list.innerHTML='<div id="nomEmptyItems" style="text-align:center;padding:16px;color:var(--muted);font-size:12px">Sin artículos — escribe arriba y presiona Enter</div>';
+    return;
+  }
+  if(empty) empty.style.display='none';
+
+  list.innerHTML=_nomItems.map((item,i)=>`
+    <div style="display:grid;grid-template-columns:1fr 56px 80px 52px 72px 26px;
+                gap:0;align-items:center;padding:7px 14px;
+                border-bottom:1px solid rgba(255,255,255,.04);
+                transition:background .12s"
+         onmouseenter="this.style.background='rgba(212,175,55,.04)'"
+         onmouseleave="this.style.background=''">
+      <div>
+        <div style="font-size:13px;color:var(--text);font-weight:500">${esc(item.name)}</div>
+        ${item.size?'<div style="font-size:10px;color:var(--muted)">Talla: '+esc(item.size)+'</div>':''}
+      </div>
+      <div style="text-align:center">
+        <input type="number" min="1" value="${item.qty}"
+          onchange="_nomItems[${i}].qty=Math.max(1,Number(this.value)||1);nomRecalc();nomUpdateRowTotal(${i},this)"
+          style="width:44px;text-align:center;padding:3px 4px;border-radius:6px;font-size:12px"/>
+      </div>
+      <div style="text-align:right">
+        <input type="number" min="0" step="0.01" value="${Number(item.price).toFixed(2)}"
+          onchange="_nomItems[${i}].price=Number(this.value)||0;nomRecalc();nomUpdateRowTotal(${i},this)"
+          style="width:72px;text-align:right;padding:3px 6px;border-radius:6px;font-size:12px"/>
+      </div>
+      <div style="text-align:center;font-size:11px;color:var(--muted)">${esc(item.size||'—')}</div>
+      <div style="text-align:right;font-family:var(--fd);font-size:14px;color:var(--gold2);font-weight:600"
+           id="nom-row-total-${i}">
+        $${(Number(item.price)*Number(item.qty)).toFixed(2)}
+      </div>
+      <button onclick="nomRemoveItem(${i})"
+        style="width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,77,109,.2);
+               background:rgba(255,77,109,.06);color:var(--danger);cursor:pointer;font-size:11px;
+               display:grid;place-items:center;justify-self:center">✕</button>
+    </div>
+  `).join('');
+}
+
+function nomUpdateRowTotal(idx, changedEl){
+  const item=_nomItems[idx]; if(!item) return;
+  const el=document.getElementById('nom-row-total-'+idx);
+  if(el) el.textContent='$'+(Number(item.price)*Number(item.qty)).toFixed(2);
+}
+
 </script>
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: CREAR PEDIDO / FACTURA MANUAL
+══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="newOrderModal" style="display:none;z-index:600" onclick="if(event.target===this)closeNewOrderModal()">
+  <div style="
+    width:min(1100px,97vw);
+    max-height:95vh;
+    background:rgba(8,6,2,.99);
+    border:1px solid rgba(212,175,55,.25);
+    border-radius:18px;
+    box-shadow:0 24px 80px rgba(0,0,0,.9),0 0 60px rgba(180,130,30,.08);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  ">
+
+    <!-- ── HEADER ── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:14px 20px;border-bottom:1px solid rgba(212,175,55,.12);
+                background:rgba(12,9,3,.6);flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font-size:20px">✦</span>
+        <div>
+          <div style="font-family:var(--fd);font-size:17px;color:var(--gold2);font-weight:700">Nueva Factura / Pedido</div>
+          <div style="font-size:10px;color:var(--muted)" id="nomInvoicePreview">No. se asignará al guardar</div>
+        </div>
+      </div>
+      <button class="btn sm" onclick="closeNewOrderModal()" style="width:28px;height:28px;border-radius:50%;padding:0;display:grid;place-items:center">✕</button>
+    </div>
+
+    <!-- ── BODY: two columns ── -->
+    <div style="display:grid;grid-template-columns:340px 1fr;flex:1;overflow:hidden;min-height:0">
+
+      <!-- LEFT: Cliente + Factura options -->
+      <div style="overflow-y:auto;padding:16px;border-right:1px solid rgba(212,175,55,.08);display:flex;flex-direction:column;gap:14px">
+
+        <!-- Cliente -->
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;
+                      margin-bottom:8px;display:flex;align-items:center;gap:8px">
+            👤 Cliente
+            <span style="flex:1;height:1px;background:var(--line)"></span>
+            <button class="btn sm" onclick="openClientPicker()"
+              style="font-size:10px;padding:3px 8px;background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.3);color:var(--gold)">
+              👥 Buscar
+            </button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <input id="nomClientName"  placeholder="Nombre completo *" style="width:100%"/>
+            <input id="nomClientEmail" placeholder="Email" type="email" style="width:100%"/>
+            <input id="nomClientPhone" placeholder="Teléfono" style="width:100%"/>
+            <input id="nomAddress"     placeholder="Dirección de envío" autocomplete="off" style="width:100%"/>
+          </div>
+        </div>
+
+        <!-- Pago -->
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">
+            💳 Pago
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <select id="nomMethod" style="width:100%">
+              <option value="card">💳 Tarjeta</option>
+              <option value="paypal">🅿️ PayPal</option>
+              <option value="whatsapp">💬 WhatsApp / Efectivo</option>
+              <option value="cash">💵 Efectivo</option>
+              <option value="transfer">🏦 Transferencia</option>
+            </select>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <select id="nomCurrency" onchange="nomRecalc()">
+                <option value="USD">🇺🇸 USD</option>
+                <option value="MXN">🇲🇽 MXN</option>
+                <option value="DOP">🇩🇴 DOP</option>
+                <option value="COP">🇨🇴 COP</option>
+                <option value="CLP">🇨🇱 CLP</option>
+                <option value="ARS">🇦🇷 ARS</option>
+                <option value="EUR">🇪🇺 EUR</option>
+              </select>
+              <select id="nomPaymentType" onchange="nomToggleCredit()">
+                <option value="contado">💵 Contado</option>
+                <option value="credito">📋 Crédito</option>
+                <option value="anticipo">💰 Anticipo</option>
+              </select>
+            </div>
+          </div>
+          <!-- Credit box -->
+          <div id="nomCreditBox" style="display:none;margin-top:8px;padding:10px;
+               background:rgba(77,144,255,.05);border:1px solid rgba(77,144,255,.15);border-radius:9px">
+            <div style="font-size:9px;font-weight:700;color:rgba(77,184,255,.6);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">
+              📋 Crédito
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+              <div class="form-group">
+                <label>Plazo</label>
+                <select id="nomCreditDays">
+                  <option value="7">7 días</option>
+                  <option value="15">15 días</option>
+                  <option value="30" selected>30 días NET</option>
+                  <option value="45">45 días</option>
+                  <option value="60">60 días</option>
+                  <option value="90">90 días</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Vence</label>
+                <input id="nomDueDate" type="date" style="width:100%"/>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:6px">
+              <label>Anticipo recibido</label>
+              <input id="nomDeposit" type="number" min="0" step="0.01" value="0" style="width:100%" oninput="nomRecalc()"/>
+            </div>
+            <div id="nomCreditSummary" style="font-size:10px;color:rgba(77,184,255,.7);margin-top:6px"></div>
+          </div>
+        </div>
+
+        <!-- Estado + Tracking -->
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">
+            🧾 Factura
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <select id="nomOrderStatus">
+                <option value="pendiente">⏳ Pendiente</option>
+                <option value="procesando">🔄 Procesando</option>
+                <option value="enviado">🚚 Enviado</option>
+                <option value="entregado">✅ Entregado</option>
+              </select>
+              <select id="nomInvStatus">
+                <option value="pendiente">⏳ Pendiente</option>
+                <option value="pagada">✅ Pagada</option>
+              </select>
+            </div>
+            <input id="nomTracking" placeholder="Tracking (opcional)" style="width:100%"/>
+            <textarea id="nomNotes" rows="2" placeholder="Notas internas..." style="width:100%;resize:none"></textarea>
+          </div>
+        </div>
+
+        <!-- Descuento + Envío -->
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">
+            💰 Descuento y envío
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:6px;align-items:center">
+              <label style="font-size:11px;color:var(--muted);white-space:nowrap;min-width:70px">Descuento:</label>
+              <input id="nomDiscountVal" type="number" min="0" step="0.01" value="0"
+                style="flex:1" oninput="nomRecalc()"/>
+              <select id="nomDiscountType" onchange="nomRecalc()" style="width:62px">
+                <option value="pct">%</option>
+                <option value="fixed">$</option>
+              </select>
+            </div>
+            <div id="nomDiscountLabel" style="font-size:10px;color:#f5a623;min-height:12px"></div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <label style="font-size:11px;color:var(--muted);white-space:nowrap;min-width:70px">Envío:</label>
+              <input id="nomShipping" type="number" min="0" step="0.01" value="0"
+                style="flex:1;text-align:right" oninput="nomRecalc()"/>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap">
+                <input type="checkbox" id="nomFreeShip"
+                  onchange="document.getElementById('nomShipping').value=0;document.getElementById('nomShipping').disabled=this.checked;nomRecalc()"
+                  style="accent-color:var(--gold)"/> Gratis
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div id="nomToast" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px"></div>
+      </div>
+
+      <!-- RIGHT: Artículos -->
+      <div style="display:flex;flex-direction:column;overflow:hidden">
+
+        <!-- Input row sticky at top -->
+        <div style="flex-shrink:0;padding:12px 16px 10px;border-bottom:1px solid rgba(212,175,55,.08);
+                    background:rgba(8,6,2,.8)">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.2px;color:var(--muted);
+                      text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+            🛍 Artículos
+            <span style="flex:1;height:1px;background:var(--line)"></span>
+            <span style="font-size:9px;color:rgba(212,175,55,.35);font-style:italic;font-weight:400;text-transform:none">
+              Enter → agregar · ↑↓ → navegar
+            </span>
+          </div>
+          <div style="position:relative">
+            <div style="display:grid;grid-template-columns:1fr 62px 88px 58px 32px;
+                        gap:6px;align-items:center;
+                        padding:8px 10px;
+                        background:rgba(212,175,55,.05);
+                        border:1px solid rgba(212,175,55,.25);
+                        border-radius:10px">
+              <div style="position:relative">
+                <input id="nomItemNameIn"
+                  placeholder="Artículo (buscar o crear nuevo)..."
+                  autocomplete="off"
+                  oninput="nomFilterProducts(this.value)"
+                  onkeydown="nomItemKeydown(event,'nomItemNameIn')"
+                  style="width:100%;background:transparent;border:none;color:var(--text);
+                         font-size:13px;font-family:var(--fb);outline:none;padding:2px 0"/>
+                <div id="nomProdDropdown"
+                  style="display:none;position:absolute;top:calc(100% + 8px);left:-10px;right:-160px;
+                         background:#0d0a04;border:1px solid rgba(212,175,55,.3);border-radius:12px;
+                         z-index:9999;max-height:220px;overflow-y:auto;
+                         box-shadow:0 12px 40px rgba(0,0,0,.85)"></div>
+              </div>
+              <input id="nomItemQtyIn" type="number" min="1" value="1" placeholder="Cant."
+                onkeydown="nomItemKeydown(event,'nomItemQtyIn')"
+                style="text-align:center;padding:5px 4px;border-radius:7px;font-size:13px;font-weight:600"/>
+              <input id="nomItemPriceIn" type="number" min="0" step="0.01" placeholder="Precio"
+                onkeydown="nomItemKeydown(event,'nomItemPriceIn')"
+                style="text-align:right;padding:5px 6px;border-radius:7px;font-size:13px"/>
+              <input id="nomItemSizeIn" placeholder="Talla"
+                onkeydown="nomItemKeydown(event,'nomItemSizeIn')"
+                style="padding:5px 6px;border-radius:7px;font-size:13px;text-align:center"/>
+              <button onclick="nomCommitItem()" title="Agregar (Enter)"
+                style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(212,175,55,.4);
+                       background:rgba(212,175,55,.15);color:var(--gold);cursor:pointer;font-size:17px;
+                       display:grid;place-items:center">＋</button>
+            </div>
+            <!-- Column labels -->
+            <div style="display:grid;grid-template-columns:1fr 62px 88px 58px 32px;
+                        gap:6px;margin-top:4px;padding:0 10px">
+              <span style="font-size:9px;color:rgba(255,255,255,.2)">Nombre</span>
+              <span style="font-size:9px;color:rgba(255,255,255,.2);text-align:center">Cant.</span>
+              <span style="font-size:9px;color:rgba(255,255,255,.2);text-align:right">Precio unit.</span>
+              <span style="font-size:9px;color:rgba(255,255,255,.2);text-align:center">Talla</span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Listbox — scrollable, fills remaining height -->
+        <div style="flex:1;overflow-y:auto;min-height:0">
+          <!-- Table header -->
+          <div style="display:grid;grid-template-columns:1fr 56px 80px 52px 72px 26px;
+                      gap:0;padding:6px 14px;
+                      background:rgba(212,175,55,.06);
+                      position:sticky;top:0;z-index:2;
+                      border-bottom:1px solid rgba(212,175,55,.1)">
+            <span style="font-size:9px;font-weight:700;letter-spacing:.7px;color:rgba(212,175,55,.6);text-transform:uppercase">Artículo</span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:.7px;color:rgba(212,175,55,.6);text-transform:uppercase;text-align:center">Cant.</span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:.7px;color:rgba(212,175,55,.6);text-transform:uppercase;text-align:right">Precio</span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:.7px;color:rgba(212,175,55,.6);text-transform:uppercase;text-align:center">Talla</span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:.7px;color:rgba(212,175,55,.6);text-transform:uppercase;text-align:right">Total</span>
+            <span></span>
+          </div>
+          <div id="nomItemsList">
+            <div id="nomEmptyItems" style="text-align:center;padding:32px 20px;color:var(--muted);font-size:13px;
+                 border:1px dashed rgba(212,175,55,.1);border-radius:10px;margin:14px">
+              <div style="font-size:28px;margin-bottom:8px;opacity:.4">🛍</div>
+              Escribe un artículo arriba y presiona <b style="color:var(--gold)">Enter</b> para agregarlo
+            </div>
+          </div>
+        </div>
+
+        <!-- Totals — sticky at bottom of right column -->
+        <div style="flex-shrink:0;padding:12px 16px;border-top:1px solid rgba(212,175,55,.1);
+                    background:rgba(8,6,2,.9)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:12px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;color:var(--muted)">
+              <span>Subtotal</span><span id="nomSubtotal" style="color:var(--text2)">$0.00</span>
+            </div>
+            <div id="nomDiscountRow" style="display:none;justify-content:space-between;color:#f5a623">
+              <span>🏷️ Descuento</span><span id="nomDiscountAmt">−$0.00</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;color:var(--muted)">
+              <span>Envío</span><span id="nomShipDisplay" style="color:var(--text2)">$0.00</span>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;
+                      padding-top:8px;border-top:1px solid rgba(212,175,55,.15)">
+            <span style="font-size:13px;font-weight:600;color:var(--text)">TOTAL</span>
+            <span id="nomTotal" style="font-family:var(--fd);font-size:26px;font-weight:700;color:var(--gold)">$0.00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FOOTER ACTIONS ── -->
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;
+                padding:12px 20px;border-top:1px solid rgba(212,175,55,.1);
+                background:rgba(12,9,3,.7);flex-shrink:0;flex-wrap:wrap">
+      <button class="btn" onclick="closeNewOrderModal()">Cancelar</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ok" id="nomBtnSaveOnly" onclick="saveNewOrder('save')"
+          style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">
+          💾 Guardar
+        </button>
+        <button class="btn gold" id="nomBtnSaveInvoice" onclick="saveNewOrder('invoice')"
+          style="background:rgba(212,175,55,.15);border-color:rgba(212,175,55,.4);color:var(--gold2)">
+          🧾 Guardar + Factura PDF
+        </button>
+        <button class="btn gold" id="nomBtnSavePrint" onclick="saveNewOrder('print')"
+          style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700">
+          🖨️ Guardar + Imprimir
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+
+<style>
+  
+  
+  
+  
+  
+  
+  
+  .nom-prod-card:hover{border-color:rgba(212,175,55,.35);background:rgba(212,175,55,.05)}
+  
+</style>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: SELECTOR DE CLIENTE
+══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="clientPickerModal" style="display:none">
+  <div class="modal" style="max-width:620px;width:95vw">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <b style="font-size:16px;color:var(--gold2)">👥 Seleccionar Cliente</b>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="cpCount">Cargando...</div>
+      </div>
+      <button class="btn sm" onclick="closeClientPicker()">✕</button>
+    </div>
+    <div class="modal-body" style="padding-bottom:0">
+      <input id="cpSearch" placeholder="🔍  Buscar por nombre, email o teléfono..."
+        oninput="renderClientPicker()"
+        style="width:100%;margin-bottom:12px;font-size:14px;padding:10px 14px"
+        autocomplete="off"/>
+      <div id="cpList" style="max-height:380px;overflow-y:auto;
+           border:1px solid rgba(212,175,55,.1);border-radius:10px;
+           margin-bottom:0"></div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end">
+      <button class="btn" onclick="closeClientPicker()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .cp-row{
+    display:grid;grid-template-columns:40px 1fr auto;
+    align-items:center;gap:12px;
+    padding:11px 14px;cursor:pointer;
+    border-bottom:1px solid rgba(255,255,255,.04);
+    transition:background .14s;
+  }
+  .cp-row:last-child{border-bottom:none}
+  .cp-row:hover{background:rgba(212,175,55,.07)}
+  .cp-avatar{width:36px;height:36px;border-radius:50%;
+    background:linear-gradient(135deg,rgba(201,150,58,.3),rgba(232,197,110,.2));
+    display:grid;place-items:center;font-weight:700;font-size:14px;
+    color:var(--gold);flex-shrink:0;font-family:var(--fd)}
+  .cp-name{font-size:13px;font-weight:600;color:var(--text)}
+  .cp-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .cp-badge{font-size:10px;background:rgba(212,175,55,.1);
+    color:var(--gold);border:1px solid rgba(212,175,55,.2);
+    border-radius:20px;padding:2px 8px;white-space:nowrap}
+</style>
+
 </body>
 </html>
