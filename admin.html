@@ -342,6 +342,35 @@
     .modal-head b{font-family:var(--fd);font-size:20px;font-weight:600;color:var(--gold2)}
     .modal-body{padding:20px}
 
+    /* Floating centered modal for panel users */
+    .ovl{
+      position:fixed;inset:0;
+      display:none;align-items:center;justify-content:center;
+      padding:24px;
+      background:rgba(0,0,0,.72);
+      backdrop-filter:blur(10px);
+      z-index:1200;
+    }
+    .ovl.open{display:flex !important}
+    .ovl .modal{
+      width:min(560px, calc(100vw - 32px));
+      max-height:min(88vh, 920px);
+      overflow:auto;
+      margin:0 auto;
+      animation:userModalIn .18s ease-out;
+    }
+    .ovl .modal-foot{
+      position:sticky;bottom:0;
+      display:flex;gap:10px;justify-content:flex-end;
+      padding:16px 20px;
+      border-top:1px solid var(--line);
+      background:rgba(8,6,2,.98);
+    }
+    @keyframes userModalIn{
+      from{opacity:0;transform:translateY(10px) scale(.98)}
+      to{opacity:1;transform:translateY(0) scale(1)}
+    }
+
     .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
     @media(max-width:500px){.detail-grid{grid-template-columns:1fr}}
     .detail-block{
@@ -2602,7 +2631,6 @@ async function initDB(){
     }
     if(authRes&&authRes.length){
       DB.admin_auth = authRes[0];
-      localStorage.setItem(LS_ADMIN_PASS, DB.admin_auth.password_hash||'');
     }
     if(!DB.products.length && !DB.orders.length){
       seedDemo();
@@ -3836,22 +3864,15 @@ document.getElementById("companyInfoModal")?.addEventListener("click", (e)=>{ if
 document.getElementById("companyInfoSaveBtn")?.addEventListener("click", ()=>{ try{saveCompanyInfo();}catch(e){} });
 
 
-const DEFAULT_ADMIN_PASS = 'admin1234';
-
 function encodeAdminSecret(v){
   return btoa(unescape(encodeURIComponent(v||'')));
 }
 function getStoredAdminHash(){
-  if(DB.admin_auth&&DB.admin_auth.password_hash) return DB.admin_auth.password_hash;
-  try{ return localStorage.getItem(LS_ADMIN_PASS)||''; }catch(e){ return ''; }
-}
-function isUsingDefaultAdminPassword(){
-  return !getStoredAdminHash();
+  return (DB.admin_auth&&DB.admin_auth.password_hash) ? DB.admin_auth.password_hash : '';
 }
 function matchesAdminPassword(input, storedHash){
   const hash = encodeAdminSecret(input);
-  if(storedHash) return storedHash===hash || storedHash===input;
-  return input===DEFAULT_ADMIN_PASS;
+  return !!storedHash && (storedHash===hash || storedHash===input);
 }
 function getAdminPassword(){
   return getStoredAdminHash();
@@ -3860,7 +3881,7 @@ function openAdminPassModal(){
   const m = $("adminPassModal"); if(!m) return;
   ["adminPassCurrent","adminPassNew","adminPassConfirm"].forEach(id=>{ if($(id)) $(id).value=""; });
   const cur = $("adminPassCurrent");
-  if(cur) cur.placeholder = isUsingDefaultAdminPassword() ? 'admin1234' : 'Contraseña actual';
+  if(cur) cur.placeholder = 'Contraseña actual';
   m.style.display = "flex";
   m.classList.add("open");
 }
@@ -3875,12 +3896,11 @@ function saveAdminPassword(){
   const confirm = ($("adminPassConfirm")?.value || "").trim();
   const storedHash = getStoredAdminHash();
 
-  if(storedHash){
-    if(!matchesAdminPassword(current, storedHash)){
-      toast("La contraseña actual no coincide.","err");
-      return;
-    }
-  }else if(current !== DEFAULT_ADMIN_PASS){
+  if(!storedHash){
+    toast("No hay contraseña maestra configurada en Supabase.","err");
+    return;
+  }
+  if(!matchesAdminPassword(current, storedHash)){
     toast("La contraseña actual no coincide.","err");
     return;
   }
@@ -3898,7 +3918,6 @@ function saveAdminPassword(){
   }
 
   const nextHash = encodeAdminSecret(nextp);
-  localStorage.setItem(LS_ADMIN_PASS, nextHash);
   sbPATCH('admin_auth', 1, {
     password_hash: nextHash,
     updated_at: new Date().toISOString()
@@ -3906,9 +3925,12 @@ function saveAdminPassword(){
     if(!DB.admin_auth) DB.admin_auth = {};
     DB.admin_auth.password_hash = nextHash;
     DB.admin_auth.updated_at = new Date().toISOString();
-  }).catch(e=>console.error('[SB] admin_auth update:',e));
-  toast("Contraseña actualizada ✅","ok");
-  closeAdminPassModal();
+    toast("Contraseña actualizada ✅","ok");
+    closeAdminPassModal();
+  }).catch(e=>{
+    console.error('[SB] admin_auth update:',e);
+    toast("No se pudo actualizar la contraseña en Supabase.","err");
+  });
 }
 
 $("openAdminPassBtn")?.addEventListener("click", openAdminPassModal);
@@ -4136,12 +4158,17 @@ async function doAdminLogin(){
   if(btn){btn.textContent='Verificando...';btn.disabled=true;}
 
   try{
-    const rows = await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>null);
-    const storedHash = (rows&&rows.length) ? (rows[0].password_hash||'') : getStoredAdminHash();
-    if(!matchesAdminPassword(pass, storedHash)){
-      lgToast('lgAdminToast', storedHash ? 'Contraseña incorrecta.' : 'La contraseña inicial es admin1234. Cámbiala después de entrar.','err');
+    const rows = await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&id=eq.1&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>null);
+    if(!rows || !rows.length || !rows[0].password_hash){
+      lgToast('lgAdminToast','No hay contraseña maestra configurada en Supabase.','err');
       return;
     }
+    const storedHash = rows[0].password_hash || '';
+    if(!matchesAdminPassword(pass, storedHash)){
+      lgToast('lgAdminToast','Contraseña incorrecta.','err');
+      return;
+    }
+    DB.admin_auth = { ...(DB.admin_auth||{}), id:1, password_hash: storedHash };
     const session = {isRoot:true, name:'Administrador', email:'admin', role:'admin'};
     saveAdminSession(session);
     adminSession = session;
@@ -4150,7 +4177,7 @@ async function doAdminLogin(){
   finally{ if(btn){btn.textContent='→ Acceder como Admin';btn.disabled=false;} }
 }
 
-// ── STAFF login (email + password) ───────────────────────────
+// ── STAFF login (usuario + password) ───────────────────────────
 async function doStaffLogin(){
   const userId = document.getElementById('lgUserSelect')?.value||'';
   const pass   = document.getElementById('lgUserPass')?.value||'';
@@ -4319,6 +4346,13 @@ function closeUserModal(){
   if(m){m.style.display='none';m.classList.remove('open');}
   editingUserId=null;
 }
+
+document.getElementById('userModal')?.addEventListener('click', e=>{
+  if(e.target===e.currentTarget) closeUserModal();
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeUserModal();
+});
 
 function applyRolePreset(){
   const role=document.getElementById('uRole')?.value;
