@@ -1823,6 +1823,40 @@ async function sbUpdate(table, id, partial){
   await sbPATCH(table, id, toRow(table, merged));
 }
 
+
+// Save/upsert a full order to Supabase pedidos table
+async function sbSaveOrder(o){
+  const body = {
+    id:               o.id,
+    status:           o.status           || 'pendiente',
+    client_name:      o.clientName       || o.name       || '',
+    client_email:     o.clientEmail      || o.email      || '',
+    client_phone:     o.clientPhone      || o.phone      || '',
+    total:            Number(o.total     || 0),
+    subtotal:         Number(o.subtotal  || 0),
+    shipping_cost:    Number(o.shipping  || 0),
+    shipping_address: o.shippingAddress  || o.address    || '',
+    payment_method:   o.method           || '',
+    items_count:      (o.items||[]).length,
+    tracking_num:     o.trackingNum      || '',
+    invoice_num:      o.invoiceNum       || '',
+    invoice_status:   o.invoiceStatus    || 'pendiente',
+    currency:         o.currency         || 'USD',
+    discount_value:   Number(o.discountValue  || 0),
+    discount_type:    o.discountType     || 'pct',
+    discount_amount:  Number(o.discountAmount || 0),
+    payment_type:     o.paymentType      || 'contado',
+    credit_days:      Number(o.creditDays|| 0),
+    due_date:         o.dueDate          || null,
+    deposit:          Number(o.deposit   || 0),
+    balance_due:      Number(o.balanceDue|| 0),
+    notes:            o.notes            || '',
+    updated_at:       new Date().toISOString(),
+    created_at:       o.created_at       || new Date().toISOString(),
+    record:           o
+  };
+  return sbPOST('pedidos', body, 'POST', 'resolution=merge-duplicates,return=minimal');
+}
 function showLoader(show){
   let el=document.getElementById('sbLoader');
   if(!el){
@@ -4526,8 +4560,19 @@ function downloadInvoice(id){
   toast('⬇️ Factura '+inv.invNum+' descargada','ok');
 }
 
+// Print by order ID (from order list/facturas) — asks label prompt
 function printInvoice(id){
   const o = DB.orders.find(x=>x.id===id); if(!o) return;
+  printInvoiceSilent(o);
+  setTimeout(()=>{
+    const addr = (o.shippingAddress||o.address||'').trim();
+    if(addr) showLabelPrompt(o);
+  }, 500);
+}
+
+// Print order object directly — no label prompt (used internally)
+function printInvoiceSilent(o){
+  if(!o) return;
   const inv = getInvoiceData(o);
   o.invoiceNum = inv.invNum;
   const doc  = buildInvoicePDF(o);
@@ -4535,13 +4580,7 @@ function printInvoice(id){
   const url  = URL.createObjectURL(blob);
   const win  = window.open(url,'_blank');
   if(win) win.onload = ()=>{ win.focus(); win.print(); };
-  toast('🖨️ Enviando a imprimir...','ok');
-
-  // Ask about shipping label
-  const addr = o.shippingAddress||o.address||'';
-  if(addr){
-    showLabelPrompt(o);
-  }
+  toast('🖨️ Imprimiendo factura...','ok');
 }
 
 function showLabelPrompt(order){
@@ -4885,7 +4924,7 @@ async function saveNewOrder(action){
   const emptyName=_nomItems.find(i=>!i.name.trim());
   if(emptyName){ nomToast('Todos los artículos necesitan nombre.','err'); return; }
 
-  const btns=['nomBtnSaveOnly','nomBtnSaveInvoice','nomBtnSavePrint'].map(id=>document.getElementById(id));
+  const btns=['nomBtnSaveOnly','nomBtnSavePrint'].map(id=>document.getElementById(id));
   btns.forEach(b=>{ if(b){b.disabled=true;} });
 
   try{
@@ -4945,25 +4984,28 @@ async function saveNewOrder(action){
     nomToast('✅ Pedido #'+id+' creado correctamente','ok');
 
     // Post-save actions
-    if(action==='invoice'||action==='print'){
+    if(action==='print'){
+      // Generar Factura: imprimir PDF + marcar procesando + preguntar label
+      closeNewOrderModal();
       setTimeout(async ()=>{
-        if(action==='invoice'){
-          downloadInvoice(id);
-        } else {
-          // Print → mark as procesando (printInvoice also triggers label prompt)
-          printInvoice(id);
-          const o = DB.orders.find(x=>x.id===id);
-          if(o){
-            o.status = 'procesando';
-            save(LS_ORDERS, DB.orders);
-            await sbUpdate('pedidos', id, {status:'procesando', updated_at: new Date().toISOString()});
-            renderOrders(); renderDashboard(); renderFacturas();
-          }
+        const o = DB.orders.find(x=>x.id===id);
+        // 1. Imprimir PDF
+        printInvoiceSilent(o);
+        // 2. Marcar procesando
+        if(o){
+          o.status = 'procesando';
+          save(LS_ORDERS, DB.orders);
+          await sbUpdate('pedidos', id, {status:'procesando', updated_at:new Date().toISOString()});
+          renderOrders(); renderDashboard(); renderFacturas();
         }
-        closeNewOrderModal();
-      }, 600);
+        // 3. Preguntar label (pequeño delay para que el modal anterior ya cerró)
+        setTimeout(()=>{
+          const addr = (o?.shippingAddress||o?.address||'').trim();
+          if(addr) showLabelPrompt(o);
+        }, 400);
+      }, 300);
     } else {
-      setTimeout(closeNewOrderModal, 1200);
+      setTimeout(closeNewOrderModal, 1000);
     }
 
   }catch(e){
@@ -5983,13 +6025,9 @@ function showEpLoginModal(){
           style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">
           💾 Guardar
         </button>
-        <button class="btn gold" id="nomBtnSaveInvoice" onclick="saveNewOrder('invoice')"
-          style="background:rgba(212,175,55,.15);border-color:rgba(212,175,55,.4);color:var(--gold2)">
-          🧾 Guardar + Factura PDF
-        </button>
         <button class="btn gold" id="nomBtnSavePrint" onclick="saveNewOrder('print')"
-          style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700">
-          🖨️ Guardar + Imprimir
+          style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700;padding:8px 20px;font-size:13px">
+          🧾 Generar Factura
         </button>
       </div>
     </div>
