@@ -639,15 +639,17 @@
         </button>
       </div>
 
-      <!-- Staff login (email + password) -->
+      <!-- Staff login (usuario + password) -->
       <div id="lgPanelUser" style="display:none">
         <div style="margin-bottom:12px">
-          <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Correo electrónico</label>
-          <input id="lgUserEmail" type="email" placeholder="usuario@correo.com"
+          <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Usuario</label>
+          <select id="lgUserSelect"
             style="width:100%;padding:11px 14px;border-radius:10px;
               background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);
-              color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none"
-            autocomplete="email"/>
+              color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none">
+            <option value="">Selecciona un usuario</option>
+          </select>
+          <div id="lgUserHelp" style="font-size:10px;color:rgba(240,223,160,.35);margin-top:6px">Cargando usuarios activos...</div>
         </div>
         <div style="margin-bottom:14px">
           <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Contraseña</label>
@@ -1547,15 +1549,9 @@
     </div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="form-group">
-          <label>Nombre completo</label>
-          <input id="uName" placeholder="Nombre del usuario"/>
-        </div>
-        <div class="form-group">
-          <label>Correo electrónico</label>
-          <input id="uEmail" type="email" placeholder="usuario@correo.com"/>
-        </div>
+      <div class="form-group">
+        <label>Nombre completo</label>
+        <input id="uName" placeholder="Nombre del usuario"/>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -2606,7 +2602,7 @@ async function initDB(){
     }
     if(authRes&&authRes.length){
       DB.admin_auth = authRes[0];
-      localStorage.setItem(LS_ADMIN_PASS, DB.admin_auth.password_hash||'admin123');
+      localStorage.setItem(LS_ADMIN_PASS, DB.admin_auth.password_hash||'');
     }
     if(!DB.products.length && !DB.orders.length){
       seedDemo();
@@ -3840,13 +3836,31 @@ document.getElementById("companyInfoModal")?.addEventListener("click", (e)=>{ if
 document.getElementById("companyInfoSaveBtn")?.addEventListener("click", ()=>{ try{saveCompanyInfo();}catch(e){} });
 
 
-function getAdminPassword(){
+const DEFAULT_ADMIN_PASS = 'admin1234';
+
+function encodeAdminSecret(v){
+  return btoa(unescape(encodeURIComponent(v||'')));
+}
+function getStoredAdminHash(){
   if(DB.admin_auth&&DB.admin_auth.password_hash) return DB.admin_auth.password_hash;
-  try{ return localStorage.getItem(LS_ADMIN_PASS)||'admin123'; }catch(e){ return 'admin123'; }
+  try{ return localStorage.getItem(LS_ADMIN_PASS)||''; }catch(e){ return ''; }
+}
+function isUsingDefaultAdminPassword(){
+  return !getStoredAdminHash();
+}
+function matchesAdminPassword(input, storedHash){
+  const hash = encodeAdminSecret(input);
+  if(storedHash) return storedHash===hash || storedHash===input;
+  return input===DEFAULT_ADMIN_PASS;
+}
+function getAdminPassword(){
+  return getStoredAdminHash();
 }
 function openAdminPassModal(){
   const m = $("adminPassModal"); if(!m) return;
   ["adminPassCurrent","adminPassNew","adminPassConfirm"].forEach(id=>{ if($(id)) $(id).value=""; });
+  const cur = $("adminPassCurrent");
+  if(cur) cur.placeholder = isUsingDefaultAdminPassword() ? 'admin1234' : 'Contraseña actual';
   m.style.display = "flex";
   m.classList.add("open");
 }
@@ -3859,9 +3873,14 @@ function saveAdminPassword(){
   const current = ($("adminPassCurrent")?.value || "").trim();
   const nextp   = ($("adminPassNew")?.value || "").trim();
   const confirm = ($("adminPassConfirm")?.value || "").trim();
-  const saved   = getAdminPassword();
+  const storedHash = getStoredAdminHash();
 
-  if(saved && current !== saved){
+  if(storedHash){
+    if(!matchesAdminPassword(current, storedHash)){
+      toast("La contraseña actual no coincide.","err");
+      return;
+    }
+  }else if(current !== DEFAULT_ADMIN_PASS){
     toast("La contraseña actual no coincide.","err");
     return;
   }
@@ -3878,14 +3897,14 @@ function saveAdminPassword(){
     return;
   }
 
-  localStorage.setItem(LS_ADMIN_PASS, nextp);
-  // Guardar en tabla admin_auth (UPDATE fila id=1)
+  const nextHash = encodeAdminSecret(nextp);
+  localStorage.setItem(LS_ADMIN_PASS, nextHash);
   sbPATCH('admin_auth', 1, {
-    password_hash: nextp,
+    password_hash: nextHash,
     updated_at: new Date().toISOString()
   }).then(()=>{
     if(!DB.admin_auth) DB.admin_auth = {};
-    DB.admin_auth.password_hash = nextp;
+    DB.admin_auth.password_hash = nextHash;
     DB.admin_auth.updated_at = new Date().toISOString();
   }).catch(e=>console.error('[SB] admin_auth update:',e));
   toast("Contraseña actualizada ✅","ok");
@@ -4117,13 +4136,11 @@ async function doAdminLogin(){
   if(btn){btn.textContent='Verificando...';btn.disabled=true;}
 
   try{
-    // Load admin_auth from Supabase
     const rows = await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>null);
-    const storedHash = (rows&&rows.length) ? rows[0].password_hash : (localStorage.getItem('pleaseme_admin_pass')||'admin123');
-    const inputHash  = btoa(unescape(encodeURIComponent(pass)));
-    // Also accept plain text match for legacy
-    if(storedHash !== inputHash && storedHash !== pass){
-      lgToast('lgAdminToast','Contraseña incorrecta.','err'); return;
+    const storedHash = (rows&&rows.length) ? (rows[0].password_hash||'') : getStoredAdminHash();
+    if(!matchesAdminPassword(pass, storedHash)){
+      lgToast('lgAdminToast', storedHash ? 'Contraseña incorrecta.' : 'La contraseña inicial es admin1234. Cámbiala después de entrar.','err');
+      return;
     }
     const session = {isRoot:true, name:'Administrador', email:'admin', role:'admin'};
     saveAdminSession(session);
@@ -4135,22 +4152,22 @@ async function doAdminLogin(){
 
 // ── STAFF login (email + password) ───────────────────────────
 async function doStaffLogin(){
-  const email = document.getElementById('lgUserEmail')?.value.trim().toLowerCase()||'';
-  const pass  = document.getElementById('lgUserPass')?.value||'';
-  const btn   = document.getElementById('lgUserBtn');
-  if(!email||!pass){ lgToast('lgUserToast','Ingresa correo y contraseña.','err'); return; }
+  const userId = document.getElementById('lgUserSelect')?.value||'';
+  const pass   = document.getElementById('lgUserPass')?.value||'';
+  const btn    = document.getElementById('lgUserBtn');
+  if(!userId||!pass){ lgToast('lgUserToast','Selecciona un usuario e ingresa la contraseña.','err'); return; }
   if(btn){btn.textContent='Verificando...';btn.disabled=true;}
 
   try{
-    const rows = await fetch(SB_URL+'/rest/v1/admin_users?email=eq.'+encodeURIComponent(email)+'&select=*&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>[]);
+    const rows = await fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+encodeURIComponent(userId)+'&select=*&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>[]);
     if(!rows||!rows.length){ lgToast('lgUserToast','Usuario no encontrado.','err'); return; }
     const u = rows[0];
     if(u.active===false){ lgToast('lgUserToast','Cuenta desactivada. Contacta al administrador.','err'); return; }
-    const hash = btoa(unescape(encodeURIComponent(pass)));
-    if(u.password_hash!==hash){ lgToast('lgUserToast','Contraseña incorrecta.','err'); return; }
+    const hash = encodeAdminSecret(pass);
+    if(u.password_hash!==hash && u.password_hash!==pass){ lgToast('lgUserToast','Contraseña incorrecta.','err'); return; }
 
     const session = {
-      isRoot:false, id:u.id, name:u.name, email:u.email, role:u.role,
+      isRoot:false, id:u.id, name:u.name, email:u.email||'', role:u.role,
       perms:{
         perm_dashboard: u.perm_dashboard,  perm_pedidos:u.perm_pedidos,
         perm_inventario:u.perm_inventario, perm_clientes:u.perm_clientes,
@@ -4160,7 +4177,6 @@ async function doStaffLogin(){
     };
     saveAdminSession(session);
     adminSession = session;
-    // Update last_login
     fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+u.id,{method:'PATCH',headers:{...SB_H,'Prefer':'return=minimal'},body:JSON.stringify({last_login:new Date().toISOString()})}).catch(()=>{});
     enterPanel();
   }catch(e){ lgToast('lgUserToast','Error de conexión.','err'); }
@@ -4249,6 +4265,21 @@ async function loadAdminUsers(){
   }catch(e){ console.warn('[SB] loadAdminUsers:',e); }
 }
 
+async function loadLoginUsers(){
+  const sel = document.getElementById('lgUserSelect');
+  const help = document.getElementById('lgUserHelp');
+  if(!sel) return;
+  try{
+    const rows = await fetch(SB_URL+'/rest/v1/admin_users?select=id,name,active&active=eq.true&order=name.asc',{headers:SB_H}).then(r=>r.json()).catch(()=>[]);
+    const users = (rows||[]).filter(u=>u && u.id && (u.active!==false));
+    sel.innerHTML = '<option value="">Selecciona un usuario</option>' + users.map(u=>`<option value="${esc(u.id)}">${esc(u.name||'Sin nombre')}</option>`).join('');
+    if(help) help.textContent = users.length ? 'Selecciona tu nombre en la lista.' : 'No hay usuarios activos disponibles.';
+  }catch(e){
+    sel.innerHTML = '<option value="">No se pudieron cargar los usuarios</option>';
+    if(help) help.textContent = 'Error cargando usuarios activos.';
+  }
+}
+
 function openUserModal(userId=null){
   editingUserId=userId;
   const isEdit=!!userId;
@@ -4258,7 +4289,7 @@ function openUserModal(userId=null){
   if(hint) hint.style.display=isEdit?'block':'none';
 
   // Reset form
-  ['uName','uEmail','uPass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['uName','uPass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const setC=(id,v)=>{const el=document.getElementById(id);if(el)el.checked=v;};
   setC('pDashboard',false);setC('pPedidos',false);setC('pInventario',false);
   setC('pClientes',false);setC('pProductos',false);
@@ -4270,7 +4301,7 @@ function openUserModal(userId=null){
     const u=(DB.adminUsers||[]).find(x=>x.id===userId);
     if(u){
       const g=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
-      g('uName',u.name);g('uEmail',u.email);
+      g('uName',u.name);
       if(r) r.value=u.role||'staff';
       setC('pDashboard', u.perm_dashboard); setC('pPedidos',    u.perm_pedidos);
       setC('pInventario',u.perm_inventario);setC('pClientes',   u.perm_clientes);
@@ -4306,13 +4337,12 @@ function applyRolePreset(){
 async function saveAdminUser(){
   const btn   = document.getElementById('btnSaveUser');
   const name  = document.getElementById('uName')?.value.trim()||'';
-  const email = document.getElementById('uEmail')?.value.trim().toLowerCase()||'';
   const pass  = document.getElementById('uPass')?.value||'';
   const role  = document.getElementById('uRole')?.value||'staff';
   const active= document.getElementById('uActive')?.checked!==false;
   const gC    = id=>document.getElementById(id)?.checked||false;
 
-  if(!name||!email){toast('Nombre y correo son requeridos.','err');return;}
+  if(!name){toast('El nombre del usuario es requerido.','err');return;}
   if(!editingUserId&&!pass){toast('La contraseña es requerida para nuevos usuarios.','err');return;}
   if(pass&&pass.length<6){toast('La contraseña debe tener al menos 6 caracteres.','err');return;}
 
@@ -4324,7 +4354,7 @@ async function saveAdminUser(){
     const hashPass = pass ? btoa(unescape(encodeURIComponent(pass))) : (existing?.password_hash||'');
 
     const userData={
-      id,name,email,role,active,
+      id,name,role,active,
       password_hash:  hashPass,
       perm_dashboard: gC('pDashboard'), perm_pedidos:   gC('pPedidos'),
       perm_inventario:gC('pInventario'),perm_clientes:  gC('pClientes'),
@@ -4353,6 +4383,7 @@ async function saveAdminUser(){
     closeUserModal();
     renderUsersGrid();
     const tc=document.getElementById('tcUsuarios'); if(tc) tc.textContent=DB.adminUsers.length;
+    loadLoginUsers();
   }catch(e){ toast('Error: '+e.message,'err'); }
   finally{ if(btn){btn.textContent='💾 Guardar usuario';btn.disabled=false;} }
 }
@@ -4365,6 +4396,7 @@ async function toggleUserActive(id){
     body:JSON.stringify({active:u.active,updated_at:u.updated_at})
   }).catch(()=>{});
   renderUsersGrid();
+  loadLoginUsers();
   toast(u.active?'Usuario activado.':'Usuario desactivado.','ok');
 }
 
@@ -4374,6 +4406,7 @@ async function deleteAdminUser(id){
   DB.adminUsers=(DB.adminUsers||[]).filter(u=>u.id!==id);
   renderUsersGrid();
   const tc=document.getElementById('tcUsuarios'); if(tc) tc.textContent=DB.adminUsers.length;
+  loadLoginUsers();
   toast('Usuario eliminado.','ok');
 }
 
@@ -4394,7 +4427,7 @@ function renderUsersGrid(){
     {k:'can_edit',l:'Editar',i:'✏️'},{k:'can_delete',l:'Eliminar',i:'🗑'},{k:'can_export',l:'Exportar',i:'📤'}
   ];
   grid.innerHTML=users.map(u=>{
-    const ini=(u.name||u.email).charAt(0).toUpperCase();
+    const ini=((u.name||u.email||'?').charAt(0)||'?').toUpperCase();
     const isActive=u.active!==false;
     const lastLogin=u.last_login?new Date(u.last_login).toLocaleString('es-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'Nunca';
     return `<div class="user-card">
@@ -4402,7 +4435,7 @@ function renderUsersGrid(){
         <div class="user-card-avatar ${isActive?'active':'inactive'}">${esc(ini)}</div>
         <div class="user-card-info">
           <div class="user-card-name">${esc(u.name||'')}</div>
-          <div class="user-card-email">${esc(u.email||'')}</div>
+          <div class="user-card-email">${esc(u.email||'Usuario interno del panel')}</div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
             <span class="user-card-role role-${u.role||'staff'}">${RL[u.role]||u.role}</span>
             ${!isActive?'<span style="padding:2px 7px;border-radius:6px;font-size:9px;background:rgba(255,77,109,.1);color:#ff8fa3;border:1px solid rgba(255,77,109,.2)">Inactivo</span>':''}
@@ -4470,10 +4503,12 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') doAdminLogin(); });
   });
-  ['lgUserPass','lgUserEmail'].forEach(id=>{
+  ['lgUserPass','lgUserSelect'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') doStaffLogin(); });
   });
+
+  loadLoginUsers();
 })();
 
 
