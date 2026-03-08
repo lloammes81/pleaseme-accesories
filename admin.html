@@ -1935,205 +1935,302 @@ function buildInvoicePDF(o){
   const doc = new jsPDF({unit:'mm',format:'letter'});
   const co  = getCompanyInfo();
   const W   = 215.9;
-  const gold= [201,150,58];
-  const dark= [8,6,3];
-  const gray= [120,110,100];
+  const H   = 279.4;
 
-  // ── Background header block
-  doc.setFillColor(...dark);
-  doc.rect(0,0,W,45,'F');
+  // ── Colors ──────────────────────────────────────────────────
+  const GOLD   = [201,150,58];
+  const GOLD2  = [232,197,110];
+  const DARK   = [8,6,3];
+  const DARK2  = [18,14,6];
+  const DARK3  = [26,20,10];
+  const GRAY   = [120,110,95];
+  const LGRAY  = [180,165,140];
+  const WHITE  = [245,240,230];
 
-  // ── Logo / Brand
-  // Logo circle
-  doc.setFillColor(...gold);
-  doc.circle(20, 22, 8, 'F');
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(11);
-  doc.setTextColor(...dark);
-  doc.text((co.name||'P').slice(0,1).toUpperCase(), 20, 25.5, {align:'center'});
+  // ── Currency formatter ──────────────────────────────────────
+  const cur  = o.currency||'USD';
+  const sym  = {USD:'$',MXN:'$',DOP:'RD$',COP:'$',CLP:'$',ARS:'$',PEN:'S/',EUR:'€'}[cur]||'$';
+  const fmtC = n => sym+Number(n||0).toFixed(2)+(cur!=='USD'?' '+cur:'');
+  const money2 = n => sym+Number(n||0).toFixed(2);
 
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(24);
-  doc.setTextColor(...gold);
-  doc.text(co.name||'Pleaseme', 32, 22);
+  // ══════════════════════════════════════════════════════════
+  // HEADER — full-width dark block
+  // ══════════════════════════════════════════════════════════
+  doc.setFillColor(...DARK);
+  doc.rect(0,0,W,52,'F');
 
-  doc.setFontSize(9);
-  doc.setTextColor(180,160,120);
-  doc.text('Joyería Oro Laminado', 14, 30);
-  if(co.whatsapp) doc.text('WhatsApp: +'+co.whatsapp, 14, 36);
-  if(co.email)    doc.text(co.email, 14, 41);
+  // Gold accent bar at top
+  doc.setFillColor(...GOLD);
+  doc.rect(0,0,W,1.5,'F');
 
-  // ── INVOICE label
+  // ── Company logo circle
+  const logoX=18, logoY=26, logoR=10;
+  doc.setFillColor(...GOLD);
+  doc.circle(logoX, logoY, logoR, 'F');
+  const logoData = co.logo_data||co.logoUrl||'';
+  if(logoData && logoData.startsWith('data:')){
+    try{ doc.addImage(logoData,'PNG',logoX-9,logoY-9,18,18); }catch(e){}
+  } else {
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...DARK);
+    doc.text((co.name||'P').slice(0,1).toUpperCase(), logoX, logoY+4.5, {align:'center'});
+  }
+
+  // ── Company name
   doc.setFont('helvetica','bold');
   doc.setFontSize(22);
-  doc.setTextColor(...gold);
+  doc.setTextColor(...GOLD);
+  doc.text(co.name||'Pleaseme', 32, 22);
+
+  // ── Company tagline / address
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...LGRAY);
+  let coY = 29;
+  const coLines = [];
+  if(co.address) coLines.push(co.address);
+  if(co.whatsapp) coLines.push('WhatsApp: +'+co.whatsapp.replace(/^\+/,''));
+  if(co.email)    coLines.push(co.email);
+  if(co.instagram) coLines.push(co.instagram);
+  coLines.forEach(line => {
+    const wrapped = doc.splitTextToSize(line, 90);
+    doc.text(wrapped[0], 32, coY);
+    coY += 5.5;
+  });
+
+  // ── FACTURA label (right side)
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(26);
+  doc.setTextColor(...GOLD);
   doc.text('FACTURA', W-14, 20, {align:'right'});
 
-  doc.setFontSize(9);
-  doc.setTextColor(180,160,120);
-  doc.text('No. '+o.id, W-14, 28, {align:'right'});
-  doc.text('Fecha: '+(o.created_at||o.date||'').slice(0,10), W-14, 34, {align:'right'});
-  const statusMap={pendiente:'Pendiente',procesando:'Procesando',enviado:'Enviado',entregado:'Entregado',cancelado:'Cancelado'};
-  doc.text('Estado: '+(statusMap[o.status]||o.status||'Pendiente'), W-14, 40, {align:'right'});
+  // Invoice number box
+  doc.setFillColor(30,22,8);
+  doc.roundedRect(W-72, 24, 58, 22, 2,2,'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...GOLD);
+  doc.text('No. FACTURA', W-64, 30);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(...WHITE);
+  doc.text(o.invoiceNum||o.id||'—', W-64, 37);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...LGRAY);
+  doc.text('Fecha: '+(o.created_at||'').slice(0,10), W-64, 43);
 
   // ── Gold divider
-  doc.setDrawColor(...gold);
-  doc.setLineWidth(0.6);
-  doc.line(0,45,W,45);
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.8);
+  doc.line(0,52,W,52);
 
-  // ── Client info
-  let y = 55;
-  doc.setFillColor(18,14,6);
-  doc.roundedRect(12, y-6, 90, 32, 3,3,'F');
+  // ══════════════════════════════════════════════════════════
+  // CLIENT + SHIP TO — two columns
+  // ══════════════════════════════════════════════════════════
+  let y = 62;
+  const colW = (W-36)/2;
+
+  // Bill to box
+  doc.setFillColor(...DARK2);
+  doc.roundedRect(12, y-6, colW, 34, 3,3,'F');
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(12, y-6, colW, 34, 3,3,'S');
+
   doc.setFont('helvetica','bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...gold);
+  doc.setFontSize(7);
+  doc.setTextColor(...GOLD);
   doc.text('FACTURAR A', 17, y);
-  doc.setFont('helvetica','normal');
-  doc.setTextColor(220,210,190);
-  doc.setFontSize(10);
-  doc.text(o.clientName||'Cliente', 17, y+8);
-  doc.setFontSize(8);
-  doc.setTextColor(...gray);
-  if(o.clientEmail) doc.text(o.clientEmail, 17, y+14);
-  if(o.clientPhone) doc.text(o.clientPhone, 17, y+20);
 
-  // ── Ship to
-  if(o.address){
-    doc.setFillColor(18,14,6);
-    doc.roundedRect(W/2+2, y-6, 90, 32, 3,3,'F');
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...gold);
-    doc.text('ENVIAR A', W/2+7, y);
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(8);
-    doc.setTextColor(...gray);
-    const lines = doc.splitTextToSize(o.address, 80);
-    doc.text(lines, W/2+7, y+8);
-  }
+  doc.setDrawColor(50,38,16);
+  doc.setLineWidth(0.2);
+  doc.line(17, y+2, 17+colW-10, y+2);
 
-  y += 42;
-
-  // ── Items table header
-  doc.setFillColor(...gold);
-  doc.rect(12, y, W-24, 8, 'F');
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(8);
-  doc.setTextColor(8,6,3);
-  doc.text('PRODUCTO', 16, y+5.5);
-  doc.text('TALLA', 110, y+5.5);
-  doc.text('COLOR', 135, y+5.5);
-  doc.text('CANT', 158, y+5.5);
-  doc.text('PRECIO', 172, y+5.5);
-  doc.text('TOTAL', W-16, y+5.5, {align:'right'});
-  y += 10;
-
-  // ── Items rows
-  const items = o.items||[];
-  items.forEach((item,i)=>{
-    if(i%2===0){ doc.setFillColor(16,12,5); doc.rect(12,y-1,W-24,8,'F'); }
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(8);
-    doc.setTextColor(220,210,190);
-    const name = doc.splitTextToSize(item.name||'',55);
-    doc.text(name[0], 16, y+5);
-    doc.text(item.size||'-', 110, y+5);
-    doc.text(item.color||'-', 135, y+5);
-    doc.text(String(item.qty||1), 162, y+5);
-    doc.text(money2(item.price), 172, y+5);
-    doc.text(money2((item.price||0)*(item.qty||1)), W-16, y+5,{align:'right'});
-    y += 8;
-  });
-
-  // ── Totals block
-  y += 6;
-  doc.setDrawColor(...gold);
-  doc.setLineWidth(0.4);
-  doc.line(W-80, y, W-12, y);
-  y += 5;
-
-  // Currency symbol
-  const cur  = o.currency||'USD';
-  const sym  = {USD:'$',MXN:'$',DOP:'RD$',DOP:'RD$',COP:'$',CLP:'$',ARS:'$',PEN:'S/',EUR:'€'}[cur]||'$';
-  const fmtC = n => sym+Number(n||0).toFixed(2)+(cur!=='USD'?' '+cur:'');
-
-  const rows=[
-    ['Subtotal:', fmtC(o.subtotal)],
-  ];
-  if(Number(o.discountAmount||0)>0){
-    rows.push(['Descuento'+(o.discountType==='pct'?' ('+o.discountValue+'%)':'')+':', '− '+fmtC(o.discountAmount)]);
-  }
-  rows.push(['Envío:', Number(o.shipping||0)===0 ? 'GRATIS' : fmtC(o.shipping)]);
-
-  rows.forEach(([label,val], ri)=>{
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...gray);
-    // Highlight discount row
-    if(label.startsWith('Descuento')){
-      doc.setTextColor(220,150,20);
-    }
-    doc.text(label, W-60, y);
-    doc.text(val,   W-16, y,{align:'right'});
-    y += 7;
-  });
-
-  // Total
-  doc.setFillColor(...gold);
-  doc.roundedRect(W-80, y-4, 68, 12, 2,2,'F');
   doc.setFont('helvetica','bold');
   doc.setFontSize(11);
-  doc.setTextColor(8,6,3);
-  doc.text('TOTAL:', W-75, y+4);
-  doc.text(fmtC(o.total), W-16, y+4,{align:'right'});
-  y += 14;
+  doc.setTextColor(...WHITE);
+  doc.text(doc.splitTextToSize(o.clientName||o.name||'Cliente', colW-10)[0], 17, y+9);
 
-  // ── Payment type / Credit block
-  const payType = o.paymentType||'contado';
-  if(payType==='credito'||payType==='anticipo'){
-    const blue=[60,140,220];
-    doc.setFillColor(14,24,45);
-    doc.roundedRect(W-80, y-3, 68, payType==='anticipo'?22:16, 2,2,'F');
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...blue);
-    doc.text(payType==='credito'?'VENTA A CRÉDITO':'ANTICIPO PARCIAL', W-76, y+3);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...LGRAY);
+  let bY = y+16;
+  if(o.clientEmail||o.email){ doc.text(o.clientEmail||o.email, 17, bY); bY+=5.5; }
+  if(o.clientPhone||o.phone){ doc.text(o.clientPhone||o.phone, 17, bY); }
+
+  // Ship to box
+  const col2X = 12+colW+12;
+  doc.setFillColor(...DARK2);
+  doc.roundedRect(col2X, y-6, colW, 34, 3,3,'F');
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(col2X, y-6, colW, 34, 3,3,'S');
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...GOLD);
+  doc.text('ENVIAR A', col2X+5, y);
+
+  doc.setDrawColor(50,38,16);
+  doc.setLineWidth(0.2);
+  doc.line(col2X+5, y+2, col2X+colW-5, y+2);
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...LGRAY);
+  const shipAddr = o.shippingAddress||o.address||'—';
+  const addrLines = doc.splitTextToSize(shipAddr, colW-10);
+  addrLines.slice(0,3).forEach((line,i)=>{
+    doc.text(line, col2X+5, y+9+(i*5.5));
+  });
+
+  y += 40;
+
+  // ══════════════════════════════════════════════════════════
+  // ITEMS TABLE
+  // ══════════════════════════════════════════════════════════
+
+  // Table header
+  doc.setFillColor(...GOLD);
+  doc.rect(12, y, W-24, 9, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...DARK);
+  const cols = {prod:16, talla:115, cant:148, precio:168, total:W-14};
+  doc.text('PRODUCTO',  cols.prod,   y+6);
+  doc.text('TALLA',     cols.talla,  y+6);
+  doc.text('CANT.',     cols.cant,   y+6, {align:'center'});
+  doc.text('PRECIO',    cols.precio, y+6);
+  doc.text('TOTAL',     cols.total,  y+6, {align:'right'});
+  y += 11;
+
+  // Item rows
+  const items = o.items||[];
+  items.forEach((item,i)=>{
+    const rowH = 8;
+    if(i%2===0){
+      doc.setFillColor(...DARK3);
+      doc.rect(12,y-1,W-24,rowH,'F');
+    }
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
-    doc.setTextColor(160,185,220);
-    if(o.dueDate) doc.text('Vence: '+o.dueDate, W-76, y+9);
-    if(o.creditDays) doc.text('Plazo: '+o.creditDays+' días', W-40, y+9);
-    if(payType==='anticipo'&&Number(o.deposit||0)>0){
-      doc.setTextColor(...blue);
-      doc.text('Anticipo: '+fmtC(o.deposit), W-76, y+16);
-      doc.text('Saldo: '+fmtC(o.balanceDue||o.total-o.deposit), W-40, y+16);
-    }
-    y += payType==='anticipo' ? 28 : 22;
-  } else {
-    y += 6;
+    doc.setTextColor(...WHITE);
+    const nameStr = doc.splitTextToSize(item.name||'',85)[0];
+    doc.text(nameStr, cols.prod, y+5);
+
+    doc.setTextColor(...LGRAY);
+    doc.text(item.size||'—',    cols.talla,  y+5);
+    doc.text(String(item.qty||1), cols.cant, y+5, {align:'center'});
+    doc.text(money2(item.price), cols.precio, y+5);
+    doc.setTextColor(...GOLD2);
+    doc.setFont('helvetica','bold');
+    doc.text(money2((item.price||0)*(item.qty||1)), cols.total, y+5, {align:'right'});
+    y += rowH;
+  });
+
+  // ── Light separator
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.3);
+  doc.line(12, y+4, W-12, y+4);
+  y += 10;
+
+  // ══════════════════════════════════════════════════════════
+  // TOTALS BLOCK — right aligned
+  // ══════════════════════════════════════════════════════════
+  const totX  = W-84;
+  const valX  = W-14;
+  const rowGap = 7;
+
+  // Subtotal
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...GRAY);
+  doc.text('Subtotal:', totX, y);
+  doc.setTextColor(...LGRAY);
+  doc.text(fmtC(o.subtotal), valX, y, {align:'right'});
+  y += rowGap;
+
+  // Discount
+  if(Number(o.discountAmount||0)>0){
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor([220,150,20]);
+    const dLabel = 'Descuento'+(o.discountType==='pct'?' ('+o.discountValue+'%)':'')+':';
+    doc.text(dLabel, totX, y);
+    doc.text('− '+fmtC(o.discountAmount), valX, y, {align:'right'});
+    y += rowGap;
   }
 
-  // Payment method badge
-  const pIcon = {card:'Tarjeta de Crédito/Débito', paypal:'PayPal', whatsapp:'WhatsApp/Efectivo', cash:'Efectivo', transfer:'Transferencia Bancaria'}[o.method||'']||o.method||'';
-  if(pIcon){
+  // Shipping
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...GRAY);
+  doc.text('Envío:', totX, y);
+  doc.setTextColor(...LGRAY);
+  doc.text(Number(o.shipping||0)===0?'GRATIS':fmtC(o.shipping), valX, y, {align:'right'});
+  y += rowGap+2;
+
+  // Total box
+  doc.setFillColor(...GOLD);
+  doc.roundedRect(totX-4, y-5, (valX-totX+4)+4, 13, 2,2,'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...DARK);
+  doc.text('TOTAL:', totX, y+4);
+  doc.text(fmtC(o.total), valX, y+4, {align:'right'});
+  y += 18;
+
+  // ── Credit block
+  const payType = o.paymentType||'contado';
+  if(payType==='credito'||payType==='anticipo'){
+    doc.setFillColor(14,24,45);
+    const cbH = payType==='anticipo' ? 24 : 18;
+    doc.roundedRect(totX-4, y-3, (valX-totX+8), cbH, 2,2,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100,160,255);
+    doc.text(payType==='credito'?'CRÉDITO':'ANTICIPO', totX, y+3);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(160,190,240);
+    if(o.dueDate)    doc.text('Vence: '+o.dueDate, totX, y+9);
+    if(o.creditDays) doc.text('Plazo: '+o.creditDays+' días', W-50, y+9);
+    if(payType==='anticipo'){
+      if(Number(o.deposit||0)>0) doc.text('Anticipo: '+fmtC(o.deposit), totX, y+16);
+      doc.text('Saldo: '+fmtC(o.balanceDue||0), W-55, y+16);
+    }
+    y += cbH+6;
+  }
+
+  // ── Payment method
+  const pLabel = {card:'Tarjeta de Crédito/Débito',paypal:'PayPal',whatsapp:'WhatsApp / Efectivo',cash:'Efectivo',transfer:'Transferencia Bancaria'}[o.method||'']||'';
+  if(pLabel){
     doc.setFont('helvetica','italic');
     doc.setFontSize(8);
-    doc.setTextColor(...gray);
-    doc.text('Forma de pago: '+pIcon, W-60, y, {align:'left'});
-    y += 8;
+    doc.setTextColor(...GRAY);
+    doc.text('Forma de pago: '+pLabel, 14, y);
   }
 
-  // ── Footer
-  doc.setDrawColor(...gold);
-  doc.setLineWidth(0.3);
-  doc.line(12, y, W-12, y);
-  y += 6;
-  doc.setFont('helvetica','italic');
+  // ══════════════════════════════════════════════════════════
+  // FOOTER
+  // ══════════════════════════════════════════════════════════
+  const footY = H-16;
+  doc.setFillColor(...DARK);
+  doc.rect(0, footY-6, W, 22,'F');
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(0, footY-6, W, footY-6);
+
+  doc.setFont('helvetica','bold');
   doc.setFontSize(8);
-  doc.setTextColor(...gray);
-  doc.text('Gracias por tu compra en '+(co.name||'Pleaseme')+' ✦ Joyería Oro Laminado', W/2, y, {align:'center'});
-  if(co.instagram) doc.text(co.instagram, W/2, y+6, {align:'center'});
+  doc.setTextColor(...GOLD);
+  doc.text((co.name||'Pleaseme').toUpperCase(), W/2, footY, {align:'center'});
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...LGRAY);
+  doc.text('Gracias por tu compra ✦ '+( co.instagram||'' ), W/2, footY+5.5, {align:'center'});
 
   return doc;
 }
@@ -4565,8 +4662,7 @@ function printInvoice(id){
   const o = DB.orders.find(x=>x.id===id); if(!o) return;
   printInvoiceSilent(o);
   setTimeout(()=>{
-    const addr = (o.shippingAddress||o.address||'').trim();
-    if(addr) showLabelPrompt(o);
+    showLabelPrompt(o);
   }, 500);
 }
 
@@ -5000,9 +5096,8 @@ async function saveNewOrder(action){
         }
         // 3. Preguntar label (pequeño delay para que el modal anterior ya cerró)
         setTimeout(()=>{
-          const addr = (o?.shippingAddress||o?.address||'').trim();
-          if(addr) showLabelPrompt(o);
-        }, 400);
+          showLabelPrompt(o);
+        }, 500);
       }, 300);
     } else {
       setTimeout(closeNewOrderModal, 1000);
