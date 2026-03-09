@@ -1312,7 +1312,7 @@
   <div class="modal modal-card" style="max-width:780px">
     <div class="modal-head">
       <div class="card-title" style="margin:0">🏢 Información de la compañía <span>Logo, contacto y redes</span></div>
-      <button class="icon-btn" id="closeCompanyInfoModal">✕</button>
+      <button class="icon-btn" id="closeCompanyInfoModal" onclick="closeCompanyInfoModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="grid-2">
@@ -2921,7 +2921,6 @@ document.querySelectorAll(".tab-btn").forEach(btn=>{
 function renderTab(tab){
   if(tab==="dashboard")  try{bindCompanyInfoPreview();}catch(e){}
   try{syncSalesCategoryCombos();}catch(e){}
-try{if(document.getElementById("companyInfoModal")) document.getElementById("companyInfoModal").style.display="none";}catch(e){}
 renderDashboard();
   if(tab==="pedidos")    renderOrders();
   if(tab==="inventario") renderInventory();
@@ -3482,11 +3481,9 @@ function enterPanel(){
   if(firstTab) setTimeout(()=>firstTab.click(),100);
 }
 
-// Auto-restore session on page load
-(function(){
-  const s=loadAdminSession();
-  if(s){ adminSession=s; window.addEventListener('DOMContentLoaded',()=>{ setTimeout(enterPanel,200); }); }
-})();
+// Auto-restore session DISABLED — always require login for security
+// clearAdminSession() is called on every page load to force re-auth
+(function(){ clearAdminSession(); })();
 
 // ── Admin password ─────────────────────────────────────────────
 function openAdminPassModal(){
