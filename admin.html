@@ -807,22 +807,41 @@
       <button class="btn ghost" id="openSalesReportsBtn" onclick="openSalesReportsModal()">📊 Reportes</button>
       
 
-<div id="adminSessionBadge" style="position:relative;cursor:pointer" onclick="toggleSessionMenu()">
-        <div class="badge-dot"></div>
-        <span id="adminBadgeName">Admin</span>
-        <span style="color:rgba(240,223,160,.35);font-size:10px">▾</span>
-        <div id="sessionMenu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;
-          background:rgba(10,8,3,.97);border:1px solid rgba(212,175,55,.25);border-radius:12px;
-          min-width:160px;padding:8px 0;box-shadow:0 12px 40px rgba(0,0,0,.6);z-index:999">
-          <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06)">
-            <div id="sessionMenuName" style="font-size:13px;font-weight:600;color:var(--gold)">Admin</div>
-            <div id="sessionMenuRole" style="font-size:10px;color:rgba(240,223,160,.4);margin-top:2px">Administrador</div>
+<div id="adminSessionBadge" onclick="toggleSessionMenu()"
+        style="position:relative;cursor:pointer;display:flex;align-items:center;gap:9px;
+               padding:7px 14px 7px 10px;border-radius:24px;
+               background:linear-gradient(135deg,rgba(212,175,55,.18),rgba(212,175,55,.06));
+               border:1px solid rgba(212,175,55,.35);transition:all .2s;user-select:none"
+        onmouseover="this.style.background='linear-gradient(135deg,rgba(212,175,55,.28),rgba(212,175,55,.12))'"
+        onmouseout="this.style.background='linear-gradient(135deg,rgba(212,175,55,.18),rgba(212,175,55,.06))'">
+        <!-- Avatar inicial -->
+        <div id="adminAvatarCircle" style="width:30px;height:30px;border-radius:50%;
+             background:linear-gradient(135deg,var(--gold),#b8860b);
+             display:flex;align-items:center;justify-content:center;
+             font-size:13px;font-weight:700;color:#000;flex-shrink:0">A</div>
+        <div style="display:flex;flex-direction:column;line-height:1.2">
+          <span id="adminBadgeName" style="font-size:13px;font-weight:700;color:var(--gold)">Admin</span>
+          <span id="adminBadgeRole" style="font-size:9px;color:rgba(240,223,160,.5);text-transform:uppercase;letter-spacing:.5px">Administrador</span>
+        </div>
+        <span style="color:rgba(240,223,160,.5);font-size:10px;margin-left:2px">▾</span>
+        <div id="sessionMenu" style="display:none;position:absolute;top:calc(100% + 10px);right:0;
+          background:rgba(10,8,3,.97);border:1px solid rgba(212,175,55,.25);border-radius:14px;
+          min-width:200px;padding:8px 0;box-shadow:0 16px 50px rgba(0,0,0,.7);z-index:999">
+          <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#b8860b);
+                 display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#000;flex-shrink:0"
+                 id="sessionMenuAvatar">A</div>
+            <div>
+              <div id="sessionMenuName" style="font-size:14px;font-weight:700;color:var(--gold)">Admin</div>
+              <div id="sessionMenuRole" style="font-size:10px;color:rgba(240,223,160,.4);margin-top:1px">Administrador</div>
+            </div>
           </div>
-          <div onclick="event.stopPropagation();showAdminLogoutMenu()" style="padding:10px 14px;
-            font-size:12px;color:#ff8fa3;cursor:pointer;display:flex;align-items:center;gap:8px;
-            transition:background .15s" onmouseover="this.style.background='rgba(255,80,80,.08)'"
-            onmouseout="this.style.background=''">
-            ⏻ Cerrar sesión
+          <div onclick="event.stopPropagation();showAdminLogoutMenu()"
+               style="padding:11px 16px;font-size:13px;color:#ff8fa3;cursor:pointer;
+                      display:flex;align-items:center;gap:10px;transition:background .15s"
+               onmouseover="this.style.background='rgba(255,80,80,.1)'"
+               onmouseout="this.style.background=''">
+            <span style="font-size:16px">⏻</span> Cerrar sesión
           </div>
         </div>
       </div>
@@ -1031,6 +1050,7 @@
     <table style="width:100%;border-collapse:collapse">
       <thead>
         <tr style="border-bottom:1px solid rgba(212,175,55,.2);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">
+          <th style="padding:8px 10px;text-align:left;font-weight:600;width:52px">Foto</th>
           <th style="padding:8px 10px;text-align:left;font-weight:600">Producto</th>
           <th style="padding:8px 10px;text-align:left;font-weight:600">Categoría</th>
           <th style="padding:8px 10px;text-align:left;font-weight:600">Precio</th>
@@ -1211,11 +1231,12 @@
         <table class="prod-table">
           <thead>
             <tr>
-              <th><span data-i18n="product">Producto</span></th>
+              <th style="width:80px">Foto</th>
+              <th>Nombre</th>
+              <th>Categoría</th>
               <th>Precio</th>
-              <th>Stock</th>
-              <th>Estado</th>
-              <th>Acciones</th>
+              <th style="text-align:center">Stock</th>
+              <th style="width:90px">Acciones</th>
             </tr>
           </thead>
           <tbody id="prodBody"></tbody>
@@ -1450,6 +1471,41 @@
       <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px">
         <button class="btn ghost" id="companyInfoCancelBtn">Cancelar</button>
         <button class="btn ok" id="companyInfoSaveBtn">💾 Guardar información</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WA QUICK MESSAGE MODAL ═══ -->
+<div class="modal-overlay" id="waQuickModal" style="display:none" onclick="if(event.target===this)closeWAQuickModal()">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <b>💬 Enviar WhatsApp</b>
+      <button class="btn sm" onclick="closeWAQuickModal()">✕</button>
+    </div>
+    <div class="modal-body" style="margin-top:14px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:12px;background:rgba(37,211,102,.07);border:1px solid rgba(37,211,102,.2);border-radius:10px;padding:12px 14px">
+        <span style="font-size:22px">📋</span>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Pedido</div>
+          <div style="font-size:14px;font-weight:700;color:var(--gold)" id="waQOrdId"></div>
+          <div style="font-size:13px;color:var(--text)" id="waQClient"></div>
+          <div style="font-size:11px;color:var(--muted)">📱 <span id="waQPhone"></span></div>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Mensaje</label>
+        <textarea id="waQMsg" rows="6"
+          style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.2);border-radius:10px;
+                 color:var(--text);font-size:13px;padding:10px 12px;resize:vertical;font-family:inherit;box-sizing:border-box"
+          placeholder="Escribe tu mensaje..."></textarea>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">Puedes usar emojis y personalizar el mensaje antes de enviar.</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn ghost" onclick="closeWAQuickModal()">Cancelar</button>
+        <button class="btn ok" onclick="sendWAQuick()" style="background:rgba(37,211,102,.2);border-color:rgba(37,211,102,.4);color:#25d366">
+          💬 Abrir WhatsApp
+        </button>
       </div>
     </div>
   </div>
@@ -3082,8 +3138,9 @@ function renderOrders(){
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn sm" onclick="openOrderModal('${o.id}')">Ver</button>
-          <button class="btn sm" onclick="quickInvoice('${o.id}')" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">🧾</button>
-          <button class="btn sm" onclick="quickLabel('${o.id}')" style="background:rgba(212,175,55,.08);border-color:rgba(212,175,55,.3);color:var(--gold)">📦</button>
+          <button class="btn sm" onclick="quickInvoice('${o.id}')" title="Generar factura" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">🧾</button>
+          <button class="btn sm" onclick="quickLabel('${o.id}')" title="Etiqueta envío" style="background:rgba(212,175,55,.08);border-color:rgba(212,175,55,.3);color:var(--gold)">📦</button>
+          ${o.clientPhone?`<button class="btn sm" onclick="event.stopPropagation();quickWA('${o.id}')" title="Enviar WhatsApp" style="background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3);color:#25d366">💬</button>`:''}
           <button class="btn sm danger" onclick="deleteOrder('${o.id}')">Eliminar</button>
         </div>
       </td>
@@ -3468,9 +3525,12 @@ function enterPanel(){
   try{ initDB(); }catch(e){ console.error('initDB:',e); }
   const hn=document.getElementById('headerUserName'); if(hn&&adminSession) hn.textContent=adminSession.name||'Admin';
   const bn=document.getElementById('adminBadgeName'); if(bn&&adminSession) bn.textContent=adminSession.name||'Admin';
+  const roleLabel=adminSession?.isRoot?'Administrador':(adminSession?.role==='manager'?'Gerente':adminSession?.role==='staff'?'Personal':'Solo lectura');
+  const br=document.getElementById('adminBadgeRole'); if(br) br.textContent=roleLabel;
+  const ac=document.getElementById('adminAvatarCircle'); if(ac&&adminSession) ac.textContent=(adminSession.name||'A')[0].toUpperCase();
   if(adminSession&&!adminSession.isRoot){
     const pm={dashboard:'perm_dashboard',pedidos:'perm_pedidos',inventario:'perm_inventario',
-      clientes:'perm_clientes',productos:'perm_productos',facturas:false,usuarios:false,notificaciones:false};
+      clientes:'perm_clientes',productos:'perm_productos',facturas:'perm_pedidos',usuarios:false,notificaciones:'perm_pedidos'};
     document.querySelectorAll('.tab-btn').forEach(btn=>{
       const p=pm[btn.dataset.tab];
       if(p===false||(p&&!adminSession.perms[p])) btn.style.display='none';
@@ -3518,8 +3578,10 @@ function toggleSessionMenu(){
   if(!open && adminSession){
     const mn=document.getElementById('sessionMenuName');
     const mr=document.getElementById('sessionMenuRole');
+    const ma=document.getElementById('sessionMenuAvatar');
     if(mn) mn.textContent = adminSession.name||'Admin';
-    if(mr) mr.textContent = adminSession.isRoot ? 'Administrador' : (adminSession.role||'Personal');
+    if(mr) mr.textContent = adminSession.isRoot ? 'Administrador' : (adminSession.role==='manager'?'Gerente':adminSession.role==='staff'?'Personal':'Solo lectura');
+    if(ma) ma.textContent = (adminSession.name||'A')[0].toUpperCase();
   }
   // Close on outside click
   if(!open){
@@ -3583,7 +3645,9 @@ function renderInventory(){
   const el=document.getElementById('invList'); if(!el) return;
   if(!list.length){el.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Sin productos</td></tr>';return;}
   el.innerHTML=list.map(p=>`
-    <tr>
+    <tr onclick="editProduct('${p.id}')" style="cursor:pointer">
+      <td><div style="width:44px;height:44px;border-radius:8px;background:rgba(212,175,55,.1);overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid rgba(212,175,55,.15)">
+        ${p.images&&p.images[0]?`<img src="${p.images[0]}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=\\'font-size:20px\\'>💎</span>'">`:'<span style="font-size:20px">💎</span>'}</div></td>
       <td style="font-size:13px;color:var(--text);font-weight:500">${esc(p.name)}</td>
       <td style="font-size:11px;color:var(--muted)">${esc(p.category||'—')}</td>
       <td style="font-family:var(--fd);color:var(--gold)">$${Number(p.price||0).toFixed(2)}</td>
@@ -3649,12 +3713,12 @@ function renderProducts(){
   if(!list.length){el.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">Sin productos. Agrega el primero arriba.</td></tr>';return;}
   el.innerHTML=list.map(p=>`
     <tr onclick="editProduct('${p.id}')" style="cursor:pointer">
-      <td><div style="width:36px;height:36px;border-radius:6px;background:rgba(212,175,55,.1);overflow:hidden;display:flex;align-items:center;justify-content:center">
-        ${p.images&&p.images[0]?`<img src="${p.images[0]}" style="width:100%;height:100%;object-fit:cover"/>`:'<span style="font-size:18px">💎</span>'}</div></td>
-      <td style="font-size:13px;color:var(--text);font-weight:500">${esc(p.name)}</td>
+      <td><div style="width:70px;height:70px;border-radius:10px;background:rgba(212,175,55,.1);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        ${p.images&&p.images[0]?`<img src="${p.images[0]}" style="width:100%;height:100%;object-fit:cover"/>`:'<span style="font-size:28px">💎</span>'}</div></td>
+      <td style="font-size:13px;color:var(--text);font-weight:600">${esc(p.name)}${p.description?`<br><span style="font-size:10px;color:var(--muted);font-weight:400">${esc(p.description.slice(0,50))}${p.description.length>50?'…':''}</span>`:''}</td>
       <td style="font-size:11px;color:var(--muted)">${esc(p.category||'—')}</td>
-      <td style="font-family:var(--fd);color:var(--gold)">$${Number(p.price||0).toFixed(2)}</td>
-      <td style="text-align:center;color:${(p.stock||0)<=5?'#ff8fa3':'var(--muted)'}">${p.stock||0}</td>
+      <td style="font-family:var(--fd);color:var(--gold);font-size:14px;font-weight:600">$${Number(p.price||0).toFixed(2)}</td>
+      <td style="text-align:center;font-size:13px;font-weight:600;color:${(p.stock||0)<=5?'#ff8fa3':'#2fe3b5'}">${p.stock||0}</td>
       <td onclick="event.stopPropagation()"><div style="display:flex;gap:6px">
         <button class="btn sm" onclick="editProduct('${p.id}')">✏️</button>
         <button class="btn sm danger" onclick="deleteProduct('${p.id}')">🗑</button>
@@ -4069,6 +4133,41 @@ function renderWaCampaignLog(){
   const el=document.getElementById('waCampaignLog'); if(!el) return;
   if(!_waCampaignLog.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Sin campañas enviadas</div>';return;}
   el.innerHTML=_waCampaignLog.slice(-10).reverse().map(c=>`<div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05)"><div style="font-size:12px;color:var(--gold)">${esc(c.name||'Campaña')}</div><div style="font-size:10px;color:var(--muted)">${fmtDate(c.date)} · ${c.sent||0} enviados</div></div>`).join('');
+}
+
+// ── Quick WhatsApp for individual order ─────────────────────────────
+function quickWA(orderId){
+  const o=(DB.orders||[]).find(x=>x.id===orderId); if(!o) return;
+  const phone=(o.clientPhone||'').replace(/\D/g,'');
+  if(!phone){ toast('Este pedido no tiene teléfono del cliente.','warn'); return; }
+  const co=getCompanyInfo();
+  const modal=document.getElementById('waQuickModal');
+  if(modal){
+    document.getElementById('waQOrdId').textContent=o.id;
+    document.getElementById('waQClient').textContent=o.clientName||'Cliente';
+    document.getElementById('waQPhone').textContent=o.clientPhone||phone;
+    document.getElementById('waQMsg').value=
+      `Hola ${o.clientName||''}! 👋\n`+
+      `Te escribimos de ${co.name||'Pleaseme'} sobre tu pedido *${o.id}*.\n`+
+      `Total: $${Number(o.total||0).toFixed(2)} - Estado: ${statusLabel(o.status)}\n`+
+      `¡Gracias por tu compra! 💎`;
+    modal.dataset.phone=phone;
+    modal.style.display='flex';
+  } else {
+    // Fallback: open WA directly
+    const msg=`Hola ${o.clientName||''}! Te escribimos de ${co.name||'Pleaseme'} sobre tu pedido ${o.id}. Total: $${Number(o.total||0).toFixed(2)} - ${statusLabel(o.status)}`;
+    window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');
+  }
+}
+function closeWAQuickModal(){ const m=document.getElementById('waQuickModal'); if(m) m.style.display='none'; }
+function sendWAQuick(){
+  const modal=document.getElementById('waQuickModal'); if(!modal) return;
+  const phone=modal.dataset.phone;
+  const msg=(document.getElementById('waQMsg')?.value||'').trim();
+  if(!phone||!msg){ toast('Número o mensaje vacío.','warn'); return; }
+  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');
+  closeWAQuickModal();
+  toast('Abriendo WhatsApp...','ok');
 }
 
 function waSendCampaign(){
