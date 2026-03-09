@@ -1666,7 +1666,7 @@
 </div>
 
 <!-- ══ MODAL: CREAR / EDITAR USUARIO ══ -->
-<div class="ovl" id="userModal" style="display:none">
+<div class="modal-overlay" id="userModal" style="display:none">
   <div class="modal" style="max-width:560px">
     <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">
       <b id="userModalTitle">👤 Nuevo usuario</b>
@@ -3129,7 +3129,8 @@ renderDashboard();
   if(tab==="clientes")   renderClients();
   if(tab==="productos")  renderProducts();
   updateCounts();
-  if(tab==="facturas") renderFacturas();
+  if(tab==="facturas")        renderFacturas();
+  if(tab==="notificaciones")   { try{ renderWaTab(); }catch(e){} }
 }
 
 function updateCounts(){
@@ -3987,7 +3988,7 @@ document.getElementById("companyInfoSaveBtn")?.addEventListener("click", ()=>{ t
 
 
 function getAdminPassword(){
-  if(DB.admin_auth&&DB.admin_auth.password_hash) return DB.admin_auth.password_hash;
+  // Always use localStorage — DB.admin_auth may have old encoded hash
   try{ return localStorage.getItem(LS_ADMIN_PASS)||'admin123'; }catch(e){ return 'admin123'; }
 }
 function openAdminPassModal(){
@@ -4005,13 +4006,21 @@ function saveAdminPassword(){
   const current = ($("adminPassCurrent")?.value || "").trim();
   const nextp   = ($("adminPassNew")?.value || "").trim();
   const confirm = ($("adminPassConfirm")?.value || "").trim();
-  // Only use localStorage (DB.admin_auth may have old encoded hash)
-  const saved = localStorage.getItem(LS_ADMIN_PASS) || 'admin123';
+  // Get saved password — accept both plain text AND legacy btoa encoding
+  let saved = localStorage.getItem(LS_ADMIN_PASS) || 'admin123';
+  // Decode legacy btoa-encoded passwords
+  let savedDecoded = saved;
+  try{ savedDecoded = atob(saved); }catch(e){ savedDecoded = saved; }
 
-  // If using default password, skip current-password check (first time)
-  if(saved !== 'admin123' && current !== saved){
-    toast("La contraseña actual no coincide.","err");
-    return;
+  const isDefault = (saved === 'admin123' || savedDecoded === 'admin123');
+
+  // If it's the default password, skip current-pass check
+  if(!isDefault){
+    // Accept either plain text or decoded
+    if(current !== saved && current !== savedDecoded){
+      toast("La contraseña actual no coincide.","err");
+      return;
+    }
   }
   if(!nextp){
     toast("Escribe una nueva contraseña.","warn");
@@ -4282,8 +4291,8 @@ async function doAdminLogin(){
     if(stored !== pass){
       lgToast('lgAdminToast','Contraseña incorrecta.','err'); return;
     }
-    // Sync to localStorage so offline works
-    localStorage.setItem(LS_ADMIN_PASS, stored);
+    // Sync plain text to localStorage so offline works + password change works
+    localStorage.setItem(LS_ADMIN_PASS, pass);
     const session = {isRoot:true, name:'Administrador', role:'admin'};
     saveAdminSession(session);
     adminSession = session;
@@ -4435,7 +4444,7 @@ function openUserModal(userId=null){
   if(hint) hint.style.display=isEdit?'block':'none';
 
   // Reset form
-  ['uName','uEmail','uPass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['uName','uUsername','uEmail','uPass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const setC=(id,v)=>{const el=document.getElementById(id);if(el)el.checked=v;};
   setC('pDashboard',false);setC('pPedidos',false);setC('pInventario',false);
   setC('pClientes',false);setC('pProductos',false);
@@ -4447,7 +4456,7 @@ function openUserModal(userId=null){
     const u=(DB.adminUsers||[]).find(x=>x.id===userId);
     if(u){
       const g=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
-      g('uName',u.name);g('uEmail',u.email);
+      g('uName',u.name);g('uUsername',u.username||'');g('uEmail',u.email||'');
       if(r) r.value=u.role||'staff';
       setC('pDashboard', u.perm_dashboard); setC('pPedidos',    u.perm_pedidos);
       setC('pInventario',u.perm_inventario);setC('pClientes',   u.perm_clientes);
@@ -5506,9 +5515,8 @@ function nomFilterProducts(q){
   ).slice(0,8);
 
   if(!prods.length){
-    dd.innerHTML=`<div style="padding:10px 14px;font-size:12px;color:var(--muted)">
-      Sin resultados — presiona Enter para agregar "<b style="color:var(--gold)">${esc(val)}</b>"
-    </div>`;
+    dd.style.display='none'; // Just hide — no message needed
+    return;
   } else {
     dd.innerHTML=prods.map((p,i)=>`
       <div class="nom-dd-item" data-idx="${i}" onmousedown="event.preventDefault()" onclick="nomSelectProduct('${esc(p.id)}')"
@@ -5549,7 +5557,7 @@ function nomSelectProduct(id){
 }
 
 function nomItemKeydown(e, fieldId){
-  const dd=document.getElementById('nomProdDropdown');
+  const dd=document.getElementById('nomProdPortal');
   const items=dd?.querySelectorAll('.nom-dd-item')||[];
 
   // Arrow navigation in dropdown
@@ -6189,9 +6197,15 @@ function loadWaLog(){ try{ _waCampaignLog=JSON.parse(localStorage.getItem(LS_WA_
 function saveWaLog(){ localStorage.setItem(LS_WA_LOG, JSON.stringify(_waCampaignLog.slice(0,50))); }
 
 function renderWaTab(){
+  // Update sender name from company
+  const co = getCompanyInfo();
+  const senderEl = document.getElementById('waPreviewSender');
+  if(senderEl) senderEl.textContent = co.name||'Pleaseme';
   waUpdateSegmentCounts();
   waUpdatePreview();
   renderWaCampaignLog();
+  // Force re-count after a tick in case DB just loaded
+  setTimeout(waUpdateSegmentCounts, 500);
   // Update notif tab count
   loadWaLog();
   const tc = document.getElementById('tcNotif');
@@ -6336,7 +6350,21 @@ function waInsertVar(v){
 }
 
 document.addEventListener('change', e=>{
-  if(e.target.name==='waSeg'){ waUpdateSegmentCounts(); waUpdatePreview(); }
+  if(e.target.name==='waSeg'){
+    waUpdateSegmentCounts();
+    waUpdatePreview();
+    // Highlight active segment label
+    document.querySelectorAll('.wa-seg-opt').forEach(l=>l.classList.remove('active'));
+    const lbl = e.target.closest('.wa-seg-opt');
+    if(lbl) lbl.classList.add('active');
+  }
+  if(e.target.name==='lpProv'){
+    const isPS = e.target.value==='pirateship';
+    const lpPS = document.getElementById('lpProvPS');
+    const lpEP = document.getElementById('lpProvEP');
+    if(lpPS){ lpPS.style.borderColor=isPS?'rgba(255,107,0,.5)':'rgba(212,175,55,.15)'; lpPS.style.background=isPS?'rgba(255,107,0,.08)':'rgba(255,107,0,.03)'; }
+    if(lpEP){ lpEP.style.borderColor=!isPS?'rgba(212,175,55,.4)':'rgba(212,175,55,.15)'; lpEP.style.background=!isPS?'rgba(212,175,55,.06)':'rgba(212,175,55,.03)'; }
+  }
 });
 
 // WA send campaign — opens WhatsApp one by one
@@ -7111,7 +7139,7 @@ function showManualTrackingEntry(order){
 <!-- ══════════════════════════════════════════════════════════
      TAB: MENSAJES WHATSAPP MASIVOS
 ══════════════════════════════════════════════════════════ -->
-<div id="tabNotificaciones" class="tab-panel" style="display:none">
+<div id="tab-notificaciones" class="page">
   <div style="display:grid;grid-template-columns:340px 1fr;gap:0;height:calc(100vh - 130px)">
 
     <!-- LEFT: Composer -->
