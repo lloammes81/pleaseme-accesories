@@ -1220,11 +1220,7 @@ function applyLang(){
 
 // ── ADMIN ACCESS ───────────────────────────────────────────
 function openAdminAccess(){
-  const ovl=G('adminOvl'); if(!ovl) return;
-  ovl.style.display='flex';
-  G('adminPwd').value='';
-  G('adminErr').style.display='none';
-  setTimeout(()=>{try{G('adminPwd').focus();}catch(e){}},80);
+  window.location.href='admin.html';
 }
 function checkAdmin(){
   const pwd=G('adminPwd').value.trim();
