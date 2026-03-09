@@ -1834,6 +1834,31 @@ const SB_URL = 'https://sqcggascnbcnfkymqcql.supabase.co';
 const LS_ADMIN_PASS    = 'pm_admin_pass_v2';
 const LS_ADMIN_SESSION = 'pm_admin_session_v1';
 const DEFAULT_PASS     = 'admin123';
+
+// ══════════════════════════════════════════════════════════════
+//  TOAST — global notification (must be defined first)
+// ══════════════════════════════════════════════════════════════
+function toast(msg, type){
+  type = type || 'ok';
+  let t = document.getElementById('globalToast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'globalToast';
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:99999;max-width:320px;box-shadow:0 4px 24px rgba(0,0,0,.5);transition:opacity .3s;pointer-events:none;font-family:Georgia,serif';
+    document.body.appendChild(t);
+  }
+  var colors = {ok:'rgba(47,227,181,.92)', err:'rgba(255,80,80,.92)', warn:'rgba(212,175,55,.92)'};
+  t.style.background = colors[type] || colors.ok;
+  t.style.color = '#000';
+  t.textContent = msg;
+  t.style.opacity = '1';
+  t.style.display = 'block';
+  clearTimeout(t._tid);
+  t._tid = setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.style.display='none'; }, 300); }, 3000);
+}
+
+
+
 // ── Detectar si se abre como archivo local ───────────────────
 if(location.protocol === 'file:'){
   document.addEventListener('DOMContentLoaded',()=>{
@@ -2442,10 +2467,11 @@ async function initDB(){
         sbUpsert('clientes',DB.clients),
       ]);
     }
-    // datos en DB.* desde Supabase
+    save(LS_PRODS,DB.products); save(LS_ORDERS,DB.orders); save(LS_CLIENTS,DB.clients);
   } catch(e){
-    console.error('[SB] initDB error:', e);
-    toast('Error conectando con Supabase.','warn');
+    console.warn('[SB] initDB falló — usando cache local:', e);
+    DB.products=load(LS_PRODS)||[]; DB.orders=load(LS_ORDERS)||[]; DB.clients=load(LS_CLIENTS)||[];
+    if(!DB.products.length&&!DB.orders.length) seedDemo();
   }
   showLoader(false);
   renderDashboard(); updateCounts();
@@ -2778,9 +2804,8 @@ function persist(){
     sbUpsert('clientes',DB.clients),
   ]).catch(e=>console.error('[SB] persist:',e));
 }
-// save/load: solo Supabase
-function save(key,val){ /* no-op */ }
-function load(key){ return null; }
+function save(key,val){ localStorage.setItem(key,JSON.stringify(val)); }
+function load(key){ try{ return JSON.parse(localStorage.getItem(key)||"null"); }catch{ return null; } }
 
 // ══════════════════════════════════════
 //  TABS
@@ -3463,390 +3488,338 @@ async function deleteAdminUser(id){
 }
 
 
+// ══════════════════════════════════════════════════════════════
+//  RENDER FUNCTIONS
+// ══════════════════════════════════════════════════════════════
 
-// =====================================================
-//  FUNCIONES FALTANTES
-// =====================================================
-
-(function applyI18n(){
-  var t={adminBadge:'ADMIN',statusPending:'Pendiente',statusProcessing:'Procesando',
-    statusShipped:'Enviado',statusDelivered:'Entregado',statusCanceled:'Cancelado',
-    statusRefunded:'Reembolsado',orderItems:'Productos del pedido',
-    updateStatus:'Actualizar estado',selectAll:'Seleccionar todo'};
-  document.querySelectorAll('[data-i18n]').forEach(function(el){
-    var k=el.getAttribute('data-i18n'); if(t[k]) el.textContent=t[k];
-  });
-})();
-
-function openOrderModal(orderId){
-  var o=DB.orders.find(function(x){return x.id===orderId;}); if(!o) return;
-  window.__activeOrderId=orderId;
-  var m=document.getElementById('orderModal'); if(!m) return;
-  var title=document.getElementById('modalOrderId');
-  if(title) title.textContent='Pedido #'+o.id;
-  var grid=document.getElementById('orderDetailGrid');
-  if(grid){
-    var client=DB.clients.find(function(c){return c.id===o.clientId;})||{};
-    grid.innerHTML=
-      '<div class="detail-block"><span class="label">Cliente</span>'+
-      '<div class="detail-val">'+esc(o.clientName||client.name||'--')+'</div>'+
-      '<div class="detail-sub">'+esc(o.clientEmail||client.email||'')+'</div>'+
-      '<div class="detail-sub">'+esc(o.clientPhone||client.phone||'')+'</div></div>'+
-      '<div class="detail-block"><span class="label">Fecha</span>'+
-      '<div class="detail-val">'+fmtDate(o.created_at)+'</div>'+
-      '<div class="detail-sub">Estado: <b>'+statusLabel(o.status)+'</b></div></div>'+
-      '<div class="detail-block"><span class="label">Total</span>'+
-      '<div class="detail-val">'+money2(o.total)+'</div>'+
-      '<div class="detail-sub">'+((o.items||[]).length)+' producto(s)</div></div>'+
-      '<div class="detail-block"><span class="label">Envio</span>'+
-      '<div class="detail-val" style="font-size:13px">'+esc(o.shippingAddress||o.address||'No especificado')+'</div>'+
-      (o.trackingNumber?'<div class="detail-sub">Tracking: '+esc(o.trackingNumber)+'</div>':'')+
-      '</div>';
-  }
-  var itemsList=document.getElementById('orderItemsList');
-  if(itemsList){
-    var items=o.items||[];
-    itemsList.innerHTML=items.length?items.map(function(it){
-      var prod=DB.products.find(function(p){return p.id===it.productId;})||{};
-      var img=it.image||(prod.images&&prod.images[0])||'';
-      return '<div class="order-item-row">'+
-        (img?'<img class="item-img" src="'+esc(img)+'" onerror="this.style.display=\'none\'">':
-             '<div class="item-img" style="background:rgba(212,175,55,.08)"></div>')+
-        '<div><div class="item-name">'+esc(it.name||prod.name||'Producto')+'</div>'+
-        '<div class="item-meta">x'+(it.qty||1)+(it.size?' - '+it.size:'')+(it.color?' - '+it.color:'')+'</div></div>'+
-        '<div class="item-price">'+money2((it.price||0)*(it.qty||1))+'</div></div>';
-    }).join(''):'<div style="padding:14px;color:var(--muted);font-size:13px">Sin productos.</div>';
-  }
-  var sel=document.getElementById('modalStatusSel');
-  if(sel) sel.value=o.status||'pendiente';
-  var updBtn=document.getElementById('updateStatusBtn');
-  if(updBtn) updBtn.onclick=async function(){
-    var ns=sel?sel.value:'pendiente';
-    var i=DB.orders.findIndex(function(x){return x.id===orderId;});
-    if(i>=0) DB.orders[i].status=ns;
-    try{await sbUpdate('pedidos',orderId,{status:ns});}catch(e){}
-    toast('Estado: '+statusLabel(ns),'ok');
-    m.classList.remove('open'); renderOrders(); renderDashboard(); updateCounts();
-  };
-  var pb=document.getElementById('printOrderBtn');
-  if(pb) pb.onclick=function(){window.print();};
-  var cb=document.getElementById('closeOrderModal');
-  if(cb) cb.onclick=function(){m.classList.remove('open');};
-  m.classList.add('open');
-  m.onclick=function(e){if(e.target===m)m.classList.remove('open');};
-}
-
-function generateInvoice(){
-  var o=getActiveOrder(); if(!o){toast('No hay pedido activo.','warn');return;}
-  try{buildInvoicePDF(o);}catch(e){console.error(e);toast('Error al generar factura.','warn');}
-}
-
-function generateLabel(){
-  var o=getActiveOrder(); if(!o){toast('No hay pedido activo.','warn');return;}
-  var cfg=DB.config||{};
-  if(cfg.pirateshipKey){createPirateshipLabel(o.id);}else{showManualTrackingEntry(o.id);}
-}
-
-function confirmAndLabel(){
-  var o=getActiveOrder(); if(!o){toast('No hay pedido activo.','warn');return;}
-  if(!confirm('Confirmar pedido y generar etiqueta?')) return;
-  var i=DB.orders.findIndex(function(x){return x.id===o.id;});
-  if(i>=0) DB.orders[i].status='procesando';
-  sbUpdate('pedidos',o.id,{status:'procesando'}).catch(function(){});
-  toast('Pedido confirmado.','ok'); generateLabel();
-}
-function confirmAndLabelNew(){confirmAndLabel();}
-
-function confirmLabel(carrier){
-  var o=getActiveOrder(); if(!o){toast('No hay pedido activo.','warn');return;}
-  if(carrier==='USPS'||carrier==='UPS'){showManualTrackingEntry(o.id);}
-  else{createPirateshipLabel(o.id);}
-}
-
-async function deleteOrder(orderId){
-  if(!confirm('Eliminar pedido #'+orderId+'?')) return;
-  DB.orders=DB.orders.filter(function(o){return o.id!==orderId;});
-  try{await fetch(SB_URL+'/rest/v1/pedidos?id=eq.'+orderId,{method:'DELETE',headers:SB_H});}catch(e){}
-  var m=document.getElementById('orderModal'); if(m) m.classList.remove('open');
-  renderOrders(); renderDashboard(); updateCounts(); toast('Pedido eliminado.','ok');
-}
-
-function quickInvoice(orderId){
-  var o=DB.orders.find(function(x){return x.id===orderId;});
-  if(!o){toast('Pedido no encontrado.','warn');return;}
-  window.__activeOrderId=orderId;
-  try{buildInvoicePDF(o);}catch(e){toast('Error al generar factura.','warn');}
-}
-function quickLabel(orderId){window.__activeOrderId=orderId; generateLabel();}
-
-function openCompanyInfoModal(){
-  var m=document.getElementById('companyInfoModal');
-  if(!m){toast('Modal no disponible.','warn');return;}
-  loadCompanyInfoForm(); m.style.display='flex';
-  m.onclick=function(e){if(e.target===m)m.style.display='none';};
-}
-
-function openNewOrderModal(){
-  var ex=document.getElementById('newOrderModalDyn'); if(ex) ex.remove();
-  var ov=document.createElement('div'); ov.id='newOrderModalDyn'; ov.className='modal-overlay open';
-  var opts=(DB.clients||[]).map(function(c){
-    return '<option value="'+esc(c.id)+'">'+esc(c.name)+' - '+esc(c.email)+'</option>';
-  }).join('');
-  ov.innerHTML='<div class="modal" style="max-width:520px">'+
-    '<div class="modal-head"><b>Nuevo Pedido</b><button class="btn sm" id="closeNOM">X</button></div>'+
-    '<div class="modal-body"><div style="display:grid;gap:12px">'+
-    '<div class="form-group"><label>Cliente</label>'+
-    '<select id="nomClientSel"><option value="">-- Seleccionar --</option>'+opts+'</select></div>'+
-    '<div class="form-group"><label>Direccion de envio</label>'+
-    '<input id="nomAddress" placeholder="Calle, ciudad, pais..."></div>'+
-    '<div style="display:flex;gap:10px">'+
-    '<div class="form-group" style="flex:1"><label>Estado</label>'+
-    '<select id="nomStatus"><option value="pendiente">Pendiente</option><option value="procesando">Procesando</option></select></div>'+
-    '<div class="form-group" style="flex:1"><label>Total ($)</label>'+
-    '<input id="nomTotal" type="number" min="0" step="0.01" placeholder="0.00"></div></div>'+
-    '<div class="form-group"><label>Notas</label>'+
-    '<textarea id="nomNotes" rows="2" placeholder="Notas del pedido..."></textarea></div>'+
-    '</div><div class="form-actions">'+
-    '<button class="btn primary" id="nomSaveBtn">Crear Pedido</button>'+
-    '<button class="btn" id="nomCancelBtn">Cancelar</button></div></div></div>';
-  document.body.appendChild(ov);
-  document.getElementById('closeNOM').onclick=function(){ov.remove();};
-  document.getElementById('nomCancelBtn').onclick=function(){ov.remove();};
-  ov.onclick=function(e){if(e.target===ov)ov.remove();};
-  document.getElementById('nomSaveBtn').onclick=async function(){
-    var cid=document.getElementById('nomClientSel').value;
-    if(!cid){toast('Selecciona un cliente.','warn');return;}
-    var cl=DB.clients.find(function(c){return c.id===cid;})||{};
-    var no={id:'ORD-'+Date.now(),clientId:cid,clientName:cl.name||'',
-      clientEmail:cl.email||'',clientPhone:cl.phone||'',
-      shippingAddress:document.getElementById('nomAddress').value.trim(),
-      items:[],total:parseFloat(document.getElementById('nomTotal').value)||0,
-      status:document.getElementById('nomStatus').value,
-      notes:document.getElementById('nomNotes').value.trim(),
-      created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
-    DB.orders.unshift(no);
-    try{await sbUpsert('pedidos',[no]);}catch(e){}
-    ov.remove(); renderOrders(); renderDashboard(); updateCounts();
-    toast('Pedido creado: '+no.id,'ok');
-  };
-}
-
-function invoiceNewOrder(){var l=DB.orders[0];if(!l){toast('Sin pedidos.','warn');return;}window.__activeOrderId=l.id;try{buildInvoicePDF(l);}catch(e){toast('Error.','warn');}}
-function labelNewOrder(){var l=DB.orders[0];if(!l){toast('Sin pedidos.','warn');return;}window.__activeOrderId=l.id;generateLabel();}
-function viewNewOrder(){
-  var l=DB.orders[0]; if(!l){toast('Sin pedidos.','warn');return;}
-  var tb=document.querySelector('[data-tab="pedidos"]'); if(tb) tb.click();
-  setTimeout(function(){openOrderModal(l.id);},200);
-}
-
-var __notifFilter='all', __notifications=[];
-function _getNotifications(){
-  if(!__notifications.length&&DB.orders&&DB.orders.length){
-    __notifications=DB.orders.slice(0,20).map(function(o){
-      return{id:'n_'+o.id,type:'order',title:'Pedido '+o.id,
-        body:(o.clientName||'Cliente')+' - '+statusLabel(o.status),
-        date:o.created_at,read:false,orderId:o.id};
-    });
-  }
-  return __notifications;
-}
-
-function _updateBell(){
-  var bell=document.getElementById('notifBell'); if(!bell) return;
-  var unread=_getNotifications().filter(function(n){return !n.read;}).length;
-  bell.classList.toggle('has-notif',unread>0);
-  var badge=bell.querySelector('.notif-badge');
-  if(unread>0){
-    if(!badge){
-      badge=document.createElement('span'); badge.className='notif-badge';
-      badge.style.cssText='position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;'+
-        'font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;min-width:16px;text-align:center;pointer-events:none';
-      bell.style.position='relative'; bell.appendChild(badge);
-    }
-    badge.textContent=unread>9?'9+':String(unread);
-  }else{if(badge)badge.remove();}
-}
-
-function _renderNotifList(){
-  var list=document.getElementById('notifList'); if(!list) return;
-  var all=_getNotifications();
-  var filtered=__notifFilter==='all'?all:all.filter(function(n){return n.type===__notifFilter;});
-  if(!filtered.length){
-    list.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sin notificaciones.</div>';
-    return;
-  }
-  list.innerHTML=filtered.map(function(n){
-    return '<div style="display:flex;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(212,175,55,.05);'+
-      'cursor:pointer;background:'+(n.read?'transparent':'rgba(212,175,55,.04)')+'" onclick="_clickNotif(\''+n.id+'\')">'+
-      '<div style="width:36px;height:36px;border-radius:9px;background:rgba(212,175,55,.1);display:grid;place-items:center;flex-shrink:0;font-size:16px">&#128230;</div>'+
-      '<div style="flex:1;min-width:0">'+
-      '<div style="font-size:13px;font-weight:500;color:var(--gold3)">'+esc(n.title)+'</div>'+
-      '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(n.body)+'</div>'+
-      '<div style="font-size:10px;color:var(--muted);margin-top:3px">'+fmtDate(n.date)+'</div></div>'+
-      (!n.read?'<div style="width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:4px"></div>':'')+
-      '</div>';
-  }).join('');
-  _updateBell();
-}
-
-function _clickNotif(notifId){
-  var n=__notifications.find(function(x){return x.id===notifId;}); if(!n) return;
-  n.read=true; _renderNotifList();
-  if(n.orderId){
-    var p=document.getElementById('notifPanel'); if(p) p.style.display='none';
-    var tb=document.querySelector('[data-tab="pedidos"]'); if(tb) tb.click();
-    setTimeout(function(){openOrderModal(n.orderId);},200);
+function renderInventory(){
+  const q=(document.getElementById('invQ')?.value||'').toLowerCase();
+  const f=document.getElementById('invFilter')?.value||'';
+  let list=[...(DB.products||[])];
+  if(q) list=list.filter(p=>(p.name+' '+(p.category||'')).toLowerCase().includes(q));
+  if(f) list=list.filter(p=>p.category===f);
+  const el=document.getElementById('invList'); if(!el) return;
+  if(!list.length){el.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Sin productos</td></tr>';return;}
+  el.innerHTML=list.map(p=>`
+    <tr>
+      <td style="font-size:13px;color:var(--text);font-weight:500">${esc(p.name)}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(p.category||'—')}</td>
+      <td style="font-family:var(--fd);color:var(--gold)">$${Number(p.price||0).toFixed(2)}</td>
+      <td style="text-align:center"><span style="color:${(p.stock||0)<=5?'#ff8fa3':'var(--text)'};font-weight:${(p.stock||0)<=5?700:400}">${p.stock||0}</span></td>
+      <td style="text-align:center"><span class="badge ${p.active!==false?'ok':'cancelado'}">${p.active!==false?'Activo':'Inactivo'}</span></td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex;gap:6px">
+          <button class="btn sm" onclick="editProduct('${p.id}')">✏️</button>
+          <button class="btn sm danger" onclick="deleteProduct('${p.id}')">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('');
+  // KPIs
+  const kpi=document.getElementById('invKpis');
+  if(kpi){
+    const total=(DB.products||[]).length;
+    const lowStock=(DB.products||[]).filter(p=>(p.stock||0)<=5).length;
+    const totalVal=(DB.products||[]).reduce((s,p)=>s+Number(p.price||0)*Number(p.stock||0),0);
+    kpi.innerHTML=`
+      <div class="kpi-card"><div class="kpi-icon">📦</div><div class="kpi-val">${total}</div><div class="kpi-label">Productos</div></div>
+      <div class="kpi-card"><div class="kpi-icon">⚠️</div><div class="kpi-val" style="color:#ff8fa3">${lowStock}</div><div class="kpi-label">Stock bajo</div></div>
+      <div class="kpi-card"><div class="kpi-icon">💰</div><div class="kpi-val">$${totalVal.toFixed(0)}</div><div class="kpi-label">Valor inventario</div></div>`;
   }
 }
 
-function toggleNotifPanel(){
-  var bell=document.getElementById('notifBell'); if(!bell) return;
-  var panel=document.getElementById('notifPanel');
-  if(!panel){
-    panel=document.createElement('div'); panel.id='notifPanel';
-    panel.style.cssText='display:none;position:absolute;top:50px;right:0;width:360px;max-height:520px;'+
-      'overflow-y:auto;background:var(--surface);border:1px solid rgba(212,175,55,.18);'+
-      'border-radius:14px;z-index:9999;box-shadow:0 20px 60px rgba(0,0,0,.7)';
-    panel.innerHTML=
-      '<div style="padding:12px 16px;border-bottom:1px solid rgba(212,175,55,.1);display:flex;align-items:center;justify-content:space-between">'+
-      '<b style="font-size:15px;color:var(--gold3)">Notificaciones</b>'+
-      '<div style="display:flex;gap:6px">'+
-      '<button onclick="markAllNotifRead()" style="padding:3px 8px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--muted);cursor:pointer;font-size:11px">Leer todas</button>'+
-      '<button onclick="clearAllNotif()" style="padding:3px 8px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--muted);cursor:pointer;font-size:11px">Limpiar</button>'+
-      '</div></div>'+
-      '<div style="padding:10px 16px;display:flex;gap:6px;border-bottom:1px solid rgba(212,175,55,.05)">'+
-      '<button class="notif-chip active" onclick="setNotifFilter(\'all\',this)">Todas</button>'+
-      '<button class="notif-chip" onclick="setNotifFilter(\'order\',this)">Pedidos</button>'+
-      '<button class="notif-chip" onclick="setNotifFilter(\'stock\',this)">Stock</button>'+
-      '</div><div id="notifList"></div>';
-    var bw=bell.parentElement; bw.style.position='relative'; bw.appendChild(panel);
-  }
-  var isOpen=panel.style.display==='block';
-  panel.style.display=isOpen?'none':'block';
-  if(!isOpen){
-    __notifications=[]; _renderNotifList();
-    setTimeout(function(){
-      var close=function(e){
-        if(!panel.contains(e.target)&&e.target!==bell){
-          panel.style.display='none';
-          document.removeEventListener('click',close);
-        }
-      };
-      document.addEventListener('click',close);
-    },50);
+function renderClients(){
+  const q=(document.getElementById('cliQ')?.value||'').toLowerCase();
+  const so=document.getElementById('cliSort')?.value||'new';
+  let list=[...(DB.clients||[])];
+  if(q) list=list.filter(c=>(c.name+' '+c.email+' '+(c.phone||'')).toLowerCase().includes(q));
+  list.sort((a,b)=>so==='name'?(a.name||'').localeCompare(b.name||''):new Date(b.created_at||0)-new Date(a.created_at||0));
+  const el=document.getElementById('clientsBody'); if(!el) return;
+  if(!list.length){el.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">Sin clientes</td></tr>';return;}
+  el.innerHTML=list.map(c=>`
+    <tr onclick="openClientModal('${c.id}')" style="cursor:pointer">
+      <td><div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;border-radius:50%;background:rgba(212,175,55,.2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--gold);font-size:14px;flex-shrink:0">${(c.name||'?')[0].toUpperCase()}</div>
+        <div><div style="font-size:13px;color:var(--text);font-weight:500">${esc(c.name||'Sin nombre')}</div>
+          <div style="font-size:10px;color:var(--muted)">${esc(c.username?'@'+c.username:'')}</div></div></div></td>
+      <td style="font-size:12px;color:var(--muted)">${esc(c.email||'—')}</td>
+      <td style="font-size:12px;color:var(--muted)">${esc(c.phone||'—')}</td>
+      <td style="font-size:12px;color:var(--muted)">${fmtDate(c.created_at)}</td>
+      <td style="font-family:var(--fd);color:var(--gold)">$${Number(c.total_spent||0).toFixed(2)}</td>
+      <td onclick="event.stopPropagation()"><button class="btn sm danger" onclick="deleteClient('${c.id}')">🗑</button></td>
+    </tr>`).join('');
+  // KPIs
+  const kpi=document.getElementById('clientsKpiGrid');
+  if(kpi){
+    const total=(DB.clients||[]).length;
+    const newThisMonth=(DB.clients||[]).filter(c=>{const d=new Date(c.created_at||0);const n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).length;
+    kpi.innerHTML=`
+      <div class="kpi-card"><div class="kpi-icon">👥</div><div class="kpi-val">${total}</div><div class="kpi-label">Clientes</div></div>
+      <div class="kpi-card"><div class="kpi-icon">✨</div><div class="kpi-val">${newThisMonth}</div><div class="kpi-label">Nuevos este mes</div></div>`;
   }
 }
 
-function markAllNotifRead(){_getNotifications().forEach(function(n){n.read=true;});_renderNotifList();toast('Todas leidas.','ok');}
-function clearAllNotif(){__notifications=[];var l=document.getElementById('notifList');if(l)l.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sin notificaciones.</div>';_updateBell();toast('Notificaciones limpias.','ok');}
-function setNotifFilter(type,btn){__notifFilter=type;document.querySelectorAll('.notif-chip').forEach(function(b){b.classList.toggle('active',b===btn);});_renderNotifList();}
+function renderProducts(){
+  const q=(document.getElementById('pQ')?.value||'').toLowerCase();
+  let list=[...(DB.products||[])];
+  if(q) list=list.filter(p=>(p.name+' '+(p.category||'')).toLowerCase().includes(q));
+  const el=document.getElementById('prodBody'); if(!el) return;
+  const count=document.getElementById('prodCount2'); if(count) count.textContent='('+list.length+')';
+  if(!list.length){el.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">Sin productos. Agrega el primero arriba.</td></tr>';return;}
+  el.innerHTML=list.map(p=>`
+    <tr onclick="editProduct('${p.id}')" style="cursor:pointer">
+      <td><div style="width:36px;height:36px;border-radius:6px;background:rgba(212,175,55,.1);overflow:hidden;display:flex;align-items:center;justify-content:center">
+        ${p.images&&p.images[0]?`<img src="${p.images[0]}" style="width:100%;height:100%;object-fit:cover"/>`:'<span style="font-size:18px">💎</span>'}</div></td>
+      <td style="font-size:13px;color:var(--text);font-weight:500">${esc(p.name)}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(p.category||'—')}</td>
+      <td style="font-family:var(--fd);color:var(--gold)">$${Number(p.price||0).toFixed(2)}</td>
+      <td style="text-align:center;color:${(p.stock||0)<=5?'#ff8fa3':'var(--muted)'}">${p.stock||0}</td>
+      <td onclick="event.stopPropagation()"><div style="display:flex;gap:6px">
+        <button class="btn sm" onclick="editProduct('${p.id}')">✏️</button>
+        <button class="btn sm danger" onclick="deleteProduct('${p.id}')">🗑</button>
+      </div></td>
+    </tr>`).join('');
+}
 
 function renderFacturas(){
-  var c=document.getElementById('tab-facturas'); if(!c) return;
-  var orders=DB.orders||[];
-  c.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">'+
-    '<div><div style="font-family:var(--fd);font-size:22px;font-weight:600;color:var(--gold3)">Facturas</div>'+
-    '<div style="font-size:12px;color:var(--muted)">'+orders.length+' pedido(s)</div></div>'+
-    '<div style="display:flex;gap:8px">'+
-    '<button class="btn ok" onclick="exportFacturasCSV()" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">Exportar CSV</button>'+
-    '<button class="btn" onclick="printAllFacturas()" style="background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.3);color:var(--gold)">Imprimir</button>'+
-    '</div></div>'+
-    '<div class="card"><table class="orders-table" style="width:100%">'+
-    '<thead><tr>'+
-    '<th><input type="checkbox" id="facSelectAll" onclick="toggleSelectAllFac(this)" style="accent-color:var(--gold)"></th>'+
-    '<th>Pedido</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estado</th><th>Acciones</th>'+
-    '</tr></thead><tbody>'+
-    (orders.length?orders.map(function(o){
-      return '<tr>'+
-        '<td><input type="checkbox" class="fac-check" data-id="'+esc(o.id)+'" style="accent-color:var(--gold)"></td>'+
-        '<td><div class="order-id">'+esc(o.id)+'</div></td>'+
-        '<td><div style="font-size:13px">'+esc(o.clientName||'--')+'</div>'+
-        '<div style="font-size:11px;color:var(--muted)">'+esc(o.clientEmail||'')+'</div></td>'+
-        '<td style="font-size:12px;color:var(--muted)">'+fmtDate(o.created_at)+'</td>'+
-        '<td><span style="font-family:var(--fd);font-size:15px;color:var(--gold)">'+money2(o.total)+'</span></td>'+
-        '<td><span class="badge '+(o.status||'pendiente')+'">'+statusLabel(o.status)+'</span></td>'+
-        '<td><div style="display:flex;gap:6px">'+
-        '<button class="btn sm ok" onclick="quickInvoice(\''+esc(o.id)+'\')" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">PDF</button>'+
-        '<button class="btn sm" onclick="openOrderModal(\''+esc(o.id)+'\')" style="background:rgba(212,175,55,.08);border-color:rgba(212,175,55,.3);color:var(--gold)">Ver</button>'+
-        '</div></td></tr>';
-    }).join(''):'<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Sin pedidos.</td></tr>')+
-    '</tbody></table></div>';
+  const q=(document.getElementById('facQ')?.value||'').toLowerCase();
+  const st=document.getElementById('facStatus')?.value||'';
+  let list=[...(DB.orders||[])];
+  if(q) list=list.filter(o=>(o.clientName+' '+(o.invoice_num||'')+' '+o.id).toLowerCase().includes(q));
+  if(st) list=list.filter(o=>(o.invoice_status||o.status)===st);
+  list.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+  const el=document.getElementById('facBody'); if(!el) return;
+  if(!list.length){el.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Sin facturas. Crea la primera con "Nueva Factura".</td></tr>';return;}
+  el.innerHTML=list.map(o=>`
+    <tr style="cursor:pointer">
+      <td><input type="checkbox" data-fac-id="${o.id}" style="accent-color:var(--gold)"/></td>
+      <td style="font-size:12px;color:var(--gold);font-weight:600;font-family:monospace">${esc(o.invoice_num||'—')}</td>
+      <td style="font-size:13px;color:var(--text)">${esc(o.clientName||o.name||'—')}</td>
+      <td style="font-size:11px;color:var(--muted)">${fmtDate(o.created_at)}</td>
+      <td style="font-family:var(--fd);color:var(--gold)">$${Number(o.total||0).toFixed(2)}</td>
+      <td><span class="badge ${o.invoice_status||o.status||'pendiente'}">${(o.invoice_status||o.status||'Pendiente').toUpperCase()}</span></td>
+      <td onclick="event.stopPropagation()"><div style="display:flex;gap:6px">
+        <button class="btn sm" onclick="quickInvoice('${o.id}')">PDF</button>
+        <button class="btn sm danger" onclick="deleteOrder('${o.id}')">🗑</button>
+      </div></td>
+    </tr>`).join('');
+  // KPIs
+  const allOrders=DB.orders||[];
+  const sF=id=>{ const e=document.getElementById(id); if(e) return e; return {textContent:''}; };
+  sF('fkpiTotal').textContent=allOrders.length;
+  sF('fkpiPagadas').textContent=allOrders.filter(o=>(o.invoice_status||o.status)==='pagado'||(o.invoice_status||o.status)==='entregado').length;
+  sF('fkpiPendientes').textContent=allOrders.filter(o=>(o.invoice_status||o.status)==='pendiente').length;
+  sF('fkpiMonto').textContent='$'+allOrders.reduce((s,o)=>s+Number(o.total||0),0).toFixed(2);
 }
 
-function exportFacturasCSV(){
-  var orders=DB.orders||[];
-  if(!orders.length){toast('Sin pedidos para exportar.','warn');return;}
-  var headers=['ID','Cliente','Email','Fecha','Total','Estado','Direccion'];
-  var rows=orders.map(function(o){
-    return [o.id,o.clientName||'',o.clientEmail||'',fmtDate(o.created_at),
-      (o.total||0).toFixed(2),statusLabel(o.status),o.shippingAddress||'']
-      .map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');
-  });
-  var csv=headers.join(',')+'\n'+rows.join('\n');
-  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url; a.download='facturas_'+new Date().toISOString().slice(0,10)+'.csv';
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
-  toast('CSV exportado.','ok');
+function renderUsersGrid(){
+  const grid=document.getElementById('usersGrid'); if(!grid) return;
+  const users=DB.adminUsers||[];
+  if(!users.length){
+    grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;grid-column:1/-1">No hay usuarios de personal.<br><small>Haz clic en "+ Nuevo usuario" para agregar.</small></div>';
+    return;
+  }
+  const RL={admin:'Admin',manager:'Gerente',staff:'Personal',readonly:'Solo lectura'};
+  grid.innerHTML=users.map(u=>`
+    <div style="background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.15);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:40px;height:40px;border-radius:50%;background:rgba(212,175,55,.2);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--gold);font-weight:700;flex-shrink:0">${(u.name||'?')[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(u.name||'Sin nombre')}</div>
+          <div style="font-size:10px;color:var(--gold);font-family:monospace">@${esc(u.username||'')}</div>
+        </div>
+        <span style="font-size:10px;padding:3px 8px;border-radius:5px;background:rgba(212,175,55,.15);color:var(--gold);flex-shrink:0">${RL[u.role]||u.role||'Personal'}</span>
+      </div>
+      ${u.email?`<div style="font-size:10px;color:var(--muted)">${esc(u.email)}</div>`:''}
+      <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
+        <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${u.active!==false?'rgba(47,227,181,.1)':'rgba(255,80,80,.1)'};color:${u.active!==false?'#2fe3b5':'#ff8fa3'}">${u.active!==false?'Activo':'Inactivo'}</span>
+        <div style="flex:1"></div>
+        <button class="btn sm" onclick="openUserModal('${u.id}')">✏️ Editar</button>
+        <button class="btn sm danger" onclick="deleteAdminUser('${u.id}')">🗑</button>
+      </div>
+    </div>`).join('');
 }
 
+// ── Client picker renderer ─────────────────────────────────────
+function renderClientPicker(q){
+  const el=document.getElementById('cpList'); if(!el) return;
+  q=(q||'').toLowerCase();
+  let list=(DB.clients||[]);
+  if(q) list=list.filter(c=>(c.name+' '+c.email).toLowerCase().includes(q));
+  if(!list.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Sin resultados</div>';return;}
+  el.innerHTML=list.slice(0,20).map(c=>`
+    <div onclick="selectClientForInvoice('${c.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04)"
+      onmouseover="this.style.background='rgba(212,175,55,.06)'" onmouseout="this.style.background=''">
+      <div style="width:32px;height:32px;border-radius:50%;background:rgba(212,175,55,.2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--gold);font-size:13px;flex-shrink:0">${(c.name||'?')[0].toUpperCase()}</div>
+      <div>
+        <div style="font-size:13px;color:var(--text)">${esc(c.name||'Sin nombre')}</div>
+        <div style="font-size:10px;color:var(--muted)">${esc(c.email||'')}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── openNewOrderModal ─────────────────────────────────────────
+function openNewOrderModal(){
+  _nomItems=[]; window._nomEditIdx=-1;
+  ['nomClientName','nomClientEmail','nomClientPhone','nomAddress','nomTracking','nomNotes']
+    .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const g=id=>document.getElementById(id);
+  if(g('nomMethod'))      g('nomMethod').value='card';
+  if(g('nomOrderStatus')) g('nomOrderStatus').value='pendiente';
+  if(g('nomDiscountVal')) g('nomDiscountVal').value='0';
+  if(g('nomShipping'))    { g('nomShipping').value='0'; g('nomShipping').disabled=false; }
+  if(g('nomFreeShip'))    g('nomFreeShip').checked=false;
+  const yr=new Date().getFullYear();
+  const preview=g('nomInvoicePreview');
+  if(preview) preview.textContent='No. F-'+yr+'-'+Date.now().toString().slice(-4);
+  nomRenderItems(); nomRecalc();
+  const m=document.getElementById('newOrderModal');
+  if(m){m.style.display='flex';m.classList.add('open');}
+  setTimeout(()=>{ try{attachPlacesTo('nomAddress');}catch(e){} renderClientPicker(''); },200);
+}
+function closeNewOrderModal(){
+  const m=document.getElementById('newOrderModal');
+  if(m){m.style.display='none';m.classList.remove('open');}
+}
+
+// ── openCompanyInfoModal ──────────────────────────────────────
+function openCompanyInfoModal(){
+  loadCompanyInfoForm();
+  const m=document.getElementById('companyInfoModal');
+  if(m){m.style.display='flex';m.classList.add('open');}
+}
+function closeCompanyInfoModal(){
+  const m=document.getElementById('companyInfoModal');
+  if(m){m.style.display='none';m.classList.remove('open');}
+}
+
+// ── openCarrierModal ──────────────────────────────────────────
+function openCarrierModal(){
+  const m=document.getElementById('carrierModal')||document.getElementById('labelPromptModal');
+  if(m){m.style.display='flex';}
+}
+function closeCarrierModal(){
+  const m=document.getElementById('carrierModal')||document.getElementById('labelPromptModal');
+  if(m){m.style.display='none';}
+}
+
+// ── deleteProduct / deleteClient ──────────────────────────────
+async function deleteProduct(id){
+  if(!confirm('¿Eliminar este producto?')) return;
+  DB.products=(DB.products||[]).filter(p=>p.id!==id);
+  save('pm_products',DB.products);
+  try{ await fetch(SB_URL+'/rest/v1/productos?id=eq.'+id,{method:'DELETE',headers:SB_H}); }catch(e){}
+  renderInventory(); renderProducts(); updateCounts();
+  toast('Producto eliminado.','ok');
+}
+async function deleteClient(id){
+  if(!confirm('¿Eliminar este cliente?')) return;
+  DB.clients=(DB.clients||[]).filter(c=>c.id!==id);
+  save('pm_clients',DB.clients);
+  try{ await fetch(SB_URL+'/rest/v1/clientes?id=eq.'+id,{method:'DELETE',headers:SB_H}); }catch(e){}
+  renderClients(); updateCounts();
+  toast('Cliente eliminado.','ok');
+}
+
+// ── editProduct stub ──────────────────────────────────────────
+function editProduct(id){
+  const p=(DB.products||[]).find(x=>x.id===id); if(!p) return;
+  const g=id=>document.getElementById(id);
+  if(g('prodFormTitle')) g('prodFormTitle').textContent='✏️ Editar prenda';
+  if(g('pName'))     g('pName').value=p.name||'';
+  if(g('pPrice'))    g('pPrice').value=p.price||'';
+  if(g('pStock'))    g('pStock').value=p.stock||'';
+  if(g('pCategory')) g('pCategory').value=p.category||'';
+  if(g('pSizes'))    g('pSizes').value=(p.sizes||[]).join(', ');
+  if(g('pColors'))   g('pColors').value=(p.colors||[]).join(', ');
+  if(g('pDesc'))     g('pDesc').value=p.desc||'';
+  if(g('pSaveBtn'))  g('pSaveBtn').dataset.editId=id;
+  // Switch to productos tab
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab==='productos'));
+  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  const tp=document.getElementById('tab-productos');
+  if(tp) tp.style.display='block';
+  window.scrollTo(0,0);
+}
+
+// ── Notifications ─────────────────────────────────────────────
+let _notifications=[];
+function loadNotifications(){ try{_notifications=JSON.parse(localStorage.getItem('pm_notifications_v1')||'[]');}catch{_notifications=[];} }
+function addNotif(type,icon,title,body,meta={}){
+  loadNotifications();
+  _notifications.unshift({id:Date.now(),type,icon,title,body,meta,read:false,time:new Date().toISOString()});
+  if(_notifications.length>200) _notifications=_notifications.slice(0,200);
+  localStorage.setItem('pm_notifications_v1',JSON.stringify(_notifications));
+  renderNotifications();
+}
+function renderNotifications(){
+  loadNotifications();
+  const unread=_notifications.filter(n=>!n.read).length;
+  const badge=document.getElementById('notifBadge');
+  if(badge){ badge.textContent=unread||''; badge.style.display=unread?'inline':'none'; }
+}
+function markAllNotifRead(){ _notifications=_notifications.map(n=>({...n,read:true})); localStorage.setItem('pm_notifications_v1',JSON.stringify(_notifications)); renderNotifications(); }
+function clearAllNotif(){ _notifications=[]; localStorage.setItem('pm_notifications_v1','[]'); renderNotifications(); }
+
+// ── Realtime polling ──────────────────────────────────────────
+let _lastOrderCount=0;
+function startRealtimeOrders(){
+  _lastOrderCount=(DB.orders||[]).length;
+  setInterval(async()=>{
+    try{
+      const latest=await sbFetch('pedidos');
+      if(latest&&latest.length>_lastOrderCount){
+        const newOrds=latest.slice(0,latest.length-_lastOrderCount);
+        newOrds.forEach(o=>{ addNotif('order','📦','Nuevo pedido #'+o.id,(o.clientName||o.name||'Cliente')+' — $'+Number(o.total||0).toFixed(2),{orderId:o.id}); toast('📦 Nuevo pedido de '+(o.clientName||'Cliente'),'ok'); });
+        DB.orders=latest; save('pm_orders_v2',DB.orders);
+        _lastOrderCount=latest.length;
+        renderOrders(); updateCounts(); renderDashboard();
+      }
+    }catch(e){}
+  },20000);
+}
+
+// ── printAllFacturas stub ─────────────────────────────────────
 function printAllFacturas(){
-  var checks=document.querySelectorAll('.fac-check:checked');
-  if(!checks.length){toast('Selecciona al menos un pedido.','warn');return;}
-  var ids=Array.from(checks).map(function(el){return el.dataset.id;});
-  var orders=DB.orders.filter(function(o){return ids.indexOf(o.id)>=0;});
-  var co=getCompanyInfo();
-  var win=window.open('','_blank','width=800,height=600');
-  win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Facturas</title>'+
-    '<style>body{font-family:Arial,sans-serif;padding:20px}'+
-    '.f{border:1px solid #ccc;border-radius:8px;padding:20px;margin-bottom:30px;page-break-after:always}'+
-    'h2{color:#333}.g{color:#c9963a}'+
-    'table{width:100%;border-collapse:collapse;margin-top:12px}'+
-    'th{background:#f5f0e0;padding:8px;text-align:left;font-size:12px}'+
-    'td{padding:8px;border-bottom:1px solid #eee;font-size:13px}'+
-    '.t{font-size:18px;font-weight:bold;text-align:right;margin-top:12px}'+
-    '</style></head><body>');
-  orders.forEach(function(o){
-    win.document.write('<div class="f"><h2>Pedido <span class="g">#'+esc(o.id)+'</span></h2>'+
-      (co.name?'<div style="font-size:12px;color:#666">'+esc(co.name)+'</div>':'')+
-      '<div style="margin:10px 0;font-size:13px">'+
-      '<b>Cliente:</b> '+esc(o.clientName||'--')+'<br>'+
-      '<b>Email:</b> '+esc(o.clientEmail||'--')+'<br>'+
-      '<b>Fecha:</b> '+fmtDate(o.created_at)+'<br>'+
-      '<b>Estado:</b> '+statusLabel(o.status)+'<br>'+
-      (o.shippingAddress?'<b>Direccion:</b> '+esc(o.shippingAddress):'')+
-      '</div>'+
-      '<table><tr><th>Producto</th><th>Qty</th><th>Precio</th><th>Subtotal</th></tr>'+
-      (o.items||[]).map(function(it){
-        return '<tr><td>'+esc(it.name||'Producto')+'</td><td>'+(it.qty||1)+'</td>'+
-          '<td>$'+Number(it.price||0).toFixed(2)+'</td>'+
-          '<td>$'+Number((it.price||0)*(it.qty||1)).toFixed(2)+'</td></tr>';
-      }).join('')+
-      '</table><div class="t">Total: $'+Number(o.total||0).toFixed(2)+'</div></div>');
-  });
-  win.document.write('</body></html>');
-  win.document.close(); win.focus(); setTimeout(function(){win.print();},500);
+  const checked=[...document.querySelectorAll('[data-fac-id]:checked')].map(el=>el.dataset.facId);
+  if(!checked.length){ toast('Selecciona al menos una factura.','warn'); return; }
+  checked.forEach(id=>quickInvoice(id));
 }
 
-function toggleSelectAllFac(cb){document.querySelectorAll('.fac-check').forEach(function(el){el.checked=cb.checked;});}
-
-function epClearCreds(){
-  if(!confirm('Eliminar credenciales EasyPost?')) return;
-  var cfg=DB.config||{}; delete cfg.easypostKey; DB.config=cfg;
-  sbUpdate('config','easypostKey',{value:''}).catch(function(){});
-  toast('Credenciales EasyPost eliminadas.','ok');
-}
-function psClearCreds(){
-  if(!confirm('Eliminar credenciales Pirateship?')) return;
-  var cfg=DB.config||{}; delete cfg.pirateshipKey; DB.config=cfg;
-  sbUpdate('config','pirateshipKey',{value:''}).catch(function(){});
-  toast('Credenciales Pirateship eliminadas.','ok');
+// ── openClientModal stub ──────────────────────────────────────
+function openClientModal(id){
+  const c=(DB.clients||[]).find(x=>x.id===id); if(!c) return;
+  toast('Cliente: '+(c.name||c.email||id),'ok');
 }
 
-if(typeof getElementById==='undefined'){window.getElementById=function(id){return document.getElementById(id);};}
-window.addEventListener('load',function(){setTimeout(_updateBell,2000);});
+// ── syncSalesCategoryCombos ───────────────────────────────────
+function syncSalesCategoryCombos(){ try{populateSalesReportYears();}catch(e){} }
+function attachPlacesTo(id){ const el=document.getElementById(id); if(!el||el._pa) return; el._pa=true; }
+
+// ── WA Tab ────────────────────────────────────────────────────
+let _waCampaignLog=[];
+function loadWaLog(){ try{_waCampaignLog=JSON.parse(localStorage.getItem('pm_wa_campaigns_v1')||'[]');}catch{_waCampaignLog=[];} }
+function renderWaTab(){ loadWaLog(); waUpdateSegmentCounts(); waUpdatePreview(); renderWaCampaignLog(); }
+function waUpdateSegmentCounts(){
+  const clients=DB.clients||[];
+  const now=new Date(); const mo=new Date(now-30*864e5);
+  const segs={todos:clients.length,
+    compraron:clients.filter(c=>(DB.orders||[]).some(o=>(o.clientEmail===c.email||o.email===c.email)&&new Date(o.created_at)>mo)).length,
+    pendientes:(DB.orders||[]).filter(o=>o.status==='pendiente').length,
+    sinCompras:clients.filter(c=>!(DB.orders||[]).some(o=>o.clientEmail===c.email||o.email===c.email)).length};
+  Object.entries(segs).forEach(([k,v])=>{const el=document.getElementById('waSeg_'+k);if(el)el.textContent=v;});
+}
+function waUpdatePreview(){
+  const ta=document.getElementById('waTemplate'), prev=document.getElementById('waPreviewText');
+  if(!ta||!prev) return;
+  const co=getCompanyInfo();
+  prev.textContent=(ta.value||'').replace('{nombre}','Cliente').replace('{empresa}',co.name||'Pleaseme').replace('{total}','$150.00').replace('{pedido}','#12345')||'Selecciona un template...';
+}
+function renderWaCampaignLog(){
+  const el=document.getElementById('waCampaignLog'); if(!el) return;
+  if(!_waCampaignLog.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Sin campañas enviadas</div>';return;}
+  el.innerHTML=_waCampaignLog.slice(-10).reverse().map(c=>`<div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05)"><div style="font-size:12px;color:var(--gold)">${esc(c.name||'Campaña')}</div><div style="font-size:10px;color:var(--muted)">${fmtDate(c.date)} · ${c.sent||0} enviados</div></div>`).join('');
+}
+
 </script>
 
 
@@ -3930,6 +3903,139 @@ window.addEventListener('load',function(){setTimeout(_updateBell,2000);});
     </div>
   </div>
 </div>
+<!-- ═══ NUEVA FACTURA / PEDIDO MODAL ═══ -->
+<div class="modal-overlay" id="newOrderModal" style="display:none;z-index:500">
+  <div class="modal" style="max-width:780px;width:95%;max-height:90vh;overflow-y:auto">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">
+      <b style="font-family:var(--fd);color:var(--gold);font-size:16px">✦ Nueva Factura</b>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:var(--muted)" id="nomInvoicePreview"></span>
+        <button onclick="closeNewOrderModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+      </div>
+    </div>
+
+    <!-- Cliente -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">CLIENTE</label>
+        <div style="display:flex;gap:6px">
+          <input id="nomClientName" placeholder="Nombre del cliente" style="flex:1;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px"/>
+          <button onclick="openClientPicker()" style="padding:9px 12px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);border-radius:8px;color:var(--gold);cursor:pointer;font-size:13px" title="Seleccionar cliente">👤</button>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">EMAIL</label>
+        <input id="nomClientEmail" type="email" placeholder="cliente@correo.com" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">TELÉFONO</label>
+        <input id="nomClientPhone" type="tel" placeholder="+1 (000) 000-0000" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">DIRECCIÓN ENVÍO</label>
+        <input id="nomAddress" placeholder="Dirección completa" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+    </div>
+
+    <!-- Artículos -->
+    <div style="margin-bottom:16px">
+      <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:8px">ARTÍCULOS</label>
+      <div style="display:grid;grid-template-columns:2fr 60px 90px 80px auto;gap:8px;margin-bottom:8px;align-items:end">
+        <div style="position:relative">
+          <input id="nomItemNameIn" placeholder="Nombre del producto" oninput="nomFilterProducts(this.value)" onkeydown="nomItemKeydown(event,'nomItemNameIn')"
+            style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+        </div>
+        <input id="nomItemQtyIn" type="number" min="1" value="1" placeholder="Cant" onkeydown="nomItemKeydown(event,'nomItemQtyIn')"
+          style="padding:9px 8px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;text-align:center"/>
+        <input id="nomItemPriceIn" type="number" step="0.01" placeholder="Precio" onkeydown="nomItemKeydown(event,'nomItemPriceIn')"
+          style="padding:9px 8px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px"/>
+        <input id="nomItemSizeIn" placeholder="Talla" onkeydown="nomItemKeydown(event,'nomItemSizeIn')"
+          style="padding:9px 8px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px"/>
+        <button onclick="nomCommitItem()" style="padding:9px 14px;background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.4);border-radius:8px;color:var(--gold);cursor:pointer;font-size:18px;white-space:nowrap">+</button>
+      </div>
+      <!-- Dropdown portal -->
+      <div id="nomProdPortal" style="display:none;position:fixed;background:rgba(10,8,3,.98);border:1px solid rgba(212,175,55,.25);border-radius:10px;z-index:1100;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:220px;overflow-y:auto"></div>
+      <!-- Items list -->
+      <div id="nomItemsList" style="min-height:48px;border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden"></div>
+      <div id="nomItemsEmpty" style="display:flex;align-items:center;justify-content:center;padding:20px;color:var(--muted);font-size:12px;border:1px dashed rgba(255,255,255,.08);border-radius:8px;margin-top:4px">
+        Sin artículos — busca o escribe el nombre de un producto
+      </div>
+    </div>
+
+    <!-- Totales -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">ENVÍO</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="nomShipping" type="number" step="0.01" value="0" oninput="nomRecalc()"
+            style="flex:1;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px"/>
+          <label style="font-size:11px;color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:4px">
+            <input type="checkbox" id="nomFreeShip" onchange="document.getElementById('nomShipping').value=this.checked?0:document.getElementById('nomShipping').value;document.getElementById('nomShipping').disabled=this.checked;nomRecalc()"/> Gratis
+          </label>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">DESCUENTO</label>
+        <input id="nomDiscountVal" type="number" step="0.01" value="0" placeholder="$0.00" oninput="nomRecalc()"
+          style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">PAGO</label>
+        <select id="nomMethod" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px">
+          <option value="card">Tarjeta</option><option value="paypal">PayPal</option>
+          <option value="cash">Efectivo</option><option value="transfer">Transferencia</option><option value="whatsapp">WhatsApp</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Totals display -->
+    <div style="background:rgba(212,175,55,.05);border:1px solid rgba(212,175,55,.15);border-radius:10px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:11px;color:var(--muted)">Subtotal: <span id="nomSubtotal" style="color:var(--text)">$0.00</span></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">TOTAL</div>
+        <div id="nomTotal" style="font-family:var(--fd);font-size:24px;color:var(--gold);font-weight:700">$0.00</div>
+      </div>
+    </div>
+
+    <!-- Status & Notes -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">ESTADO PEDIDO</label>
+        <select id="nomOrderStatus" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px">
+          <option value="pendiente">Pendiente</option><option value="procesando">Procesando</option>
+          <option value="enviado">Enviado</option><option value="entregado">Entregado</option><option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">NOTAS</label>
+        <input id="nomNotes" placeholder="Notas internas..." style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeNewOrderModal()" style="padding:11px 20px;background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--muted);cursor:pointer;font-size:13px">Cancelar</button>
+      <button onclick="sbSaveOrder(false)" style="padding:11px 20px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);border-radius:10px;color:var(--gold);cursor:pointer;font-size:13px;font-weight:600">💾 Guardar</button>
+      <button onclick="invoiceNewOrder()" style="padding:11px 24px;background:linear-gradient(135deg,#c9963a,#e8c56e);border:none;border-radius:10px;color:#0d0900;cursor:pointer;font-size:13px;font-weight:700">🧾 Generar Factura</button>
+    </div>
+  </div>
+</div>
+
+<!-- Client Picker Modal -->
+<div class="modal-overlay" id="clientPickerModal" style="display:none;z-index:1000">
+  <div class="modal" style="max-width:480px;width:95%">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <b style="color:var(--gold)">👤 Seleccionar cliente</b>
+      <button onclick="closeClientPicker()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <input id="cpSearch" placeholder="Buscar por nombre o email..." oninput="renderClientPicker(this.value)"
+      style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;margin-bottom:10px"/>
+    <div id="cpList" style="max-height:320px;overflow-y:auto;border:1px solid rgba(255,255,255,.06);border-radius:8px"></div>
+  </div>
+</div>
+
 
 
 </body></html>
