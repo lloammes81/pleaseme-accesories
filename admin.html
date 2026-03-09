@@ -803,7 +803,7 @@
 
     <div class="header-right">
       <button class="btn ghost" id="openCompanyInfoBtn" onclick="openCompanyInfoModal()">🏢 Compañía</button>
-      <button class="btn ghost" id="openAdminPassBtn">🔐 Contraseña</button>
+      <button class="btn ghost" id="openAdminPassBtn" onclick="openAdminPassModal()">🔐 Contraseña</button>
       <button class="btn ghost" id="openSalesReportsBtn" onclick="openSalesReportsModal()">📊 Reportes</button>
       
 
@@ -1027,7 +1027,21 @@
         </select>
       </div>
     </div>
-    <div id="invList"></div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="border-bottom:1px solid rgba(212,175,55,.2);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">
+          <th style="padding:8px 10px;text-align:left;font-weight:600">Producto</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600">Categoría</th>
+          <th style="padding:8px 10px;text-align:left;font-weight:600">Precio</th>
+          <th style="padding:8px 10px;text-align:center;font-weight:600">Stock</th>
+          <th style="padding:8px 10px;text-align:center;font-weight:600">Estado</th>
+          <th style="padding:8px 10px;text-align:center;font-weight:600">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="invList"></tbody>
+    </table>
+    </div>
   </div>
 
 </div>
@@ -1682,6 +1696,70 @@
   <!-- USER CARDS GRID -->
   <div id="usersGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
     <div style="text-align:center;padding:40px;color:var(--muted);grid-column:1/-1">Cargando usuarios...</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     TAB: MENSAJES WHATSAPP / NOTIFICACIONES
+══════════════════════════════════════ -->
+<div class="page" id="tab-notificaciones">
+  <h2 style="font-family:var(--fd);font-size:22px;color:var(--gold2);margin-bottom:4px">💬 Mensajes WhatsApp</h2>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:20px">Envía mensajes masivos a tus clientes por WhatsApp.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
+    <!-- Segmentos -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">📊 Segmentos de clientes</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.15);border-radius:10px;padding:14px;text-align:center">
+          <div id="waSeg_todos" style="font-size:26px;font-weight:700;color:var(--gold);font-family:var(--fd)">0</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">Todos los clientes</div>
+        </div>
+        <div style="background:rgba(0,0,0,.3);border:1px solid rgba(47,227,181,.15);border-radius:10px;padding:14px;text-align:center">
+          <div id="waSeg_compraron" style="font-size:26px;font-weight:700;color:#2fe3b5;font-family:var(--fd)">0</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">Compraron (30 días)</div>
+        </div>
+        <div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,163,72,.15);border-radius:10px;padding:14px;text-align:center">
+          <div id="waSeg_pendientes" style="font-size:26px;font-weight:700;color:#ffa348;font-family:var(--fd)">0</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">Pedidos pendientes</div>
+        </div>
+        <div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,143,163,.15);border-radius:10px;padding:14px;text-align:center">
+          <div id="waSeg_sinCompras" style="font-size:26px;font-weight:700;color:#ff8fa3;font-family:var(--fd)">0</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">Sin compras</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Composición -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">✍️ Redactar mensaje</div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Segmento destinatario</label>
+        <select id="waSegSelect" style="width:100%">
+          <option value="todos">Todos los clientes</option>
+          <option value="compraron">Compraron en los últimos 30 días</option>
+          <option value="pendientes">Con pedidos pendientes</option>
+          <option value="sinCompras">Sin compras (prospecto)</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Plantilla de mensaje</label>
+        <textarea id="waTemplate" rows="5" placeholder="Ej: Hola {nombre}! 🌟 Tenemos nuevas joyas para ti. Visítanos en: https://pleaseme.com" oninput="waUpdatePreview()"
+          style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+        <small style="color:var(--muted);font-size:10px">Variables: {nombre} {empresa} {total} {pedido}</small>
+      </div>
+      <div style="background:rgba(37,211,102,.05);border:1px solid rgba(37,211,102,.2);border-radius:8px;padding:10px;margin-bottom:12px">
+        <div style="font-size:10px;color:rgba(37,211,102,.7);font-weight:600;margin-bottom:4px">VISTA PREVIA</div>
+        <div id="waPreviewText" style="font-size:12px;color:var(--text2);white-space:pre-wrap">Escribe un mensaje arriba...</div>
+      </div>
+      <button class="btn gold" onclick="waSendCampaign()" style="width:100%">📲 Enviar por WhatsApp</button>
+    </div>
+  </div>
+
+  <!-- Historial de campañas -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:12px">📋 Historial de campañas</div>
+    <div id="waCampaignLog"></div>
   </div>
 </div>
 
@@ -2422,11 +2500,12 @@ function buildInvoicePDF(o){
 async function initDB(){
   showLoader(true);
   try{
-    const [prods,ords,clis,cfgRes,compRes,authRes] = await Promise.all([
+    const [prods,ords,clis,cfgRes,compRes,authRes,usersRes] = await Promise.all([
       sbFetch('productos'), sbFetch('pedidos'), sbFetch('clientes'),
       sbGET('config?select=key,value'),
       sbGET('company?select=*&limit=1'),
-      sbGET('admin_auth?select=*&limit=1')
+      sbGET('admin_auth?select=*&limit=1'),
+      sbGET('admin_users?select=*&order=name.asc')
     ]);
     if(prods!==null) DB.products = prods;
     if(ords!==null)  DB.orders   = ords;
@@ -2458,6 +2537,12 @@ async function initDB(){
       if(_lsPass === 'admin123'){
         localStorage.setItem(LS_ADMIN_PASS, DB.admin_auth.password_hash||'admin123');
       }
+    }
+    if(usersRes && usersRes.length){
+      DB.adminUsers = usersRes;
+      save('pm_admin_users', DB.adminUsers);
+    } else {
+      DB.adminUsers = load('pm_admin_users') || [];
     }
     if(!DB.products.length && !DB.orders.length){
       seedDemo();
@@ -3987,6 +4072,44 @@ function renderWaCampaignLog(){
   const el=document.getElementById('waCampaignLog'); if(!el) return;
   if(!_waCampaignLog.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Sin campañas enviadas</div>';return;}
   el.innerHTML=_waCampaignLog.slice(-10).reverse().map(c=>`<div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05)"><div style="font-size:12px;color:var(--gold)">${esc(c.name||'Campaña')}</div><div style="font-size:10px;color:var(--muted)">${fmtDate(c.date)} · ${c.sent||0} enviados</div></div>`).join('');
+}
+
+function waSendCampaign(){
+  const template = (document.getElementById('waTemplate')?.value||'').trim();
+  if(!template){ toast('Escribe un mensaje antes de enviar.','warn'); return; }
+  const seg = document.getElementById('waSegSelect')?.value || 'todos';
+  const co = getCompanyInfo();
+  const waNum = (co.whatsapp||'').replace(/\D/g,'');
+  if(!waNum){ toast('Configura el número de WhatsApp en Compañía primero.','warn'); return; }
+  const clients = DB.clients||[];
+  let targets = clients;
+  if(seg==='compraron'){
+    const mo=new Date(Date.now()-30*864e5);
+    targets=clients.filter(c=>(DB.orders||[]).some(o=>(o.clientEmail===c.email||o.email===c.email)&&new Date(o.created_at)>mo));
+  } else if(seg==='sinCompras'){
+    targets=clients.filter(c=>!(DB.orders||[]).some(o=>o.clientEmail===c.email||o.email===c.email));
+  } else if(seg==='pendientes'){
+    const pendEmails=[...(new Set((DB.orders||[]).filter(o=>o.status==='pendiente').map(o=>o.clientEmail||o.email).filter(Boolean)))];
+    targets=clients.filter(c=>pendEmails.includes(c.email));
+    if(!targets.length) targets=pendEmails.map(e=>({name:e,email:e,phone:''}));
+  }
+  if(!targets.length){ toast('No hay clientes en este segmento.','warn'); return; }
+  // Open WA links one by one (browser will open new tabs)
+  let sent=0;
+  targets.forEach((c,i)=>{
+    const phone=(c.phone||c.whatsapp||'').replace(/\D/g,'');
+    if(!phone) return;
+    const msg=template.replace('{nombre}',c.name||'Cliente').replace('{empresa}',co.name||'Pleaseme').replace('{total}','').replace('{pedido}','');
+    setTimeout(()=>{ window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank'); }, i*800);
+    sent++;
+  });
+  // Log campaign
+  loadWaLog();
+  _waCampaignLog.push({name:'Campaña '+new Date().toLocaleDateString('es'),date:new Date().toISOString(),sent,seg});
+  localStorage.setItem('pm_wa_campaigns_v1',JSON.stringify(_waCampaignLog));
+  renderWaCampaignLog();
+  addNotif('system','💬','Campaña WA enviada','Se abrieron '+sent+' conversaciones de WhatsApp');
+  toast('📲 Enviando a '+sent+' contactos...','ok');
 }
 
 </script>
