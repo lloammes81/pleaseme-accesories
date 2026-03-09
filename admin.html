@@ -342,35 +342,6 @@
     .modal-head b{font-family:var(--fd);font-size:20px;font-weight:600;color:var(--gold2)}
     .modal-body{padding:20px}
 
-    /* Floating centered modal for panel users */
-    .ovl{
-      position:fixed;inset:0;
-      display:none;align-items:center;justify-content:center;
-      padding:24px;
-      background:rgba(0,0,0,.72);
-      backdrop-filter:blur(10px);
-      z-index:1200;
-    }
-    .ovl.open{display:flex !important}
-    .ovl .modal{
-      width:min(560px, calc(100vw - 32px));
-      max-height:min(88vh, 920px);
-      overflow:auto;
-      margin:0 auto;
-      animation:userModalIn .18s ease-out;
-    }
-    .ovl .modal-foot{
-      position:sticky;bottom:0;
-      display:flex;gap:10px;justify-content:flex-end;
-      padding:16px 20px;
-      border-top:1px solid var(--line);
-      background:rgba(8,6,2,.98);
-    }
-    @keyframes userModalIn{
-      from{opacity:0;transform:translateY(10px) scale(.98)}
-      to{opacity:1;transform:translateY(0) scale(1)}
-    }
-
     .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
     @media(max-width:500px){.detail-grid{grid-template-columns:1fr}}
     .detail-block{
@@ -652,7 +623,7 @@
         </div>
         <div style="margin-bottom:14px">
           <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Contraseña</label>
-          <input id="lgAdminPass" type="password" placeholder="••••••••"
+          <input id="lgAdminPass" type="password" onkeydown="if(event.key==='Enter')doAdminLogin()" placeholder="••••••••"
             style="width:100%;padding:11px 14px;border-radius:10px;
               background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);
               color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none"
@@ -668,21 +639,19 @@
         </button>
       </div>
 
-      <!-- Staff login (usuario + password) -->
+      <!-- Staff login (email + password) -->
       <div id="lgPanelUser" style="display:none">
         <div style="margin-bottom:12px">
           <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Usuario</label>
-          <select id="lgUserSelect"
+          <input id="lgUserName" type="text" onkeydown="if(event.key==='Enter')document.getElementById('lgUserPass').focus()" placeholder="nombre_usuario"
             style="width:100%;padding:11px 14px;border-radius:10px;
               background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);
-              color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none">
-            <option value="">Selecciona un usuario</option>
-          </select>
-          <div id="lgUserHelp" style="font-size:10px;color:rgba(240,223,160,.35);margin-top:6px">Cargando usuarios activos...</div>
+              color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none"
+            autocomplete="username" autocapitalize="none" spellcheck="false"/>
         </div>
         <div style="margin-bottom:14px">
           <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(240,223,160,.35);text-transform:uppercase;margin-bottom:5px">Contraseña</label>
-          <input id="lgUserPass" type="password" placeholder="••••••••"
+          <input id="lgUserPass" type="password" onkeydown="if(event.key==='Enter')doStaffLogin()" placeholder="••••••••"
             style="width:100%;padding:11px 14px;border-radius:10px;
               background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);
               color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none"
@@ -717,6 +686,52 @@
     width:7px;height:7px;border-radius:50%;
     background:#2fe3b5;flex-shrink:0;
   }
+
+/* ── Notification bell ── */
+#notifBell:hover{ background:rgba(212,175,55,.12)!important; transform:scale(1.05); }
+#notifBell.has-notif{ animation:bellRing .5s ease; }
+@keyframes bellRing{
+  0%,100%{transform:rotate(0)}  20%{transform:rotate(-18deg)}  40%{transform:rotate(18deg)}
+  60%{transform:rotate(-10deg)} 80%{transform:rotate(10deg)}
+}
+.notif-chip{
+  padding:4px 10px;border-radius:20px;border:1px solid rgba(212,175,55,.15);
+  background:transparent;color:var(--muted);cursor:pointer;font-size:10px;
+  font-family:var(--f);transition:all .15s;
+}
+.notif-chip.active{background:rgba(212,175,55,.12);border-color:rgba(212,175,55,.3);color:var(--gold);}
+.notif-item{
+  display:flex;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(212,175,55,.05);
+  cursor:pointer;transition:background .12s;position:relative;
+}
+.notif-item:hover{background:rgba(212,175,55,.04);}
+.notif-item.unread::before{
+  content:'';position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  width:6px;height:6px;border-radius:50%;background:var(--gold);
+}
+.notif-item.unread{background:rgba(212,175,55,.03);}
+.notif-icon{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:15px;flex-shrink:0;}
+/* ── WA mass msg ── */
+.wa-seg-opt{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;
+  cursor:pointer;font-size:12px;color:var(--text2);transition:background .12s;
+}
+.wa-seg-opt:hover{background:rgba(37,211,102,.06);}
+.wa-seg-opt.active{background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.2);}
+.wa-seg-count{
+  margin-left:auto;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;
+  background:rgba(37,211,102,.1);color:#25d366;
+}
+.wa-var-chip{
+  padding:3px 9px;border-radius:20px;border:1px solid rgba(212,175,55,.2);
+  background:rgba(212,175,55,.06);color:var(--gold);cursor:pointer;font-size:10px;
+  font-family:monospace;transition:all .12s;
+}
+.wa-var-chip:hover{background:rgba(212,175,55,.14);}
+/* ── WA custom selection table ── */
+#waCustomList{ display:none; }
+#waCustomList.visible{ display:block; }
+
 </style>
 
 <div class="shell" id="adminShell" style="display:none">
@@ -736,6 +751,53 @@
       <div id="dbDot" style="width:9px;height:9px;border-radius:50%;background:#555;box-shadow:0 0 0 0 #555;transition:all .4s"></div>
       <span id="dbLabel" style="font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.3px">Base de datos</span>
     </div>
+    <!-- NOTIFICATION BELL -->
+    <div style="position:relative;margin-right:4px">
+      <button id="notifBell" onclick="toggleNotifPanel()"
+        style="position:relative;width:38px;height:38px;border-radius:50%;border:1px solid rgba(212,175,55,.2);
+               background:rgba(212,175,55,.06);cursor:pointer;display:grid;place-items:center;
+               font-size:17px;transition:all .2s;color:var(--gold)"
+        title="Notificaciones">
+        🔔
+        <span id="notifBadge" style="display:none;position:absolute;top:3px;right:3px;
+          width:16px;height:16px;border-radius:50%;background:#ff4d6d;border:2px solid var(--bg);
+          font-size:9px;font-weight:700;color:#fff;display:none;align-items:center;justify-content:center;
+          line-height:1">0</span>
+      </button>
+      <!-- NOTIFICATION PANEL -->
+      <div id="notifPanel" style="display:none;position:absolute;top:46px;right:-10px;
+           width:360px;max-height:520px;background:var(--surface);
+           border:1px solid rgba(212,175,55,.18);border-radius:16px;
+           box-shadow:0 20px 60px rgba(0,0,0,.6);z-index:9000;overflow:hidden;
+           flex-direction:column">
+        <!-- Panel header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:14px 16px 10px;border-bottom:1px solid rgba(212,175,55,.1)">
+          <div>
+            <div style="font-weight:700;font-size:14px;color:var(--text)">🔔 Notificaciones</div>
+            <div id="notifUnreadLabel" style="font-size:10px;color:var(--muted)">Sin notificaciones nuevas</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button onclick="markAllNotifRead()" title="Marcar todas como leídas"
+              style="padding:4px 8px;border-radius:7px;border:1px solid rgba(212,175,55,.2);
+                     background:transparent;color:var(--gold);cursor:pointer;font-size:10px">✓ Todo leído</button>
+            <button onclick="clearAllNotif()" title="Limpiar"
+              style="padding:4px 8px;border-radius:7px;border:1px solid rgba(255,77,109,.2);
+                     background:transparent;color:var(--danger);cursor:pointer;font-size:10px">🗑</button>
+          </div>
+        </div>
+        <!-- Filter chips -->
+        <div style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid rgba(212,175,55,.06)">
+          <button class="notif-chip active" data-filter="all"    onclick="setNotifFilter('all',this)">Todas</button>
+          <button class="notif-chip"        data-filter="order"  onclick="setNotifFilter('order',this)">📦 Pedidos</button>
+          <button class="notif-chip"        data-filter="stock"  onclick="setNotifFilter('stock',this)">⚠️ Stock</button>
+          <button class="notif-chip"        data-filter="system" onclick="setNotifFilter('system',this)">⚙️ Sistema</button>
+        </div>
+        <!-- Notification list -->
+        <div id="notifList" style="overflow-y:auto;max-height:370px;padding:6px 0"></div>
+      </div>
+    </div>
+
     <div class="header-right">
       <button class="btn ghost" id="openCompanyInfoBtn" onclick="openCompanyInfoModal()">🏢 Compañía</button>
       <button class="btn ghost" id="openAdminPassBtn">🔐 Contraseña</button>
@@ -778,6 +840,9 @@
       </button>
       <button class="tab-btn admin-only" data-tab="usuarios" id="tabBtnUsuarios">
         ◈ Usuarios <span class="tab-count" id="tcUsuarios">0</span>
+      </button>
+      <button class="tab-btn" data-tab="notificaciones" id="tabBtnNotif">
+        ◈ Mensajes WA <span class="tab-count" id="tcNotif" style="background:rgba(37,211,102,.2);color:#25d366">0</span>
       </button>
     </div>
   </div>
@@ -1578,9 +1643,20 @@
     </div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
 
-      <div class="form-group">
-        <label>Nombre completo</label>
-        <input id="uName" placeholder="Nombre del usuario"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Nombre completo</label>
+          <input id="uName" placeholder="Ej: María García"/>
+        </div>
+        <div class="form-group">
+          <label>Usuario <small style="color:var(--muted);font-weight:400">— para iniciar sesión</small></label>
+          <input id="uUsername" placeholder="Ej: maria_g" autocapitalize="none" spellcheck="false"/>
+          <small style="color:var(--muted);font-size:10px">Sin espacios · Solo letras, números y guion bajo</small>
+        </div>
+        <div class="form-group">
+          <label>Correo electrónico <small style="color:var(--muted);font-weight:400">(opcional)</small></label>
+          <input id="uEmail" type="email" placeholder="usuario@correo.com"/>
+        </div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -2523,7 +2599,9 @@ function startRealtimeOrders(){
   }, 15000); // Verifica cada 15 segundos
 }
 
+window.showNewOrderAlert = window.showNewOrderAlert || null;
 function showNewOrderAlert(o){
+  addNotif('order','📦','Nuevo pedido #'+o.id,(o.clientName||o.name||'Cliente')+' — $'+Number(o.total||0).toFixed(2),{orderId:o.id});
   _newestAlertId = o.id;
   const alert  = document.getElementById('newOrderAlert');
   const body   = document.getElementById('alertBody');
@@ -2631,6 +2709,7 @@ async function initDB(){
     }
     if(authRes&&authRes.length){
       DB.admin_auth = authRes[0];
+      localStorage.setItem(LS_ADMIN_PASS, DB.admin_auth.password_hash||'admin123');
     }
     if(!DB.products.length && !DB.orders.length){
       seedDemo();
@@ -3864,24 +3943,13 @@ document.getElementById("companyInfoModal")?.addEventListener("click", (e)=>{ if
 document.getElementById("companyInfoSaveBtn")?.addEventListener("click", ()=>{ try{saveCompanyInfo();}catch(e){} });
 
 
-function encodeAdminSecret(v){
-  return btoa(unescape(encodeURIComponent(v||'')));
-}
-function getStoredAdminHash(){
-  return (DB.admin_auth&&DB.admin_auth.password_hash) ? DB.admin_auth.password_hash : '';
-}
-function matchesAdminPassword(input, storedHash){
-  const hash = encodeAdminSecret(input);
-  return !!storedHash && (storedHash===hash || storedHash===input);
-}
 function getAdminPassword(){
-  return getStoredAdminHash();
+  if(DB.admin_auth&&DB.admin_auth.password_hash) return DB.admin_auth.password_hash;
+  try{ return localStorage.getItem(LS_ADMIN_PASS)||'admin123'; }catch(e){ return 'admin123'; }
 }
 function openAdminPassModal(){
   const m = $("adminPassModal"); if(!m) return;
   ["adminPassCurrent","adminPassNew","adminPassConfirm"].forEach(id=>{ if($(id)) $(id).value=""; });
-  const cur = $("adminPassCurrent");
-  if(cur) cur.placeholder = 'Contraseña actual';
   m.style.display = "flex";
   m.classList.add("open");
 }
@@ -3894,13 +3962,9 @@ function saveAdminPassword(){
   const current = ($("adminPassCurrent")?.value || "").trim();
   const nextp   = ($("adminPassNew")?.value || "").trim();
   const confirm = ($("adminPassConfirm")?.value || "").trim();
-  const storedHash = getStoredAdminHash();
+  const saved   = getAdminPassword();
 
-  if(!storedHash){
-    toast("No hay contraseña maestra configurada en Supabase.","err");
-    return;
-  }
-  if(!matchesAdminPassword(current, storedHash)){
+  if(saved && current !== saved){
     toast("La contraseña actual no coincide.","err");
     return;
   }
@@ -3917,20 +3981,23 @@ function saveAdminPassword(){
     return;
   }
 
-  const nextHash = encodeAdminSecret(nextp);
-  sbPATCH('admin_auth', 1, {
-    password_hash: nextHash,
-    updated_at: new Date().toISOString()
-  }).then(()=>{
-    if(!DB.admin_auth) DB.admin_auth = {};
-    DB.admin_auth.password_hash = nextHash;
-    DB.admin_auth.updated_at = new Date().toISOString();
-    toast("Contraseña actualizada ✅","ok");
-    closeAdminPassModal();
-  }).catch(e=>{
-    console.error('[SB] admin_auth update:',e);
-    toast("No se pudo actualizar la contraseña en Supabase.","err");
+  // Save plain text — consistent with doAdminLogin comparison
+  localStorage.setItem(LS_ADMIN_PASS, nextp);
+  if(!DB.admin_auth) DB.admin_auth = {};
+  DB.admin_auth.password_hash = nextp;
+  // Supabase — upsert row id=1
+  fetch(SB_URL+'/rest/v1/admin_auth?id=eq.1',{
+    method:'PATCH', headers:{...SB_H,'Prefer':'return=minimal'},
+    body:JSON.stringify({password_hash:nextp, updated_at:new Date().toISOString()})
+  }).catch(()=>{
+    // If no row yet, insert
+    fetch(SB_URL+'/rest/v1/admin_auth',{
+      method:'POST', headers:{...SB_H,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({id:1, password_hash:nextp, updated_at:new Date().toISOString()})
+    }).catch(e=>console.error('[SB] admin_auth:',e));
   });
+  toast("✅ Contraseña actualizada. Usa esta contraseña la próxima vez.","ok");
+  closeAdminPassModal();
 }
 
 $("openAdminPassBtn")?.addEventListener("click", openAdminPassModal);
@@ -4152,49 +4219,70 @@ function lgToast(id,msg,type){
 
 // ── ROOT ADMIN login (password only) ─────────────────────────
 async function doAdminLogin(){
-  const pass = document.getElementById('lgAdminPass')?.value||'';
+  const pass = (document.getElementById('lgAdminPass')?.value||'').trim();
   const btn  = document.getElementById('lgAdminBtn');
   if(!pass){ lgToast('lgAdminToast','Ingresa la contraseña.','err'); return; }
   if(btn){btn.textContent='Verificando...';btn.disabled=true;}
-
   try{
-    const rows = await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&id=eq.1&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>null);
-    if(!rows || !rows.length || !rows[0].password_hash){
-      lgToast('lgAdminToast','No hay contraseña maestra configurada en Supabase.','err');
-      return;
+    // 1. Try Supabase admin_auth first
+    let stored = null;
+    try{
+      const rows = await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&limit=1',{headers:SB_H}).then(r=>r.json());
+      if(rows&&rows.length) stored = rows[0].password_hash;
+    }catch(e){}
+    // 2. Fallback: localStorage then default
+    if(!stored) stored = localStorage.getItem(LS_ADMIN_PASS)||'admin123';
+
+    // Compare plain text (saveAdminPassword always saves plain text)
+    if(stored !== pass){
+      lgToast('lgAdminToast','Contraseña incorrecta.','err'); return;
     }
-    const storedHash = rows[0].password_hash || '';
-    if(!matchesAdminPassword(pass, storedHash)){
-      lgToast('lgAdminToast','Contraseña incorrecta.','err');
-      return;
-    }
-    DB.admin_auth = { ...(DB.admin_auth||{}), id:1, password_hash: storedHash };
-    const session = {isRoot:true, name:'Administrador', email:'admin', role:'admin'};
+    // Sync to localStorage so offline works
+    localStorage.setItem(LS_ADMIN_PASS, stored);
+    const session = {isRoot:true, name:'Administrador', role:'admin'};
     saveAdminSession(session);
     adminSession = session;
     enterPanel();
-  }catch(e){ lgToast('lgAdminToast','Error de conexión.','err'); }
+  }catch(e){ lgToast('lgAdminToast','Error al verificar.','err'); console.error(e); }
   finally{ if(btn){btn.textContent='→ Acceder como Admin';btn.disabled=false;} }
 }
 
-// ── STAFF login (usuario + password) ───────────────────────────
+// ── STAFF login (email + password) ───────────────────────────
 async function doStaffLogin(){
-  const userId = document.getElementById('lgUserSelect')?.value||'';
-  const pass   = document.getElementById('lgUserPass')?.value||'';
-  const btn    = document.getElementById('lgUserBtn');
-  if(!userId||!pass){ lgToast('lgUserToast','Selecciona un usuario e ingresa la contraseña.','err'); return; }
+  const username = (document.getElementById('lgUserName')?.value||'').trim().toLowerCase();
+  const pass     = (document.getElementById('lgUserPass')?.value||'').trim();
+  const btn      = document.getElementById('lgUserBtn');
+  if(!username||!pass){ lgToast('lgUserToast','Ingresa usuario y contraseña.','err'); return; }
   if(btn){btn.textContent='Verificando...';btn.disabled=true;}
-
   try{
-    const rows = await fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+encodeURIComponent(userId)+'&select=*&limit=1',{headers:SB_H}).then(r=>r.json()).catch(()=>[]);
+    // Search by username first, then fallback to email
+    let rows = [];
+    try{
+      rows = await fetch(SB_URL+'/rest/v1/admin_users?username=eq.'+encodeURIComponent(username)+'&select=*&limit=1',{headers:SB_H}).then(r=>r.json());
+      // If no username match, try email
+      if(!rows||!rows.length){
+        rows = await fetch(SB_URL+'/rest/v1/admin_users?email=eq.'+encodeURIComponent(username)+'&select=*&limit=1',{headers:SB_H}).then(r=>r.json());
+      }
+    }catch(e){}
+    // Fallback: local DB
+    if(!rows||!rows.length){
+      const local = (DB.adminUsers||[]).find(u=>
+        (u.username||'').toLowerCase()===username ||
+        (u.email||'').toLowerCase()===username
+      );
+      if(local) rows=[local];
+    }
     if(!rows||!rows.length){ lgToast('lgUserToast','Usuario no encontrado.','err'); return; }
     const u = rows[0];
     if(u.active===false){ lgToast('lgUserToast','Cuenta desactivada. Contacta al administrador.','err'); return; }
-    const hash = encodeAdminSecret(pass);
-    if(u.password_hash!==hash && u.password_hash!==pass){ lgToast('lgUserToast','Contraseña incorrecta.','err'); return; }
-
+    // Compare plain text (saveAdminUser stores plain text)
+    if(u.password_hash !== pass){
+      lgToast('lgUserToast','Contraseña incorrecta.','err'); return;
+    }
     const session = {
-      isRoot:false, id:u.id, name:u.name, email:u.email||'', role:u.role,
+      isRoot:false, id:u.id, name:u.name,
+      username:u.username||u.email||'',
+      email:u.email, role:u.role,
       perms:{
         perm_dashboard: u.perm_dashboard,  perm_pedidos:u.perm_pedidos,
         perm_inventario:u.perm_inventario, perm_clientes:u.perm_clientes,
@@ -4204,9 +4292,10 @@ async function doStaffLogin(){
     };
     saveAdminSession(session);
     adminSession = session;
-    fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+u.id,{method:'PATCH',headers:{...SB_H,'Prefer':'return=minimal'},body:JSON.stringify({last_login:new Date().toISOString()})}).catch(()=>{});
+    fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+u.id,{method:'PATCH',headers:{...SB_H,'Prefer':'return=minimal'},
+      body:JSON.stringify({last_login:new Date().toISOString()})}).catch(()=>{});
     enterPanel();
-  }catch(e){ lgToast('lgUserToast','Error de conexión.','err'); }
+  }catch(e){ lgToast('lgUserToast','Error al verificar.','err'); console.error(e); }
   finally{ if(btn){btn.textContent='→ Acceder';btn.disabled=false;} }
 }
 
@@ -4292,21 +4381,6 @@ async function loadAdminUsers(){
   }catch(e){ console.warn('[SB] loadAdminUsers:',e); }
 }
 
-async function loadLoginUsers(){
-  const sel = document.getElementById('lgUserSelect');
-  const help = document.getElementById('lgUserHelp');
-  if(!sel) return;
-  try{
-    const rows = await fetch(SB_URL+'/rest/v1/admin_users?select=id,name,active&active=eq.true&order=name.asc',{headers:SB_H}).then(r=>r.json()).catch(()=>[]);
-    const users = (rows||[]).filter(u=>u && u.id && (u.active!==false));
-    sel.innerHTML = '<option value="">Selecciona un usuario</option>' + users.map(u=>`<option value="${esc(u.id)}">${esc(u.name||'Sin nombre')}</option>`).join('');
-    if(help) help.textContent = users.length ? 'Selecciona tu nombre en la lista.' : 'No hay usuarios activos disponibles.';
-  }catch(e){
-    sel.innerHTML = '<option value="">No se pudieron cargar los usuarios</option>';
-    if(help) help.textContent = 'Error cargando usuarios activos.';
-  }
-}
-
 function openUserModal(userId=null){
   editingUserId=userId;
   const isEdit=!!userId;
@@ -4316,7 +4390,7 @@ function openUserModal(userId=null){
   if(hint) hint.style.display=isEdit?'block':'none';
 
   // Reset form
-  ['uName','uPass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['uName','uEmail','uPass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const setC=(id,v)=>{const el=document.getElementById(id);if(el)el.checked=v;};
   setC('pDashboard',false);setC('pPedidos',false);setC('pInventario',false);
   setC('pClientes',false);setC('pProductos',false);
@@ -4328,7 +4402,7 @@ function openUserModal(userId=null){
     const u=(DB.adminUsers||[]).find(x=>x.id===userId);
     if(u){
       const g=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
-      g('uName',u.name);
+      g('uName',u.name);g('uEmail',u.email);
       if(r) r.value=u.role||'staff';
       setC('pDashboard', u.perm_dashboard); setC('pPedidos',    u.perm_pedidos);
       setC('pInventario',u.perm_inventario);setC('pClientes',   u.perm_clientes);
@@ -4347,13 +4421,6 @@ function closeUserModal(){
   editingUserId=null;
 }
 
-document.getElementById('userModal')?.addEventListener('click', e=>{
-  if(e.target===e.currentTarget) closeUserModal();
-});
-document.addEventListener('keydown', e=>{
-  if(e.key==='Escape') closeUserModal();
-});
-
 function applyRolePreset(){
   const role=document.getElementById('uRole')?.value;
   const P={
@@ -4371,25 +4438,32 @@ function applyRolePreset(){
 async function saveAdminUser(){
   const btn   = document.getElementById('btnSaveUser');
   const name  = document.getElementById('uName')?.value.trim()||'';
+  const email = document.getElementById('uEmail')?.value.trim().toLowerCase()||'';
   const pass  = document.getElementById('uPass')?.value||'';
   const role  = document.getElementById('uRole')?.value||'staff';
   const active= document.getElementById('uActive')?.checked!==false;
   const gC    = id=>document.getElementById(id)?.checked||false;
 
-  if(!name){toast('El nombre del usuario es requerido.','err');return;}
+  const uname = (document.getElementById('uUsername')?.value||'').trim().toLowerCase().replace(/\s+/g,'_');
+  if(!name||!uname){toast('Nombre y usuario son requeridos.','err');return;}
   if(!editingUserId&&!pass){toast('La contraseña es requerida para nuevos usuarios.','err');return;}
-  if(pass&&pass.length<6){toast('La contraseña debe tener al menos 6 caracteres.','err');return;}
+  if(pass&&pass.length<4){toast('La contraseña debe tener al menos 4 caracteres.','err');return;}
+  // Check username unique
+  const dupUser=(DB.adminUsers||[]).find(u=>u.id!==editingUserId&&(u.username||'').toLowerCase()===uname);
+  if(dupUser){toast('Ese nombre de usuario ya está en uso.','err');return;}
 
   if(btn){btn.textContent='Guardando...';btn.disabled=true;}
   try{
     const existing=(DB.adminUsers||[]).find(u=>u.id===editingUserId);
     const id = editingUserId||('au_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5));
     const now= new Date().toISOString();
-    const hashPass = pass ? btoa(unescape(encodeURIComponent(pass))) : (existing?.password_hash||'');
+    // Password stored as plain text for simplicity
 
+    const plainPass = pass || (existing?.password_hash||'');
     const userData={
-      id,name,role,active,
-      password_hash:  hashPass,
+      id, name, email, role, active,
+      username:       uname,
+      password_hash:  plainPass,
       perm_dashboard: gC('pDashboard'), perm_pedidos:   gC('pPedidos'),
       perm_inventario:gC('pInventario'),perm_clientes:  gC('pClientes'),
       perm_productos: gC('pProductos'),
@@ -4417,7 +4491,6 @@ async function saveAdminUser(){
     closeUserModal();
     renderUsersGrid();
     const tc=document.getElementById('tcUsuarios'); if(tc) tc.textContent=DB.adminUsers.length;
-    loadLoginUsers();
   }catch(e){ toast('Error: '+e.message,'err'); }
   finally{ if(btn){btn.textContent='💾 Guardar usuario';btn.disabled=false;} }
 }
@@ -4430,7 +4503,6 @@ async function toggleUserActive(id){
     body:JSON.stringify({active:u.active,updated_at:u.updated_at})
   }).catch(()=>{});
   renderUsersGrid();
-  loadLoginUsers();
   toast(u.active?'Usuario activado.':'Usuario desactivado.','ok');
 }
 
@@ -4440,7 +4512,6 @@ async function deleteAdminUser(id){
   DB.adminUsers=(DB.adminUsers||[]).filter(u=>u.id!==id);
   renderUsersGrid();
   const tc=document.getElementById('tcUsuarios'); if(tc) tc.textContent=DB.adminUsers.length;
-  loadLoginUsers();
   toast('Usuario eliminado.','ok');
 }
 
@@ -4461,7 +4532,7 @@ function renderUsersGrid(){
     {k:'can_edit',l:'Editar',i:'✏️'},{k:'can_delete',l:'Eliminar',i:'🗑'},{k:'can_export',l:'Exportar',i:'📤'}
   ];
   grid.innerHTML=users.map(u=>{
-    const ini=((u.name||u.email||'?').charAt(0)||'?').toUpperCase();
+    const ini=(u.name||u.email).charAt(0).toUpperCase();
     const isActive=u.active!==false;
     const lastLogin=u.last_login?new Date(u.last_login).toLocaleString('es-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'Nunca';
     return `<div class="user-card">
@@ -4469,7 +4540,8 @@ function renderUsersGrid(){
         <div class="user-card-avatar ${isActive?'active':'inactive'}">${esc(ini)}</div>
         <div class="user-card-info">
           <div class="user-card-name">${esc(u.name||'')}</div>
-          <div class="user-card-email">${esc(u.email||'Usuario interno del panel')}</div>
+          <div style="font-size:11px;color:var(--gold);font-family:monospace;letter-spacing:.3px;margin-bottom:1px">@${esc(u.username||u.email||'—')}</div>
+          ${u.email?`<div class="user-card-email">${esc(u.email)}</div>`:''}
           <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
             <span class="user-card-role role-${u.role||'staff'}">${RL[u.role]||u.role}</span>
             ${!isActive?'<span style="padding:2px 7px;border-radius:6px;font-size:9px;background:rgba(255,77,109,.1);color:#ff8fa3;border:1px solid rgba(255,77,109,.2)">Inactivo</span>':''}
@@ -4537,12 +4609,10 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') doAdminLogin(); });
   });
-  ['lgUserPass','lgUserSelect'].forEach(id=>{
+  ['lgUserPass','lgUserEmail'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') doStaffLogin(); });
   });
-
-  loadLoginUsers();
 })();
 
 
@@ -5899,6 +5969,453 @@ function showEpLoginModal(){
   });
 }
 
+
+// ══════════════════════════════════════════════════════════════
+//  NOTIFICATION CENTER
+// ══════════════════════════════════════════════════════════════
+const LS_NOTIFS = 'pm_notifications_v1';
+let _notifs = [];
+let _notifFilter = 'all';
+
+function loadNotifs(){
+  try{ _notifs = JSON.parse(localStorage.getItem(LS_NOTIFS)||'[]'); }catch(e){ _notifs=[]; }
+}
+function saveNotifs(){ localStorage.setItem(LS_NOTIFS, JSON.stringify(_notifs.slice(0,200))); }
+
+function addNotif(type, icon, title, body, meta={}){
+  loadNotifs();
+  const n = {
+    id: 'n_'+Date.now(), type, icon, title, body, meta,
+    read: false, ts: new Date().toISOString()
+  };
+  _notifs.unshift(n);
+  saveNotifs();
+  renderNotifBell();
+  renderNotifList();
+  // Animate bell
+  const bell = document.getElementById('notifBell');
+  if(bell){ bell.classList.remove('has-notif'); void bell.offsetWidth; bell.classList.add('has-notif'); }
+  return n;
+}
+
+function renderNotifBell(){
+  loadNotifs();
+  const unread = _notifs.filter(n=>!n.read).length;
+  const badge = document.getElementById('notifBadge');
+  const label = document.getElementById('notifUnreadLabel');
+  if(badge){
+    badge.style.display = unread > 0 ? 'flex' : 'none';
+    badge.textContent   = unread > 99 ? '99+' : unread;
+  }
+  if(label) label.textContent = unread > 0 ? unread+' sin leer' : 'Sin notificaciones nuevas';
+}
+
+function toggleNotifPanel(){
+  const p = document.getElementById('notifPanel');
+  if(!p) return;
+  const open = p.style.display !== 'none';
+  p.style.display = open ? 'none' : 'flex';
+  if(!open){ renderNotifList(); }
+  // Close on outside click
+  if(!open){
+    setTimeout(()=>{
+      document.addEventListener('click', function closePanel(e){
+        if(!p.contains(e.target) && e.target.id!=='notifBell'){
+          p.style.display='none';
+          document.removeEventListener('click', closePanel);
+        }
+      });
+    }, 50);
+  }
+}
+
+function setNotifFilter(f, btn){
+  _notifFilter = f;
+  document.querySelectorAll('.notif-chip').forEach(c=>c.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderNotifList();
+}
+
+function renderNotifList(){
+  loadNotifs();
+  const list = document.getElementById('notifList'); if(!list) return;
+  const filtered = _notifFilter==='all' ? _notifs : _notifs.filter(n=>n.type===_notifFilter);
+  if(!filtered.length){
+    list.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">Sin notificaciones</div>';
+    return;
+  }
+  const COLORS = { order:'rgba(212,175,55,.12)', stock:'rgba(255,77,109,.12)', system:'rgba(77,144,255,.12)', wa:'rgba(37,211,102,.12)' };
+  list.innerHTML = filtered.map(n=>`
+    <div class="notif-item ${n.read?'':'unread'}" onclick="readNotif('${n.id}',event)">
+      <div class="notif-icon" style="background:${COLORS[n.type]||'rgba(255,255,255,.05)'}">
+        ${n.icon||'🔔'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:${n.read?'400':'600'};color:${n.read?'var(--text2)':'var(--text)'};
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.title)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">${esc(n.body)}</div>
+        <div style="font-size:10px;color:rgba(240,223,160,.25);margin-top:3px">${timeAgo(n.ts)}</div>
+      </div>
+      ${n.meta?.orderId?`<button onclick="event.stopPropagation();openOrderById('${n.meta.orderId}')"
+        style="align-self:center;padding:3px 8px;border-radius:6px;border:1px solid rgba(212,175,55,.2);
+               background:transparent;color:var(--gold);cursor:pointer;font-size:10px;white-space:nowrap">Ver →</button>`:''}
+    </div>
+  `).join('');
+}
+
+function readNotif(id, e){
+  loadNotifs();
+  const n = _notifs.find(x=>x.id===id);
+  if(n) n.read=true;
+  saveNotifs(); renderNotifBell(); renderNotifList();
+}
+function markAllNotifRead(){
+  loadNotifs();
+  _notifs.forEach(n=>n.read=true);
+  saveNotifs(); renderNotifBell(); renderNotifList();
+}
+function clearAllNotif(){
+  _notifs=[];
+  saveNotifs(); renderNotifBell(); renderNotifList();
+}
+
+function timeAgo(ts){
+  const diff = Date.now() - new Date(ts).getTime();
+  const m = Math.floor(diff/60000);
+  if(m<1) return 'Ahora mismo';
+  if(m<60) return m+'m';
+  const h = Math.floor(m/60);
+  if(h<24) return h+'h';
+  return Math.floor(h/24)+'d';
+}
+
+function openOrderById(id){
+  document.getElementById('notifPanel').style.display='none';
+  const o = (DB.orders||[]).find(x=>x.id===id);
+  if(o){ renderTab('pedidos'); setTimeout(()=>openOrder(id),300); }
+}
+
+// ── Auto-monitor: stock bajo ─────────────────────────────────
+const STOCK_THRESHOLD = 5;
+let _lastStockAlert = {};
+function checkStockAlerts(){
+  (DB.products||[]).forEach(p=>{
+    const s = Number(p.stock||0);
+    if(s <= STOCK_THRESHOLD && s >= 0 && !_lastStockAlert[p.id]){
+      _lastStockAlert[p.id] = true;
+      const lvl = s === 0 ? '🔴 SIN STOCK' : '⚠️ Stock bajo';
+      addNotif('stock','⚠️',
+        lvl+': '+p.name,
+        s===0 ? 'Sin unidades disponibles' : 'Solo quedan '+s+' unidades',
+        {productId:p.id}
+      );
+    } else if(s > STOCK_THRESHOLD){
+      delete _lastStockAlert[p.id]; // reset if restocked
+    }
+  });
+}
+
+// ── Hook into existing order arrival system ──────────────────
+const _origShowNewOrderAlert = window.showNewOrderAlert;
+window.showNewOrderAlert = function(o){
+  if(typeof _origShowNewOrderAlert==='function') _origShowNewOrderAlert(o);
+  addNotif('order','📦',
+    'Nuevo pedido #'+o.id,
+    (o.clientName||o.name||'Cliente')+' — $'+Number(o.total||0).toFixed(2),
+    {orderId:o.id}
+  );
+};
+
+// ══════════════════════════════════════════════════════════════
+//  WA MASS MESSAGE ENGINE
+// ══════════════════════════════════════════════════════════════
+const LS_WA_LOG = 'pm_wa_campaigns_v1';
+let _waCustomSelected = new Set();
+let _waCampaignLog = [];
+
+function loadWaLog(){ try{ _waCampaignLog=JSON.parse(localStorage.getItem(LS_WA_LOG)||'[]'); }catch(e){_waCampaignLog=[];} }
+function saveWaLog(){ localStorage.setItem(LS_WA_LOG, JSON.stringify(_waCampaignLog.slice(0,50))); }
+
+function renderWaTab(){
+  waUpdateSegmentCounts();
+  waUpdatePreview();
+  renderWaCampaignLog();
+  // Update notif tab count
+  loadWaLog();
+  const tc = document.getElementById('tcNotif');
+  if(tc) tc.textContent = _waCampaignLog.length;
+}
+
+function waGetSegmentContacts(seg){
+  const clients = DB.clients||[];
+  const orders  = DB.orders||[];
+  const now = new Date();
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  switch(seg){
+    case 'all': return clients.filter(c=>c.phone||c.whatsapp);
+    case 'recent': {
+      const recentIds = new Set(orders
+        .filter(o=>new Date(o.created_at||o.date)>=thisMonthStart)
+        .map(o=>o.clientEmail||o.email));
+      return clients.filter(c=>(c.phone||c.whatsapp)&&recentIds.has(c.email));
+    }
+    case 'pending': {
+      const pendIds = new Set(orders
+        .filter(o=>o.status==='pendiente')
+        .map(o=>o.clientEmail||o.email));
+      return clients.filter(c=>(c.phone||c.whatsapp)&&pendIds.has(c.email));
+    }
+    case 'noorder': {
+      const orderedIds = new Set(orders.map(o=>o.clientEmail||o.email));
+      return clients.filter(c=>(c.phone||c.whatsapp)&&!orderedIds.has(c.email));
+    }
+    case 'custom': {
+      return clients.filter(c=>(c.phone||c.whatsapp)&&_waCustomSelected.has(c.id||c.email));
+    }
+    default: return [];
+  }
+}
+
+function waUpdateSegmentCounts(){
+  ['all','recent','pending','noorder','custom'].forEach(seg=>{
+    const el = document.getElementById('waSegCount_'+seg);
+    if(el) el.textContent = waGetSegmentContacts(seg).length;
+  });
+  const seg = document.querySelector('input[name="waSeg"]:checked')?.value||'all';
+  const count = waGetSegmentContacts(seg).length;
+  const btn = document.getElementById('waSendAllBtn');
+  const cnt = document.getElementById('waSendCount');
+  if(cnt) cnt.textContent = count;
+  if(btn) btn.disabled = count===0;
+
+  // Show/hide custom selection list
+  const customList = document.getElementById('waCustomList');
+  if(seg==='custom' && customList){
+    customList.classList.add('visible');
+    renderWaCustomList();
+  } else if(customList){
+    customList.classList.remove('visible');
+  }
+}
+
+function waUpdatePreview(){
+  const msg  = document.getElementById('waMsgText')?.value||'';
+  const co   = getCompanyInfo();
+  const sampleClient = { name:'María García', total:'$73.00', pedido:'PM139001', empresa:co.name||'Pleaseme' };
+  let preview = msg
+    .replace(/{nombre}/g, sampleClient.name)
+    .replace(/{empresa}/g, sampleClient.empresa)
+    .replace(/{total}/g,   sampleClient.total)
+    .replace(/{pedido}/g,  sampleClient.pedido);
+
+  const bubble = document.getElementById('waPreviewBubble');
+  const sender = document.getElementById('waPreviewSender');
+  const lenEl  = document.getElementById('waMsgLen');
+  if(bubble) bubble.textContent = preview || '...';
+  if(sender) sender.textContent = co.name||'Pleaseme';
+  if(lenEl)  lenEl.textContent  = msg.length+' / 1000';
+}
+
+const WA_TEMPLATES = {
+  promo: `✦ *{empresa}* — Oferta Especial 🏷️
+
+Hola {nombre}! 
+
+Tenemos una promoción exclusiva para ti. Visítanos y descubre nuestras piezas de oro laminado con descuento especial.
+
+¡No te lo pierdas! ✨`,
+
+  nuevo: `✦ *{empresa}* — Nuevo Producto ✨
+
+Hola {nombre}!
+
+Acabamos de agregar nuevas piezas increíbles a nuestra colección. ¡Entra a ver lo nuevo!
+
+Joyería Oro Laminado 💛`,
+
+  restock: `✦ *{empresa}* — Producto Disponible 📦
+
+Hola {nombre}!
+
+El producto que buscabas ya está disponible nuevamente. ¡Apúrate antes de que se agote!`,
+
+  recordatorio: `✦ *{empresa}* 🔔
+
+Hola {nombre}, te recordamos que tienes un pedido #{pedido} pendiente con nosotros.
+
+¿Tienes alguna pregunta? Escríbenos aquí mismo 😊`,
+
+  saludo: `✦ *{empresa}* 👋
+
+Hola {nombre}!
+
+Solo queríamos saludarte y recordarte que seguimos aquí para ti con las mejores piezas de joyería en oro laminado.
+
+¡Gracias por tu preferencia! 💛`,
+
+  factura: `✦ *{empresa}* — Recordatorio de Pago 🧾
+
+Hola {nombre},
+
+Tienes una factura por el valor de {total} pendiente de pago.
+
+Por favor contáctanos para coordinar. ¡Gracias!`
+};
+
+function waApplyTemplate(){
+  const sel = document.getElementById('waMsgTemplate')?.value;
+  if(!sel) return;
+  const t = WA_TEMPLATES[sel];
+  if(t){
+    const el = document.getElementById('waMsgText');
+    if(el){ el.value = t; waUpdatePreview(); }
+    document.getElementById('waMsgTemplate').value='';
+  }
+}
+
+function waInsertVar(v){
+  const el = document.getElementById('waMsgText'); if(!el) return;
+  const s = el.selectionStart, e = el.selectionEnd;
+  el.value = el.value.slice(0,s) + v + el.value.slice(e);
+  el.selectionStart = el.selectionEnd = s+v.length;
+  el.focus();
+  waUpdatePreview();
+}
+
+document.addEventListener('change', e=>{
+  if(e.target.name==='waSeg'){ waUpdateSegmentCounts(); waUpdatePreview(); }
+});
+
+// WA send campaign — opens WhatsApp one by one
+async function waStartSendCampaign(){
+  const seg  = document.querySelector('input[name="waSeg"]:checked')?.value||'all';
+  const msg  = (document.getElementById('waMsgText')?.value||'').trim();
+  const contacts = waGetSegmentContacts(seg);
+  const co   = getCompanyInfo();
+
+  if(!msg){ toast('Escribe un mensaje primero.','warn'); return; }
+  if(!contacts.length){ toast('No hay contactos con WhatsApp en este segmento.','warn'); return; }
+
+  const confirmed = confirm(
+    `¿Enviar mensaje a ${contacts.length} contacto(s) vía WhatsApp?\n\nSe abrirá una ventana de WhatsApp por cada contacto.\n¿Continuar?`
+  );
+  if(!confirmed) return;
+
+  // Log campaign
+  loadWaLog();
+  const campaign = {
+    id: 'c_'+Date.now(), seg, msg, total:contacts.length,
+    sent:0, ts: new Date().toISOString(), co: co.name||'Pleaseme'
+  };
+  _waCampaignLog.unshift(campaign);
+  saveWaLog();
+
+  // Add system notification
+  addNotif('wa','📲','Campaña WA iniciada',
+    contacts.length+' contactos · '+seg, {});
+
+  const progress = document.getElementById('waProgress');
+  const pbar     = document.getElementById('waProgressBar');
+  const plabel   = document.getElementById('waProgressLabel');
+  const sendBtn  = document.getElementById('waSendAllBtn');
+  if(progress) progress.style.display='block';
+  if(sendBtn)  sendBtn.disabled=true;
+
+  // Send one by one with delay
+  for(let i=0; i<contacts.length; i++){
+    const c = contacts[i];
+    const phone = (c.phone||c.whatsapp||'').replace(/\D/g,'');
+    if(!phone){ continue; }
+
+    // Personalize message
+    const lastOrder = (DB.orders||[]).find(o=>(o.clientEmail||o.email)===c.email);
+    const personal  = msg
+      .replace(/{nombre}/g,  c.name||c.first_name||'Cliente')
+      .replace(/{empresa}/g, co.name||'Pleaseme')
+      .replace(/{total}/g,   lastOrder?'$'+Number(lastOrder.total||0).toFixed(2):'')
+      .replace(/{pedido}/g,  lastOrder?lastOrder.id||'':'');
+
+    const url = 'https://wa.me/'+phone+'?text='+encodeURIComponent(personal);
+    window.open(url,'_blank');
+
+    campaign.sent = i+1;
+    saveWaLog();
+
+    const pct = Math.round(((i+1)/contacts.length)*100);
+    if(pbar)   pbar.style.width = pct+'%';
+    if(plabel) plabel.textContent = `Enviando ${i+1} de ${contacts.length} (${pct}%)`;
+    renderWaCampaignLog();
+
+    if(i < contacts.length-1) await new Promise(r=>setTimeout(r,1200));
+  }
+
+  if(progress) progress.style.display='none';
+  if(sendBtn)  sendBtn.disabled=false;
+  toast('✅ Campaña completada — '+campaign.sent+' mensajes enviados','ok');
+  addNotif('wa','✅','Campaña WA completada',
+    campaign.sent+' mensajes enviados correctamente', {});
+  renderWaCampaignLog();
+  const tc=document.getElementById('tcNotif');
+  if(tc) tc.textContent=_waCampaignLog.length;
+}
+
+function renderWaCampaignLog(){
+  loadWaLog();
+  const container = document.getElementById('waCampaignLog'); if(!container) return;
+  if(!_waCampaignLog.length){
+    container.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px"><div style="font-size:28px;margin-bottom:8px;opacity:.4">📋</div>Sin campañas enviadas aún</div>';
+    return;
+  }
+  const segLabels = {all:'Todos',recent:'Este mes',pending:'Pendientes',noorder:'Sin compras',custom:'Manual'};
+  container.innerHTML = _waCampaignLog.map(c=>{
+    const pct = Math.round((c.sent/c.total)*100);
+    const date = new Date(c.ts).toLocaleString('es-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div style="background:rgba(37,211,102,.04);border:1px solid rgba(37,211,102,.1);
+                border-radius:12px;padding:12px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">📲 ${esc(segLabels[c.seg]||c.seg)}</div>
+        <div style="font-size:10px;color:var(--muted)">${esc(date)}</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;
+                  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+        ${esc(c.msg.slice(0,120)+(c.msg.length>120?'...':''))}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:5px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#128c7e,#25d366);border-radius:5px"></div>
+        </div>
+        <div style="font-size:11px;color:#25d366;font-weight:600;white-space:nowrap">
+          ${c.sent}/${c.total}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function waClearLog(){
+  if(!confirm('¿Limpiar historial de campañas?')) return;
+  _waCampaignLog=[];
+  saveWaLog();
+  renderWaCampaignLog();
+}
+
+function renderWaCustomList(){
+  // Future: show checkboxes for each client
+}
+
+// ── Init notifications on load ────────────────────────────────
+document.addEventListener('DOMContentLoaded', ()=>{
+  setTimeout(()=>{
+    loadNotifs();
+    renderNotifBell();
+    // Check stock alerts after DB loads
+    setTimeout(checkStockAlerts, 3000);
+    // Periodic stock check
+    setInterval(checkStockAlerts, 120000); // every 2 min
+  }, 1000);
+});
+
 </script>
 <!-- ══════════════════════════════════════════════════════════
      MODAL: CREAR PEDIDO / FACTURA MANUAL
@@ -6341,6 +6858,140 @@ function showEpLoginModal(){
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB: MENSAJES WHATSAPP MASIVOS
+══════════════════════════════════════════════════════════ -->
+<div id="tabNotificaciones" class="tab-panel" style="display:none">
+  <div style="display:grid;grid-template-columns:340px 1fr;gap:0;height:calc(100vh - 130px)">
+
+    <!-- LEFT: Composer -->
+    <div style="border-right:1px solid rgba(212,175,55,.1);padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px">📲 Mensaje Masivo WA</div>
+        <div style="font-size:11px;color:var(--muted)">Envía WhatsApp a clientes seleccionados</div>
+      </div>
+
+      <!-- Audience selector -->
+      <div style="background:rgba(212,175,55,.04);border:1px solid rgba(212,175,55,.1);border-radius:12px;padding:14px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--gold);text-transform:uppercase;margin-bottom:10px">Audiencia</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label class="wa-seg-opt active" data-seg="all">
+            <input type="radio" name="waSeg" value="all" checked style="accent-color:#25d366"/> 
+            <span>👥 Todos los clientes</span>
+            <span id="waSegCount_all" class="wa-seg-count">0</span>
+          </label>
+          <label class="wa-seg-opt" data-seg="recent">
+            <input type="radio" name="waSeg" value="recent" style="accent-color:#25d366"/>
+            <span>🕐 Compraron este mes</span>
+            <span id="waSegCount_recent" class="wa-seg-count">0</span>
+          </label>
+          <label class="wa-seg-opt" data-seg="pending">
+            <input type="radio" name="waSeg" value="pending" style="accent-color:#25d366"/>
+            <span>⏳ Pedidos pendientes</span>
+            <span id="waSegCount_pending" class="wa-seg-count">0</span>
+          </label>
+          <label class="wa-seg-opt" data-seg="noorder">
+            <input type="radio" name="waSeg" value="noorder" style="accent-color:#25d366"/>
+            <span>💤 Sin compras (reactivar)</span>
+            <span id="waSegCount_noorder" class="wa-seg-count">0</span>
+          </label>
+          <label class="wa-seg-opt" data-seg="custom">
+            <input type="radio" name="waSeg" value="custom" style="accent-color:#25d366"/>
+            <span>🎯 Selección manual</span>
+            <span id="waSegCount_custom" class="wa-seg-count">0</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Template selector -->
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--gold);text-transform:uppercase;margin-bottom:8px">Plantilla</div>
+        <select id="waMsgTemplate" onchange="waApplyTemplate()"
+          style="width:100%;padding:9px 12px;border-radius:9px;font-size:12px;margin-bottom:10px">
+          <option value="">— Escribe tu mensaje —</option>
+          <option value="promo">🏷️ Promoción / Descuento</option>
+          <option value="nuevo">✨ Nuevo producto</option>
+          <option value="restock">📦 Producto repuesto</option>
+          <option value="recordatorio">🔔 Recordatorio de pedido</option>
+          <option value="saludo">👋 Saludo personalizado</option>
+          <option value="factura">🧾 Factura pendiente</option>
+        </select>
+        <div style="position:relative">
+          <textarea id="waMsgText" rows="8" placeholder="Escribe tu mensaje aquí...&#10;&#10;Usa {nombre} para personalizar con el nombre del cliente."
+            oninput="waUpdatePreview()"
+            style="width:100%;padding:12px 14px;border-radius:10px;font-size:12px;
+                   line-height:1.6;resize:vertical;min-height:140px"></textarea>
+          <div style="position:absolute;bottom:8px;right:10px;font-size:9px;color:var(--muted)" id="waMsgLen">0 / 1000</div>
+        </div>
+      </div>
+
+      <!-- Variables hint -->
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:9px;color:var(--muted);margin-right:4px;line-height:24px">Variables:</span>
+        <button onclick="waInsertVar('{nombre}')" class="wa-var-chip">{nombre}</button>
+        <button onclick="waInsertVar('{empresa}')" class="wa-var-chip">{empresa}</button>
+        <button onclick="waInsertVar('{total}')" class="wa-var-chip">{total}</button>
+        <button onclick="waInsertVar('{pedido}')" class="wa-var-chip">{pedido}</button>
+      </div>
+
+      <!-- Send button -->
+      <button id="waSendAllBtn" onclick="waStartSendCampaign()"
+        style="width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;font-size:14px;font-weight:700;
+               background:linear-gradient(135deg,#128c7e,#25d366);color:#fff;
+               box-shadow:0 4px 20px rgba(37,211,102,.25);transition:all .2s">
+        📲 Enviar a <span id="waSendCount">0</span> contactos
+      </button>
+      <div id="waProgress" style="display:none">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px" id="waProgressLabel">Preparando...</div>
+        <div style="height:6px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden">
+          <div id="waProgressBar" style="height:100%;background:linear-gradient(90deg,#128c7e,#25d366);
+               border-radius:6px;width:0%;transition:width .3s"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Preview + Log -->
+    <div style="display:flex;flex-direction:column;height:100%">
+      <!-- Message preview -->
+      <div style="padding:16px 20px;border-bottom:1px solid rgba(212,175,55,.08)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--gold);text-transform:uppercase;margin-bottom:10px">Vista previa del mensaje</div>
+        <div style="background:#0d1117;border-radius:16px;padding:16px;max-width:360px">
+          <!-- WA header -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.07)">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#128c7e,#25d366);display:grid;place-items:center;font-size:18px">💬</div>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:#e8f5e9" id="waPreviewSender">Pleaseme</div>
+              <div style="font-size:10px;color:rgba(232,245,233,.4)">WhatsApp Business</div>
+            </div>
+          </div>
+          <!-- Bubble -->
+          <div style="background:#1a2e1f;border-radius:12px 12px 12px 4px;padding:12px 14px;
+                      font-size:12px;color:#dcf8c6;line-height:1.7;white-space:pre-wrap;
+                      max-height:200px;overflow-y:auto" id="waPreviewBubble">
+            <span style="color:rgba(220,248,198,.35)">El mensaje aparecerá aquí...</span>
+          </div>
+          <div style="text-align:right;font-size:9px;color:rgba(220,248,198,.35);margin-top:6px">✓✓ Enviado</div>
+        </div>
+      </div>
+
+      <!-- Campaign log -->
+      <div style="flex:1;overflow-y:auto;padding:16px 20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--gold);text-transform:uppercase">Historial de Campañas</div>
+          <button onclick="waClearLog()" style="font-size:10px;color:var(--danger);background:none;border:none;cursor:pointer">Limpiar</button>
+        </div>
+        <div id="waCampaignLog" style="display:flex;flex-direction:column;gap:8px">
+          <div style="text-align:center;padding:30px;color:var(--muted);font-size:12px">
+            <div style="font-size:28px;margin-bottom:8px;opacity:.4">📋</div>
+            Sin campañas enviadas aún
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
 <!-- ════════════════════════════════════════
      MODAL: ¿Crear label de envío?
 ════════════════════════════════════════ -->
