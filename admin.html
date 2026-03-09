@@ -3795,6 +3795,175 @@ function openClientModal(id){
 function syncSalesCategoryCombos(){ try{populateSalesReportYears();}catch(e){} }
 function attachPlacesTo(id){ const el=document.getElementById(id); if(!el||el._pa) return; el._pa=true; }
 
+// ══════════════════════════════════════════════════════════════
+//  FUNCIONES FALTANTES — INVOICE, LABEL, NOTIF, FACTURA, ETC.
+// ══════════════════════════════════════════════════════════════
+
+// ── Notificaciones panel ──────────────────────────────────────
+let _notifPanelOpen = false;
+let _notifFilter = 'all';
+function toggleNotifPanel(){
+  const panel = document.getElementById('notifPanel');
+  if(!panel) return;
+  _notifPanelOpen = !_notifPanelOpen;
+  panel.style.display = _notifPanelOpen ? 'block' : 'none';
+  if(_notifPanelOpen){
+    loadNotifications();
+    renderNotifList();
+    // Close on outside click
+    setTimeout(()=>{
+      const close = e => {
+        const bell = document.getElementById('notifBell');
+        if(!panel.contains(e.target) && (!bell||!bell.contains(e.target))){
+          panel.style.display = 'none';
+          _notifPanelOpen = false;
+          document.removeEventListener('click', close);
+        }
+      };
+      document.addEventListener('click', close);
+    }, 10);
+  }
+}
+function setNotifFilter(filter, btn){
+  _notifFilter = filter;
+  document.querySelectorAll('.notif-chip').forEach(c => c.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderNotifList();
+}
+function renderNotifList(){
+  const list = document.getElementById('notifList');
+  if(!list) return;
+  loadNotifications();
+  const filtered = _notifFilter==='all' ? _notifications : _notifications.filter(n=>n.type===_notifFilter);
+  if(!filtered.length){
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin notificaciones</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(n=>`
+    <div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);background:${n.read?'':'rgba(212,175,55,.04)'}">
+      <span style="font-size:18px;flex-shrink:0">${n.icon||'🔔'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--gold3)">${esc(n.title||'')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(n.body||'')}</div>
+        <div style="font-size:10px;color:rgba(240,223,160,.3);margin-top:4px">${fmtDateTime(n.time)}</div>
+      </div>
+      ${!n.read?'<div style="width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:4px"></div>':''}
+    </div>
+  `).join('');
+}
+
+// ── Invoice / Label functions ──────────────────────────────────
+function generateInvoice(){
+  const id = window.__activeOrderId || currentOrderId;
+  if(!id){ toast('No hay pedido activo.','warn'); return; }
+  quickInvoice(id);
+}
+function generateLabel(){
+  const id = window.__activeOrderId || currentOrderId;
+  if(!id){ toast('No hay pedido activo.','warn'); return; }
+  quickLabel(id);
+}
+function confirmAndLabel(){
+  const id = window.__activeOrderId || currentOrderId;
+  if(!id){ toast('No hay pedido activo.','warn'); return; }
+  const o = DB.orders.find(x=>x.id===id); if(!o) return;
+  o.status = 'procesando';
+  persist(); renderOrders();
+  toast('✅ Pedido confirmado como "procesando"','ok');
+  setTimeout(()=>quickLabel(id), 300);
+}
+function quickInvoice(id){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o){ toast('Pedido no encontrado.','err'); return; }
+  try{
+    buildInvoicePDF(o);
+  }catch(e){
+    toast('Error al generar PDF: '+e.message,'err');
+    console.error('quickInvoice:', e);
+  }
+}
+function quickLabel(id){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o){ toast('Pedido no encontrado.','err'); return; }
+  if(CFG.psToken && CFG.psUser){
+    createPirateshipLabel(id);
+  } else {
+    showManualTrackingEntry(id);
+  }
+}
+function invoiceNewOrder(){
+  // Save first, then generate invoice
+  const clientName = (document.getElementById('nomClientName')||{}).value||'Cliente';
+  const total = parseFloat((document.getElementById('nomTotal')||{}).textContent?.replace(/[^0-9.]/g,'')||0);
+  const now = new Date().toISOString();
+  const id = 'ORD-'+String(Date.now()).slice(-6);
+  const items = _nomItems.map(i=>({
+    productId: i.productId||'',
+    name: i.name, size: i.size||'—', color: '—',
+    qty: i.qty, price: i.price, image: i.image||''
+  }));
+  const shipping = parseFloat((document.getElementById('nomShipping')||{}).value||0);
+  const o = {
+    id, clientName,
+    clientEmail: (document.getElementById('nomClientEmail')||{}).value||'',
+    clientPhone: (document.getElementById('nomClientPhone')||{}).value||'',
+    items, total, subtotal: total - shipping,
+    shipping, status:'pendiente',
+    notes: (document.getElementById('nomNotes')||{}).value||'',
+    address: (document.getElementById('nomAddress')||{}).value||'',
+    created_at: now
+  };
+  DB.orders.unshift(o);
+  persist(); renderOrders(); updateCounts();
+  sbSaveOrder(o).catch(()=>{});
+  closeNewOrderModal();
+  toast('Pedido creado. Generando factura...','ok');
+  setTimeout(()=>quickInvoice(id), 500);
+}
+
+// ── Facturas tab helpers ───────────────────────────────────────
+function exportFacturasCSV(){
+  const orders = DB.orders||[];
+  if(!orders.length){ toast('No hay facturas.','warn'); return; }
+  const headers = ['ID','Cliente','Email','Total','Estado','Fecha','Notas'];
+  const rows = orders.map(o=>[
+    o.id||'', o.clientName||'', o.clientEmail||'',
+    Number(o.total||0).toFixed(2), o.status||'', (o.created_at||'').slice(0,10), (o.notes||'').replace(/,/g,' ')
+  ]);
+  const csv = [headers, ...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'pleaseme-facturas-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+  toast('CSV exportado ✅','ok');
+}
+function toggleSelectAllFac(el){
+  document.querySelectorAll('[data-fac-id]').forEach(cb=>{ cb.checked = el.checked; });
+}
+
+// ── Credentials clear ─────────────────────────────────────────
+function psClearCreds(){
+  if(!confirm('¿Borrar credenciales de Pirateship?')) return;
+  CFG.psUser=''; CFG.psToken='';
+  let cfg={}; try{ cfg=JSON.parse(localStorage.getItem('pm_config')||'{}'); }catch(e){}
+  delete cfg.psUser; delete cfg.psToken;
+  localStorage.setItem('pm_config', JSON.stringify(cfg));
+  const u=document.getElementById('psUserIn'); if(u) u.value='';
+  const t=document.getElementById('psTokenIn'); if(t) t.value='';
+  toast('Credenciales Pirateship borradas.','warn');
+}
+function epClearCreds(){
+  if(!confirm('¿Borrar credenciales de EasyPost?')) return;
+  CFG.epUser=''; CFG.epPass='';
+  let cfg={}; try{ cfg=JSON.parse(localStorage.getItem('pm_config')||'{}'); }catch(e){}
+  delete cfg.epUser; delete cfg.epPass;
+  localStorage.setItem('pm_config', JSON.stringify(cfg));
+  const u=document.getElementById('epUserIn'); if(u) u.value='';
+  const p=document.getElementById('epPassIn'); if(p) p.value='';
+  toast('Credenciales EasyPost borradas.','warn');
+}
+
 // ── WA Tab ────────────────────────────────────────────────────
 let _waCampaignLog=[];
 function loadWaLog(){ try{_waCampaignLog=JSON.parse(localStorage.getItem('pm_wa_campaigns_v1')||'[]');}catch{_waCampaignLog=[];} }
