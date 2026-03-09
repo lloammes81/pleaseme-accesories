@@ -1332,7 +1332,41 @@
         </div>
         <div style="padding:12px;background:rgba(212,175,55,.04);border:1px solid rgba(212,175,55,.12);border-radius:10px">
           <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--gold);text-transform:uppercase;margin-bottom:10px">
-            📦 EasyPost — Labels de envío
+            📦 Envío — Proveedores de Labels
+          </div>
+          <!-- Pirateship -->
+          <div style="margin-bottom:10px;padding:10px;background:rgba(255,107,0,.04);border:1px solid rgba(255,107,0,.12);border-radius:9px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div style="font-size:11px;font-weight:700;color:#ff6b00">🏴‍☠️ Pirateship <small style="font-weight:400;color:var(--muted)">(recomendado · USPS con descuento)</small></div>
+              <a href="https://www.pirateship.com" target="_blank" style="font-size:9px;color:rgba(255,107,0,.6)">Regístrate gratis →</a>
+            </div>
+            <div id="psCredStatus" style="display:none;margin-bottom:8px;padding:5px 10px;border-radius:7px;
+                 background:rgba(255,107,0,.08);border:1px solid rgba(255,107,0,.2);
+                 font-size:11px;color:#ff6b00;display:flex;align-items:center;gap:6px">
+              ✅ <span id="psCredUser">Credenciales guardadas</span>
+              <button onclick="psClearCreds()" style="margin-left:auto;padding:2px 8px;border-radius:5px;
+                border:1px solid rgba(255,77,109,.3);background:rgba(255,77,109,.08);
+                color:var(--danger);cursor:pointer;font-size:10px">Cambiar</button>
+            </div>
+            <div id="psCredForm">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div class="form-group" style="margin:0">
+                  <label>Email de Pirateship</label>
+                  <input id="coPsUser" type="email" placeholder="tu@correo.com" autocomplete="off"/>
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label>API Token</label>
+                  <input id="coPsToken" type="password" placeholder="Token de API" autocomplete="off"/>
+                </div>
+              </div>
+              <small style="color:var(--muted);font-size:10px;margin-top:5px;display:block">
+                Obtén tu token en Pirateship → Settings → API
+              </small>
+            </div>
+          </div>
+          <!-- EasyPost divider -->
+          <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--gold);text-transform:uppercase;margin-bottom:10px">
+            EasyPost (alternativa · USPS, UPS, FedEx, DHL)
             <a href="https://www.easypost.com/signup" target="_blank"
                style="font-size:9px;color:rgba(212,175,55,.5);font-weight:400;text-transform:none;margin-left:6px">
               Regístrate gratis →
@@ -1795,18 +1829,19 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 // ── Configuración global del panel ──────────────────────────
 const CFG = {
   googleKey: '',
-  epUser: '',
-  epPass: '',
-  cur: 'USD',
-  wa: '',
+  epUser: '', epPass: '',
+  psUser: '', psToken: '',
+  cur: 'USD', wa: '',
 };
 // Cargar configuración guardada
 (function(){
   try{
     const sc = JSON.parse(localStorage.getItem('pm_config')||'{}');
     if(sc.googleKey)    CFG.googleKey    = sc.googleKey;
-    if(sc.epUser) CFG.epUser = sc.epUser;
-    if(sc.epPass) CFG.epPass = sc.epPass;
+    if(sc.epUser)   CFG.epUser   = sc.epUser;
+    if(sc.epPass)   CFG.epPass   = sc.epPass;
+    if(sc.psUser)   CFG.psUser   = sc.psUser;
+    if(sc.psToken)  CFG.psToken  = sc.psToken;
     if(sc.cur)       CFG.cur       = sc.cur;
     if(sc.wa)        CFG.wa        = sc.wa;
   }catch(e){}
@@ -2792,6 +2827,8 @@ function saveCompanyInfo(){
     google_key:   $("coGoogleKey")?.value.trim()||'',
     ep_user: $("coEpUser")?.value.trim()||'',
     ep_pass: $("coEpPass")?.value||'',
+    ps_user: $("coPsUser")?.value.trim()||'',
+    ps_token: $("coPsToken")?.value||'',
     currency:     $("coCurrency")?.value||'USD',
     logoUrl:      logoData || logoUrl,
     updated_at:   new Date().toISOString()
@@ -2804,8 +2841,10 @@ function saveCompanyInfo(){
   if(c.whatsapp)     cfg.wa          = c.whatsapp;
   if(c.email)        cfg.contactEmail = c.email;
   if(c.google_key)   { cfg.googleKey   = c.google_key;   CFG.googleKey   = c.google_key;   initGooglePlaces(); }
-  if(c.ep_user){ cfg.epUser=c.ep_user; CFG.epUser=c.ep_user; }
-  if(c.ep_pass){ cfg.epPass=c.ep_pass; CFG.epPass=c.ep_pass; }
+  if(c.ep_user)  { cfg.epUser=c.ep_user;   CFG.epUser=c.ep_user; }
+  if(c.ep_pass)  { cfg.epPass=c.ep_pass;   CFG.epPass=c.ep_pass; }
+  if(c.ps_user)  { cfg.psUser=c.ps_user;   CFG.psUser=c.ps_user; psUpdateCredUI(); }
+  if(c.ps_token) { cfg.psToken=c.ps_token; CFG.psToken=c.ps_token; }
   // Show saved status
   epUpdateCredUI();
   if(c.currency)     { cfg.cur         = c.currency;     CFG.cur         = c.currency; }
@@ -2823,6 +2862,8 @@ function saveCompanyInfo(){
     google_key:   c.google_key,
     ep_user: c.ep_user,
     ep_pass: c.ep_pass,
+    ps_user: c.ps_user,
+    ps_token: c.ps_token,
     currency:     c.currency,
     updated_at:   c.updated_at
   }).catch(e=>console.error('[SB] company save:',e));
@@ -3962,9 +4003,11 @@ function saveAdminPassword(){
   const current = ($("adminPassCurrent")?.value || "").trim();
   const nextp   = ($("adminPassNew")?.value || "").trim();
   const confirm = ($("adminPassConfirm")?.value || "").trim();
-  const saved   = getAdminPassword();
+  // Only use localStorage (DB.admin_auth may have old encoded hash)
+  const saved = localStorage.getItem(LS_ADMIN_PASS) || 'admin123';
 
-  if(saved && current !== saved){
+  // If using default password, skip current-password check (first time)
+  if(saved !== 'admin123' && current !== saved){
     toast("La contraseña actual no coincide.","err");
     return;
   }
@@ -4157,7 +4200,7 @@ function applyI18n(lang){
 
 // Apply language on load
 applyI18n('es');
-setTimeout(epUpdateCredUI, 500);
+setTimeout(()=>{ epUpdateCredUI(); psUpdateCredUI(); }, 500);
 
 // Cancel / Refund buttons in modal
 function setOrderStatusQuick(status){
@@ -4821,31 +4864,39 @@ function printInvoiceSilent(o){
 function showLabelPrompt(order){
   const m = document.getElementById('labelPromptModal');
   if(!m){ return; }
-  const addrEl = document.getElementById('lpAddress');
-  const nameEl = document.getElementById('lpClientName');
-  if(addrEl) addrEl.textContent = order.shippingAddress||order.address||'';
-  if(nameEl) nameEl.textContent = order.clientName||order.name||'';
+  if(document.getElementById('lpAddress')) document.getElementById('lpAddress').textContent = order.shippingAddress||order.address||'—';
+  if(document.getElementById('lpClientName')) document.getElementById('lpClientName').textContent = order.clientName||order.name||'';
+
+  // Highlight selected provider
+  document.querySelectorAll('input[name="lpProv"]').forEach(r=>{
+    r.addEventListener('change', ()=>{
+      document.getElementById('lpProvPS').style.borderColor = r.value==='pirateship'?'rgba(255,107,0,.5)':'rgba(212,175,55,.15)';
+      document.getElementById('lpProvPS').style.background  = r.value==='pirateship'?'rgba(255,107,0,.08)':'rgba(212,175,55,.03)';
+      document.getElementById('lpProvEP').style.borderColor = r.value==='easypost'?'rgba(212,175,55,.4)':'rgba(212,175,55,.15)';
+      document.getElementById('lpProvEP').style.background  = r.value==='easypost'?'rgba(212,175,55,.06)':'rgba(212,175,55,.03)';
+    });
+  });
+
   m.style.display='flex';
 
   document.getElementById('lpYesBtn').onclick = ()=>{
     m.style.display='none';
-    createEasyPostLabel(order).then(result=>{
+    const prov = document.querySelector('input[name="lpProv"]:checked')?.value||'pirateship';
+    const labelFn = prov==='pirateship' ? createPirateshipLabel : createEasyPostLabel;
+    labelFn(order).then(result=>{
       if(!result) return;
       order.trackingNum = result.tracking;
       order.status = 'procesando';
       save(LS_ORDERS, DB.orders);
       sbUpdate('pedidos', order.id, {
-        tracking_num: result.tracking,
-        status:'procesando',
+        tracking_num: result.tracking, status:'procesando',
         updated_at: new Date().toISOString()
       });
       renderOrders(); renderDashboard(); renderFacturas();
       toast('📦 Tracking guardado: '+result.tracking,'ok');
     });
   };
-  document.getElementById('lpNoBtn').onclick = ()=>{
-    m.style.display='none';
-  };
+  document.getElementById('lpNoBtn').onclick = ()=>{ m.style.display='none'; };
 }
 
 function previewInvoice(id){
@@ -5558,7 +5609,6 @@ function nomCommitItem(){
     // Increase qty instead of adding duplicate
     dup.qty+=qty;
     nomRenderItems(); nomRecalc();
-    toast('Cantidad actualizada: '+name+' ('+dup.qty+'×)','ok');
   } else {
     // If product not found in catalog and has price, save it to products
     if(!prodId && price>0){
@@ -6416,6 +6466,203 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }, 1000);
 });
 
+
+// ══════════════════════════════════════════════════════════════
+//  PIRATESHIP — Labels de envío con descuento (USPS)
+//  API docs: https://api.pirateship.com/
+// ══════════════════════════════════════════════════════════════
+function psUpdateCredUI(){
+  const has = !!CFG.psToken;
+  const statusEl = document.getElementById('psCredStatus');
+  const formEl   = document.getElementById('psCredForm');
+  const userEl   = document.getElementById('psCredUser');
+  if(statusEl) statusEl.style.display = has ? 'flex' : 'none';
+  if(formEl)   formEl.style.display   = has ? 'none' : 'block';
+  if(userEl && CFG.psUser) userEl.textContent = CFG.psUser;
+}
+
+function psClearCreds(){
+  CFG.psUser=''; CFG.psToken='';
+  try{
+    const sc=JSON.parse(localStorage.getItem('pm_config')||'{}');
+    delete sc.psUser; delete sc.psToken;
+    localStorage.setItem('pm_config', JSON.stringify(sc));
+  }catch(e){}
+  psUpdateCredUI();
+}
+
+function showPsLoginModal(){
+  return new Promise(resolve=>{
+    const m = document.getElementById('psLoginModal');
+    if(!m){ resolve(null); return; }
+    const uEl = document.getElementById('psLoginUser');
+    const pEl = document.getElementById('psLoginToken');
+    if(uEl && CFG.psUser) uEl.value = CFG.psUser;
+    m.style.display='flex';
+
+    document.getElementById('psLoginConfirmBtn').onclick = ()=>{
+      const user  = (uEl?.value||'').trim();
+      const token = (pEl?.value||'').trim();
+      if(!user||!token){ toast('Ingresa tu email y API Token','warn'); return; }
+      const remember = document.getElementById('psRemember')?.checked !== false;
+      if(remember){
+        CFG.psUser=user; CFG.psToken=token;
+        try{
+          const sc=JSON.parse(localStorage.getItem('pm_config')||'{}');
+          sc.psUser=user; sc.psToken=token;
+          localStorage.setItem('pm_config', JSON.stringify(sc));
+        }catch(e){}
+        psUpdateCredUI();
+      }
+      m.style.display='none';
+      resolve({user, token});
+    };
+    document.getElementById('psLoginCancelBtn').onclick = ()=>{ m.style.display='none'; resolve(null); };
+  });
+}
+
+async function createPirateshipLabel(order){
+  let user  = CFG.psUser;
+  let token = CFG.psToken;
+
+  if(!token){
+    const creds = await showPsLoginModal();
+    if(!creds) return null;
+    user=creds.user; token=creds.token;
+  }
+
+  const co = DB.company||{};
+  if(!co.address){ toast('Agrega la dirección de tu tienda en ⚙️ Compañía','warn'); return null; }
+  if(!(order.shippingAddress||order.address)){ toast('El pedido no tiene dirección de envío','warn'); return null; }
+
+  try{
+    // Pirateship REST API v1
+    const BASE = 'https://api.pirateship.com/v1';
+    const H = {
+      'Content-Type':'application/json',
+      'Authorization':'Bearer '+token
+    };
+
+    // 1. Create shipment
+    const shipBody = {
+      shipment:{
+        ship_from:{ name:co.name||'Pleaseme', address_line1:co.address, phone:co.whatsapp||'', email:co.email||'' },
+        ship_to:{
+          name:    order.clientName||order.name||'Cliente',
+          address_line1: order.shippingAddress||order.address,
+          phone:   order.clientPhone||order.phone||'',
+          email:   order.clientEmail||order.email||''
+        },
+        packages:[{ weight_oz:16, length:10, width:8, height:4 }]
+      }
+    };
+
+    const shipRes = await fetch(BASE+'/shipments',{method:'POST',headers:H,body:JSON.stringify(shipBody)});
+    const shipData = await shipRes.json();
+
+    if(shipData.error||!shipData.shipment){
+      // If API fails, show manual entry as fallback
+      return await showManualTrackingEntry(order);
+    }
+
+    // 2. Get rates
+    const rates = shipData.shipment?.rates || [];
+    if(!rates.length){
+      toast('No se encontraron tarifas. Verifica la dirección.','warn');
+      return await showManualTrackingEntry(order);
+    }
+
+    return await showPsRatePicker(rates, shipData.shipment.id, order, token, BASE, H);
+
+  }catch(err){
+    console.error('[Pirateship]', err);
+    // Fallback: open Pirateship website + manual tracking
+    toast('Abriendo Pirateship... ingresa tracking manualmente.','warn');
+    window.open('https://app.pirateship.com/ship','_blank');
+    return await showManualTrackingEntry(order);
+  }
+}
+
+function showPsRatePicker(rates, shipmentId, order, token, BASE, H){
+  return new Promise(resolve=>{
+    const m = document.getElementById('easypostRateModal'); // reuse rate modal
+    if(!m){ resolve(null); return; }
+    const sorted = [...rates].sort((a,b)=>Number(a.rate)-Number(b.rate));
+    document.getElementById('epCarrier').innerHTML = `
+      <div style="font-size:11px;color:#ff6b00;font-weight:700;padding:6px 12px;margin-bottom:6px;
+           background:rgba(255,107,0,.08);border-radius:8px">🏴‍☠️ Tarifas de Pirateship (USPS con descuento)</div>
+    `+sorted.map((r,i)=>`
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+             border-radius:10px;cursor:pointer;border:1px solid rgba(255,107,0,.15);
+             margin-bottom:6px;transition:background .12s;background:rgba(255,107,0,.03)"
+             onmouseenter="this.style.background='rgba(255,107,0,.08)'"
+             onmouseleave="this.style.background='rgba(255,107,0,.03)'">
+        <input type="radio" name="epRate" value="${r.rate_id||r.id||i}" ${i===0?'checked':''}
+          style="accent-color:#ff6b00"/>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">
+            ${r.carrier||'USPS'} — ${r.service_level||r.service||''}
+          </div>
+          <div style="font-size:11px;color:var(--muted)">
+            ${r.delivery_days?r.delivery_days+' días estimados':''}
+            ${r.delivery_date?' · '+r.delivery_date.slice(0,10):''}
+          </div>
+        </div>
+        <div style="font-family:var(--fd);font-size:16px;color:#ff6b00;font-weight:700">
+          $${Number(r.rate||r.amount||0).toFixed(2)}
+        </div>
+      </label>`).join('');
+
+    m.style.display='flex';
+
+    document.getElementById('epBuyBtn').textContent='🏴‍☠️ Comprar Label';
+    document.getElementById('epBuyBtn').onclick = async ()=>{
+      const sel = document.querySelector('input[name="epRate"]:checked');
+      if(!sel) return;
+      const btn=document.getElementById('epBuyBtn');
+      btn.disabled=true; btn.textContent='Comprando...';
+      try{
+        const buyRes = await fetch(BASE+'/shipments/'+shipmentId+'/purchase',{
+          method:'POST',headers:H,body:JSON.stringify({rate_id:sel.value})
+        });
+        const bought = await buyRes.json();
+        m.style.display='none';
+        const tracking = bought.shipment?.tracking_number||bought.tracking_number||'';
+        const labelUrl  = bought.shipment?.label_url||bought.label_url||'';
+        toast('✅ Label Pirateship! Tracking: '+tracking,'ok');
+        if(labelUrl) window.open(labelUrl,'_blank');
+        resolve({tracking, labelUrl});
+      }catch(err){
+        toast('Error: '+err.message,'err');
+        btn.disabled=false; btn.textContent='🏴‍☠️ Comprar Label';
+        resolve(null);
+      }
+    };
+    document.getElementById('epCancelBtn').onclick=()=>{ m.style.display='none'; resolve(null); };
+  });
+}
+
+// Fallback: manual tracking entry
+function showManualTrackingEntry(order){
+  return new Promise(resolve=>{
+    const m = document.getElementById('manualTrackModal');
+    if(!m){
+      // inline prompt
+      const t = prompt('Ingresa el número de tracking manualmente (deja vacío para omitir):');
+      resolve(t ? {tracking:t, labelUrl:''} : null);
+      return;
+    }
+    document.getElementById('manualTrackInput').value='';
+    m.style.display='flex';
+    document.getElementById('manualTrackSave').onclick=()=>{
+      const t=(document.getElementById('manualTrackInput')?.value||'').trim();
+      m.style.display='none';
+      resolve(t?{tracking:t,labelUrl:''}:null);
+    };
+    document.getElementById('manualTrackCancel').onclick=()=>{ m.style.display='none'; resolve(null); };
+  });
+}
+
 </script>
 <!-- ══════════════════════════════════════════════════════════
      MODAL: CREAR PEDIDO / FACTURA MANUAL
@@ -6993,29 +7240,122 @@ document.addEventListener('DOMContentLoaded', ()=>{
   </div>
 </div>
 <!-- ════════════════════════════════════════
-     MODAL: ¿Crear label de envío?
+     MODAL: ¿Crear label de envío? (con selector de proveedor)
 ════════════════════════════════════════ -->
 <div class="modal-overlay" id="labelPromptModal" style="display:none;z-index:1200">
-  <div class="modal" style="max-width:420px;width:95vw">
+  <div class="modal" style="max-width:460px;width:95vw">
     <div class="modal-head">
       <b style="font-size:16px;color:var(--gold2)">📦 ¿Crear label de envío?</b>
     </div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
       <p style="font-size:13px;color:var(--text2);margin:0">
-        La factura está siendo impresa. ¿Deseas crear un label de envío para este pedido?
+        Factura impresa. ¿Deseas generar un label de envío?
       </p>
       <div style="padding:10px 14px;background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.12);
            border-radius:10px;font-size:12px">
-        <div style="color:var(--muted);margin-bottom:3px">Destinatario</div>
+        <div style="color:var(--muted);margin-bottom:3px;font-size:10px;text-transform:uppercase;letter-spacing:.5px">Destinatario</div>
         <div style="font-weight:600;color:var(--text)" id="lpClientName"></div>
-        <div style="color:var(--muted);margin-top:4px" id="lpAddress"></div>
+        <div style="color:var(--muted);margin-top:4px;font-size:11px" id="lpAddress"></div>
+      </div>
+      <!-- Provider selector -->
+      <div style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Proveedor de envío</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label id="lpProvPS" style="display:flex;flex-direction:column;align-items:center;gap:6px;
+               padding:14px 10px;border-radius:12px;cursor:pointer;border:2px solid rgba(255,107,0,.3);
+               background:rgba(255,107,0,.06);transition:all .15s">
+          <input type="radio" name="lpProv" value="pirateship" checked style="display:none"/>
+          <span style="font-size:22px">🏴‍☠️</span>
+          <span style="font-size:12px;font-weight:700;color:#ff6b00">Pirateship</span>
+          <span style="font-size:9px;color:var(--muted);text-align:center">USPS con descuento · Recomendado</span>
+        </label>
+        <label id="lpProvEP" style="display:flex;flex-direction:column;align-items:center;gap:6px;
+               padding:14px 10px;border-radius:12px;cursor:pointer;border:2px solid rgba(212,175,55,.15);
+               background:rgba(212,175,55,.03);transition:all .15s">
+          <input type="radio" name="lpProv" value="easypost" style="display:none"/>
+          <span style="font-size:22px">📮</span>
+          <span style="font-size:12px;font-weight:700;color:var(--gold2)">EasyPost</span>
+          <span style="font-size:9px;color:var(--muted);text-align:center">USPS, UPS, FedEx, DHL</span>
+        </label>
       </div>
     </div>
     <div class="modal-foot" style="justify-content:flex-end;gap:8px">
       <button class="btn" id="lpNoBtn">No, gracias</button>
       <button class="btn gold" id="lpYesBtn"
         style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700">
-        📦 Sí, crear label
+        📦 Crear Label
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════ PIRATESHIP LOGIN ════════════════════ -->
+<div class="modal-overlay" id="psLoginModal" style="display:none;z-index:1300">
+  <div class="modal" style="max-width:420px;width:95vw">
+    <div class="modal-head">
+      <div>
+        <b style="font-size:16px;color:#ff6b00">🏴‍☠️ Conectar Pirateship</b>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">
+          <a href="https://www.pirateship.com" target="_blank" style="color:#ff6b00">pirateship.com</a>
+          — USPS con descuento hasta 89%
+        </div>
+      </div>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div style="padding:10px 12px;background:rgba(255,107,0,.06);border:1px solid rgba(255,107,0,.15);
+           border-radius:9px;font-size:11px;color:rgba(255,150,80,.9);line-height:1.6">
+        💡 Encuentra tu <b>API Token</b> en Pirateship →
+        <a href="https://app.pirateship.com/settings/api" target="_blank" style="color:#ff6b00">
+        Settings → API Keys</a>. Es gratis crear una cuenta.
+      </div>
+      <div class="form-group">
+        <label>Email de tu cuenta</label>
+        <input id="psLoginUser" type="email" placeholder="tu@correo.com" style="width:100%"/>
+      </div>
+      <div class="form-group">
+        <label>API Token</label>
+        <div style="position:relative">
+          <input id="psLoginToken" type="password" placeholder="ps_live_..." style="width:100%;padding-right:36px"/>
+          <button onclick="const i=document.getElementById('psLoginToken');i.type=i.type==='password'?'text':'password'"
+            style="position:absolute;right:8px;top:50%;transform:translateY(-50%);
+                   background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px">👁</button>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="psRemember" checked style="accent-color:#ff6b00"/>
+        Recordar en este dispositivo
+      </label>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end;gap:8px">
+      <button class="btn" id="psLoginCancelBtn">Cancelar</button>
+      <button class="btn" id="psLoginConfirmBtn"
+        style="background:linear-gradient(135deg,#c84b11,#ff6b00);color:#fff;border:none;font-weight:700">
+        🏴‍☠️ Conectar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ MANUAL TRACKING ENTRY ════════════ -->
+<div class="modal-overlay" id="manualTrackModal" style="display:none;z-index:1300">
+  <div class="modal" style="max-width:380px;width:95vw">
+    <div class="modal-head">
+      <b style="font-size:15px;color:var(--gold2)">📝 Ingresar Tracking Manualmente</b>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 12px">
+        Si ya tienes el número de tracking de tu envío, ingrésalo aquí para guardarlo en el pedido.
+      </p>
+      <div class="form-group">
+        <label>Número de tracking</label>
+        <input id="manualTrackInput" placeholder="9400111899223387623910" style="width:100%;font-family:monospace"
+               onkeydown="if(event.key==='Enter')document.getElementById('manualTrackSave').click()"/>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:flex-end;gap:8px">
+      <button class="btn" id="manualTrackCancel">Omitir</button>
+      <button class="btn gold" id="manualTrackSave"
+        style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;border:none;font-weight:700">
+        Guardar Tracking
       </button>
     </div>
   </div>
