@@ -3329,7 +3329,7 @@ function showForcePasswordChange(){
 }
 
 function enterPanel(){
-  const ls=document.getElementById('adminLoginScreen'), panel=document.getElementById('adminPanel');
+  const ls=document.getElementById('adminLoginScreen'), panel=document.getElementById('adminShell');
   if(ls) ls.style.display='none';
   if(panel){ panel.style.display='block'; }
   try{ initDB(); }catch(e){ console.error('initDB:',e); }
