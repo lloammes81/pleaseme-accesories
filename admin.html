@@ -807,17 +807,30 @@
       <button class="btn ghost" id="openSalesReportsBtn" onclick="openSalesReportsModal()">📊 Reportes</button>
       
 
-<div id="adminSessionBadge" onclick="showAdminLogoutMenu()">
+<div id="adminSessionBadge" style="position:relative;cursor:pointer" onclick="toggleSessionMenu()">
         <div class="badge-dot"></div>
         <span id="adminBadgeName">Admin</span>
         <span style="color:rgba(240,223,160,.35);font-size:10px">▾</span>
+        <div id="sessionMenu" style="display:none;position:absolute;top:calc(100% + 8px);right:0;
+          background:rgba(10,8,3,.97);border:1px solid rgba(212,175,55,.25);border-radius:12px;
+          min-width:160px;padding:8px 0;box-shadow:0 12px 40px rgba(0,0,0,.6);z-index:999">
+          <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06)">
+            <div id="sessionMenuName" style="font-size:13px;font-weight:600;color:var(--gold)">Admin</div>
+            <div id="sessionMenuRole" style="font-size:10px;color:rgba(240,223,160,.4);margin-top:2px">Administrador</div>
+          </div>
+          <div onclick="event.stopPropagation();showAdminLogoutMenu()" style="padding:10px 14px;
+            font-size:12px;color:#ff8fa3;cursor:pointer;display:flex;align-items:center;gap:8px;
+            transition:background .15s" onmouseover="this.style.background='rgba(255,80,80,.08)'"
+            onmouseout="this.style.background=''">
+            ⏻ Cerrar sesión
+          </div>
+        </div>
       </div>
       <a class="btn" href="index.html">← Ver Tienda</a>
       <button class="btn ok" id="exportBtn">↓ Exportar</button>
       <label class="btn" for="importFile" style="cursor:pointer">↑ Importar</label>
       <input id="importFile" type="file" accept="application/json" style="display:none"/>
       <button class="btn danger" id="wipeBtn">⚠ Borrar todo</button>
-      <button onclick="showAdminLogoutMenu()" style="background:rgba(255,80,80,.12);border:1px solid rgba(255,80,80,.3);color:#ff8fa3;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-family:var(--fb);display:flex;align-items:center;gap:5px" title="Cerrar sesión">⏻ Salir</button>
     </div>
   </div>
 
@@ -3269,22 +3282,29 @@ async function doAdminLogin(){
   if(!pass){ lgToast('lgAdminToast','Ingresa la contraseña.','err'); return; }
   if(btn){ btn.textContent='Verificando...'; btn.disabled=true; }
   try{
-    let stored=null;
-    try{
-      const rows=await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&limit=1',{headers:SB_H}).then(r=>r.json());
-      if(rows&&rows.length) stored=rows[0].password_hash;
-    }catch(e){}
-    if(!stored) stored=localStorage.getItem(LS_ADMIN_PASS)||DEFAULT_PASS;
-    // Accept plain or legacy btoa
-    let ok=(pass===stored);
-    if(!ok){ try{ ok=(pass===atob(stored)); }catch(e){} }
+    // Check localStorage FIRST (most reliable), then Supabase as fallback
+    let stored = localStorage.getItem(LS_ADMIN_PASS) || DEFAULT_PASS;
+    let ok = (pass === stored);
+    // Try btoa decode for legacy stored passwords
+    if(!ok){ try{ ok = (pass === atob(stored)); }catch(e){} }
+    // If not in localStorage, try Supabase
+    if(!ok){
+      try{
+        const rows=await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&limit=1',{headers:SB_H}).then(r=>r.json());
+        if(rows&&rows.length){
+          const sbPass = rows[0].password_hash;
+          ok = (pass === sbPass);
+          if(!ok){ try{ ok=(pass===atob(sbPass)); }catch(e){} }
+          if(ok) localStorage.setItem(LS_ADMIN_PASS, pass); // sync to local
+        }
+      }catch(e){}
+    }
     if(!ok){ lgToast('lgAdminToast','Contraseña incorrecta.','err'); return; }
-    localStorage.setItem(LS_ADMIN_PASS, pass);
     if(pass===DEFAULT_PASS){ showForcePasswordChange(); return; }
     const session={isRoot:true,name:'Administrador',role:'admin'};
     saveAdminSession(session); adminSession=session;
     enterPanel();
-  }catch(e){ lgToast('lgAdminToast','Error al verificar.','err'); console.error(e); }
+  }catch(e){ lgToast('lgAdminToast','Error: '+e.message,'err'); console.error(e); }
   finally{ if(btn){ btn.textContent='→ Acceder como Admin'; btn.disabled=false; } }
 }
 
@@ -3338,6 +3358,7 @@ function enterPanel(){
   if(panel){ panel.style.display='block'; }
   try{ initDB(); }catch(e){ console.error('initDB:',e); }
   const hn=document.getElementById('headerUserName'); if(hn&&adminSession) hn.textContent=adminSession.name||'Admin';
+  const bn=document.getElementById('adminBadgeName'); if(bn&&adminSession) bn.textContent=adminSession.name||'Admin';
   if(adminSession&&!adminSession.isRoot){
     const pm={dashboard:'perm_dashboard',pedidos:'perm_pedidos',inventario:'perm_inventario',
       clientes:'perm_clientes',productos:'perm_productos',facturas:false,usuarios:false,notificaciones:false};
@@ -3381,8 +3402,29 @@ function saveAdminPassword(){
   });
   toast('✅ Contraseña actualizada.','ok'); closeAdminPassModal();
 }
+function toggleSessionMenu(){
+  const m=document.getElementById('sessionMenu');
+  if(!m) return;
+  const open = m.style.display==='block';
+  m.style.display = open ? 'none' : 'block';
+  // Update name/role in menu
+  if(!open && adminSession){
+    const mn=document.getElementById('sessionMenuName');
+    const mr=document.getElementById('sessionMenuRole');
+    if(mn) mn.textContent = adminSession.name||'Admin';
+    if(mr) mr.textContent = adminSession.isRoot ? 'Administrador' : (adminSession.role||'Personal');
+  }
+  // Close on outside click
+  if(!open){
+    setTimeout(()=>{
+      const close=e=>{ m.style.display='none'; document.removeEventListener('click',close); };
+      document.addEventListener('click',close);
+    },10);
+  }
+}
 function showAdminLogoutMenu(){
-  if(!confirm('¿Cerrar sesión?')) return;
+  const m=document.getElementById('sessionMenu'); if(m) m.style.display='none';
+  if(!confirm('¿Cerrar sesión como '+(adminSession?.name||'Admin')+'?')) return;
   clearAdminSession(); adminSession=null; location.reload();
 }
 
