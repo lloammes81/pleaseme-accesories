@@ -3462,6 +3462,707 @@ async function deleteAdminUser(id){
   renderUsersGrid(); updateCounts(); toast('Usuario eliminado.','ok');
 }
 
+
+
+// ══════════════════════════════════════════════════════════════
+//  FUNCIONES FALTANTES — CORREGIDAS
+// ══════════════════════════════════════════════════════════════
+
+// ── i18n: Aplicar traducciones data-i18n ─────────────────────
+(function applyI18n(){
+  const t = {
+    adminTitle:"Pleaseme — Panel Administrativo",
+    adminBadge:"ADMIN",
+    tabDashboard:"Dashboard",
+    tabOrders:"Pedidos",
+    tabInventory:"Inventario",
+    tabCustomers:"Clientes",
+    tabProducts:"Productos",
+    search:"Buscar",
+    status:"Estado",
+    statusPending:"Pendiente",
+    statusProcessing:"Procesando",
+    statusShipped:"Enviado",
+    statusDelivered:"Entregado",
+    statusCanceled:"Cancelado",
+    statusRefunded:"Reembolsado",
+    orderItems:"Productos del pedido",
+    updateStatus:"Actualizar estado",
+    print:"🖨 Imprimir",
+    save:"Guardar",
+    cancel:"Cancelar",
+    delete:"Eliminar",
+    edit:"Editar",
+    add:"Agregar",
+    name:"Nombre",
+    email:"Correo",
+    phone:"Teléfono",
+    address:"Dirección",
+    total:"Total",
+    date:"Fecha",
+    actions:"Acciones",
+    noResults:"Sin resultados",
+    loading:"Cargando...",
+    client:"Cliente",
+    product:"Producto",
+    stock:"Stock",
+    price:"Precio",
+    category:"Categoría",
+    description:"Descripción",
+    orders:"Pedidos",
+    revenue:"Ingresos",
+    dashboard:"Panel",
+    newOrder:"Nuevo pedido",
+    selectAll:"Seleccionar todo"
+  };
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if(t[key]) el.textContent = t[key];
+  });
+})();
+
+// ── openOrderModal ─────────────────────────────────────────────
+function openOrderModal(orderId){
+  const o = DB.orders.find(x=>x.id===orderId);
+  if(!o) return;
+  window.__activeOrderId = orderId;
+
+  const m = document.getElementById('orderModal');
+  if(!m) return;
+
+  // Header
+  const title = document.getElementById('modalOrderId');
+  if(title) title.textContent = 'Pedido #' + o.id;
+
+  // Detail grid
+  const grid = document.getElementById('orderDetailGrid');
+  if(grid){
+    const client = DB.clients.find(c=>c.id===o.clientId)||{};
+    grid.innerHTML = `
+      <div class="detail-block">
+        <span class="label">Cliente</span>
+        <div class="detail-val">${esc(o.clientName||client.name||'—')}</div>
+        <div class="detail-sub">${esc(o.clientEmail||client.email||'')}</div>
+        <div class="detail-sub">${esc(o.clientPhone||client.phone||'')}</div>
+      </div>
+      <div class="detail-block">
+        <span class="label">Fecha</span>
+        <div class="detail-val">${fmtDate(o.created_at)}</div>
+        <div class="detail-sub">Estado: <b>${statusLabel(o.status)}</b></div>
+      </div>
+      <div class="detail-block">
+        <span class="label">Total</span>
+        <div class="detail-val">${money2(o.total)}</div>
+        <div class="detail-sub">${(o.items||[]).length} producto(s)</div>
+      </div>
+      <div class="detail-block">
+        <span class="label">Envío</span>
+        <div class="detail-val" style="font-size:13px">${esc(o.shippingAddress||o.address||'No especificado')}</div>
+        ${o.trackingNumber ? `<div class="detail-sub">Tracking: ${esc(o.trackingNumber)}</div>` : ''}
+      </div>
+    `;
+  }
+
+  // Items list
+  const itemsList = document.getElementById('orderItemsList');
+  if(itemsList){
+    const items = o.items||[];
+    if(items.length){
+      itemsList.innerHTML = items.map(it=>{
+        const prod = DB.products.find(p=>p.id===it.productId)||{};
+        const img = (it.image||(prod.images&&prod.images[0]))||'';
+        return `
+          <div class="order-item-row">
+            ${img ? `<img class="item-img" src="${esc(img)}" onerror="this.style.display='none'">` : '<div class="item-img" style="background:rgba(212,175,55,.08)"></div>'}
+            <div>
+              <div class="item-name">${esc(it.name||prod.name||'Producto')}</div>
+              <div class="item-meta">x${it.qty||1} ${it.size?'· '+it.size:''} ${it.color?'· '+it.color:''}</div>
+            </div>
+            <div class="item-price">${money2((it.price||0)*(it.qty||1))}</div>
+          </div>`;
+      }).join('');
+    } else {
+      itemsList.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px">Sin productos registrados.</div>';
+    }
+  }
+
+  // Status selector
+  const sel = document.getElementById('modalStatusSel');
+  if(sel) sel.value = o.status||'pendiente';
+
+  // Update status button
+  const updBtn = document.getElementById('updateStatusBtn');
+  if(updBtn){
+    updBtn.onclick = async function(){
+      const newStatus = sel ? sel.value : 'pendiente';
+      const idx = DB.orders.findIndex(x=>x.id===orderId);
+      if(idx>=0){ DB.orders[idx].status = newStatus; }
+      try{ await sbUpdate('pedidos', orderId, {status:newStatus}); }catch(e){}
+      save(LS_ORDERS, DB.orders);
+      toast('Estado actualizado: '+statusLabel(newStatus),'ok');
+      m.classList.remove('open');
+      renderOrders(); renderDashboard(); updateCounts();
+    };
+  }
+
+  // Print button
+  const printBtn = document.getElementById('printOrderBtn');
+  if(printBtn){ printBtn.onclick = function(){ window.print(); }; }
+
+  // Close button
+  const closeBtn = document.getElementById('closeOrderModal');
+  if(closeBtn){ closeBtn.onclick = function(){ m.classList.remove('open'); }; }
+
+  m.classList.add('open');
+  m.onclick = function(e){ if(e.target===m) m.classList.remove('open'); };
+}
+
+// ── generateInvoice ────────────────────────────────────────────
+function generateInvoice(){
+  const o = getActiveOrder();
+  if(!o){ toast('No hay pedido activo.','warn'); return; }
+  try{
+    buildInvoicePDF(o);
+  } catch(e){
+    console.error('generateInvoice error:', e);
+    toast('Error al generar factura: '+ (e.message||e), 'warn');
+  }
+}
+
+// ── generateLabel ──────────────────────────────────────────────
+function generateLabel(){
+  const o = getActiveOrder();
+  if(!o){ toast('No hay pedido activo.','warn'); return; }
+  // Check if Pirateship credentials exist
+  const cfg = DB.config||{};
+  if(cfg.pirateshipKey){
+    createPirateshipLabel(o.id);
+  } else {
+    showManualTrackingEntry(o.id);
+  }
+}
+
+// ── confirmAndLabel ────────────────────────────────────────────
+function confirmAndLabel(){
+  const o = getActiveOrder();
+  if(!o){ toast('No hay pedido activo.','warn'); return; }
+  if(!confirm('¿Confirmar pedido y generar etiqueta de envío?')) return;
+  const idx = DB.orders.findIndex(x=>x.id===o.id);
+  if(idx>=0) DB.orders[idx].status = 'procesando';
+  save(LS_ORDERS, DB.orders);
+  sbUpdate('pedidos', o.id, {status:'procesando'}).catch(()=>{});
+  toast('Pedido confirmado.','ok');
+  generateLabel();
+}
+
+// ── confirmAndLabelNew ─────────────────────────────────────────
+function confirmAndLabelNew(){
+  confirmAndLabel();
+}
+
+// ── confirmLabel ───────────────────────────────────────────────
+function confirmLabel(carrier){
+  const o = getActiveOrder();
+  if(!o){ toast('No hay pedido activo.','warn'); return; }
+  toast('Generando etiqueta con '+(carrier||'carrier')+'…','ok');
+  // Carrier routing
+  if(carrier==='USPS' || carrier==='UPS'){
+    showManualTrackingEntry(o.id);
+  } else {
+    createPirateshipLabel(o.id);
+  }
+}
+
+// ── deleteOrder ────────────────────────────────────────────────
+async function deleteOrder(orderId){
+  if(!confirm('¿Eliminar el pedido #'+orderId+'? Esta acción no se puede deshacer.')) return;
+  DB.orders = DB.orders.filter(o=>o.id!==orderId);
+  save(LS_ORDERS, DB.orders);
+  try{ await fetch(SB_URL+'/rest/v1/pedidos?id=eq.'+orderId,{method:'DELETE',headers:SB_H}); }catch(e){}
+  const m = document.getElementById('orderModal');
+  if(m) m.classList.remove('open');
+  renderOrders(); renderDashboard(); updateCounts();
+  toast('Pedido eliminado.','ok');
+}
+
+// ── quickInvoice ───────────────────────────────────────────────
+function quickInvoice(orderId){
+  const o = DB.orders.find(x=>x.id===orderId);
+  if(!o){ toast('Pedido no encontrado.','warn'); return; }
+  window.__activeOrderId = orderId;
+  try{ buildInvoicePDF(o); }
+  catch(e){ toast('Error al generar factura.','warn'); console.error(e); }
+}
+
+// ── quickLabel ─────────────────────────────────────────────────
+function quickLabel(orderId){
+  window.__activeOrderId = orderId;
+  generateLabel();
+}
+
+// ── openCompanyInfoModal ───────────────────────────────────────
+function openCompanyInfoModal(){
+  const m = document.getElementById('companyInfoModal');
+  if(!m){ toast('Modal de compañía no disponible.','warn'); return; }
+  loadCompanyInfoForm();
+  m.style.display = 'flex';
+  m.onclick = function(e){ if(e.target===m) m.style.display='none'; };
+}
+
+// ── openNewOrderModal ──────────────────────────────────────────
+function openNewOrderModal(){
+  // Build a quick inline modal for creating a new order
+  let existing = document.getElementById('newOrderModalDyn');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'newOrderModalDyn';
+  overlay.className = 'modal-overlay open';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:540px">
+      <div class="modal-head">
+        <b>Nuevo Pedido</b>
+        <button class="btn sm" id="closeNOM">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:grid;gap:12px">
+          <div class="form-group">
+            <label>Cliente</label>
+            <select id="nomClientSel">
+              <option value="">— Seleccionar cliente —</option>
+              ${(DB.clients||[]).map(c=>`<option value="${esc(c.id)}">${esc(c.name)} — ${esc(c.email)}</option>`).join('')}
+            </select>
+          </div>
+          <div id="nomItemsArea">
+            <div class="label" style="margin-bottom:8px">Productos</div>
+            <div id="nomItemsList"></div>
+            <button class="btn sm" id="nomAddItem" style="margin-top:8px">+ Agregar producto</button>
+          </div>
+          <div class="form-group">
+            <label>Dirección de envío</label>
+            <input id="nomAddress" placeholder="Calle, ciudad, país…">
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div class="form-group" style="flex:1">
+              <label>Estado inicial</label>
+              <select id="nomStatus">
+                <option value="pendiente">Pendiente</option>
+                <option value="procesando">Procesando</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label>Total (manual)</label>
+              <input id="nomTotal" type="number" min="0" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notas (opcional)</label>
+            <textarea id="nomNotes" rows="2" placeholder="Notas del pedido…"></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" id="nomSaveBtn">💾 Crear Pedido</button>
+          <button class="btn" id="nomCancelBtn">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  document.getElementById('closeNOM').onclick = () => overlay.remove();
+  document.getElementById('nomCancelBtn').onclick = () => overlay.remove();
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+
+  // Items management
+  let nomItems = [];
+  function nomRenderItemsLocal(){
+    const list = document.getElementById('nomItemsList');
+    if(!list) return;
+    if(!nomItems.length){
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Sin productos aún.</div>';
+      return;
+    }
+    list.innerHTML = nomItems.map((it,i)=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)">
+        <span style="flex:1;font-size:13px;color:var(--gold3)">${esc(it.name)}</span>
+        <span style="font-size:12px;color:var(--muted)">x${it.qty} — ${money2(it.price*it.qty)}</span>
+        <button class="btn sm danger" onclick="this.closest('[id=newOrderModalDyn]').__removeItem(${i})">✕</button>
+      </div>`).join('');
+    // Auto-update total
+    const totalEl = document.getElementById('nomTotal');
+    if(totalEl && !totalEl.dataset.manual){
+      totalEl.value = nomItems.reduce((a,it)=>a+it.price*it.qty,0).toFixed(2);
+    }
+  }
+  overlay.__removeItem = function(i){ nomItems.splice(i,1); nomRenderItemsLocal(); };
+  nomRenderItemsLocal();
+
+  document.getElementById('nomTotal').addEventListener('input', function(){ this.dataset.manual='1'; });
+
+  document.getElementById('nomAddItem').onclick = function(){
+    const prodSel = prompt('Escribe el nombre del producto:');
+    if(!prodSel) return;
+    const prod = DB.products.find(p=>p.id===prodSel||p.name.toLowerCase()===prodSel.toLowerCase());
+    if(!prod){ toast('Producto no encontrado.','warn'); return; }
+    const qtyS = prompt('Cantidad:', '1');
+    const qty = Math.max(1, parseInt(qtyS)||1);
+    nomItems.push({productId:prod.id, name:prod.name, price:prod.price, qty, image:(prod.images||[])[0]||''});
+    nomRenderItemsLocal();
+  };
+
+  document.getElementById('nomSaveBtn').onclick = async function(){
+    const clientId = document.getElementById('nomClientSel').value;
+    const client = DB.clients.find(c=>c.id===clientId)||{};
+    const address = document.getElementById('nomAddress').value.trim();
+    const status = document.getElementById('nomStatus').value;
+    const notes = document.getElementById('nomNotes').value.trim();
+    const totalVal = parseFloat(document.getElementById('nomTotal').value)||nomItems.reduce((a,it)=>a+it.price*it.qty,0);
+
+    if(!clientId && !nomItems.length){ toast('Selecciona al menos un cliente o producto.','warn'); return; }
+
+    const newOrder = {
+      id: 'ORD-'+Date.now(),
+      clientId, clientName: client.name||'Sin nombre',
+      clientEmail: client.email||'',
+      clientPhone: client.phone||'',
+      shippingAddress: address,
+      items: nomItems,
+      total: totalVal,
+      status,
+      notes,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    DB.orders.unshift(newOrder);
+    save(LS_ORDERS, DB.orders);
+    try{ await sbUpsert('pedidos', [newOrder]); }catch(e){}
+
+    overlay.remove();
+    renderOrders(); renderDashboard(); updateCounts();
+    toast('Pedido creado: '+newOrder.id,'ok');
+  };
+}
+
+// ── invoiceNewOrder ────────────────────────────────────────────
+function invoiceNewOrder(){
+  const latest = DB.orders[0];
+  if(!latest){ toast('No hay pedidos.','warn'); return; }
+  window.__activeOrderId = latest.id;
+  try{ buildInvoicePDF(latest); }
+  catch(e){ toast('Error al generar factura.','warn'); }
+}
+
+// ── labelNewOrder ──────────────────────────────────────────────
+function labelNewOrder(){
+  const latest = DB.orders[0];
+  if(!latest){ toast('No hay pedidos.','warn'); return; }
+  window.__activeOrderId = latest.id;
+  generateLabel();
+}
+
+// ── viewNewOrder ───────────────────────────────────────────────
+function viewNewOrder(){
+  const latest = DB.orders[0];
+  if(!latest){ toast('No hay pedidos.','warn'); return; }
+  // Switch to pedidos tab
+  const tabBtn = document.querySelector('[data-tab="pedidos"]');
+  if(tabBtn) tabBtn.click();
+  setTimeout(()=> openOrderModal(latest.id), 200);
+}
+
+// ── Notifications ──────────────────────────────────────────────
+let __notifFilter = 'all';
+let __notifications = [];
+
+function _getNotifications(){
+  // Build from orders if not set
+  if(!__notifications.length){
+    __notifications = (DB.orders||[]).slice(0,20).map(o=>({
+      id:'n_'+o.id,
+      type:'order',
+      title:'Pedido '+o.id,
+      body:(o.clientName||'Cliente')+' — '+statusLabel(o.status),
+      date:o.created_at,
+      read:false,
+      orderId:o.id
+    }));
+  }
+  return __notifications;
+}
+
+function toggleNotifPanel(){
+  const bell = document.getElementById('notifBell');
+  if(!bell) return;
+  // Find or create the notif panel
+  let panel = document.getElementById('notifPanel');
+  if(!panel){
+    panel = document.createElement('div');
+    panel.id = 'notifPanel';
+    panel.style.cssText = 'display:none;position:absolute;top:46px;right:-10px;width:360px;max-height:520px;overflow-y:auto;background:var(--surface);border:1px solid rgba(212,175,55,.18);border-radius:14px;z-index:300;box-shadow:0 20px 60px rgba(0,0,0,.7)';
+    panel.innerHTML = `
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(212,175,55,.1);display:flex;align-items:center;justify-content:space-between">
+        <b style="font-family:var(--fd);font-size:16px;color:var(--gold3)">Notificaciones</b>
+        <div style="display:flex;gap:6px">
+          <button onclick="markAllNotifRead()" title="Marcar todas como leídas" style="padding:4px 8px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--muted);cursor:pointer;font-size:11px">✓ Leer todas</button>
+          <button onclick="clearAllNotif()" title="Limpiar" style="padding:4px 8px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--muted);cursor:pointer;font-size:11px">✕</button>
+        </div>
+      </div>
+      <div style="padding:10px 16px;display:flex;gap:6px;border-bottom:1px solid rgba(212,175,55,.05)">
+        <button class="notif-chip active" data-filter="all" onclick="setNotifFilter('all',this)">Todas</button>
+        <button class="notif-chip" data-filter="order" onclick="setNotifFilter('order',this)">📦 Pedidos</button>
+        <button class="notif-chip" data-filter="stock" onclick="setNotifFilter('stock',this)">⚠️ Stock</button>
+      </div>
+      <div id="notifList"></div>`;
+    bell.style.position = 'relative';
+    bell.parentElement.style.position = 'relative';
+    bell.parentElement.appendChild(panel);
+  }
+
+  const isOpen = panel.style.display === 'block';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if(!isOpen){
+    _renderNotifList();
+    setTimeout(()=>{
+      const close = e => { if(!panel.contains(e.target) && e.target!==bell){ panel.style.display='none'; document.removeEventListener('click',close); }};
+      document.addEventListener('click', close);
+    }, 50);
+  }
+}
+
+function _renderNotifList(){
+  const list = document.getElementById('notifList');
+  if(!list) return;
+  const all = _getNotifications();
+  const filtered = __notifFilter==='all' ? all : all.filter(n=>n.type===__notifFilter);
+  if(!filtered.length){
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sin notificaciones.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(n=>`
+    <div class="notif-item" style="display:flex;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(212,175,55,.05);cursor:pointer;background:${n.read?'transparent':'rgba(212,175,55,.04)'}"
+      onclick="_clickNotif('${n.id}')">
+      <div style="width:36px;height:36px;border-radius:9px;background:rgba(212,175,55,.1);display:grid;place-items:center;flex-shrink:0;font-size:16px">
+        ${n.type==='order'?'📦':n.type==='stock'?'⚠️':'🔔'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;color:var(--gold3)">${esc(n.title)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(n.body)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">${fmtDate(n.date)}</div>
+      </div>
+      ${!n.read ? '<div style="width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:4px"></div>' : ''}
+    </div>`).join('');
+  _updateBell();
+}
+
+function _clickNotif(notifId){
+  const n = __notifications.find(x=>x.id===notifId);
+  if(!n) return;
+  n.read = true;
+  _renderNotifList();
+  if(n.orderId){
+    const panel = document.getElementById('notifPanel');
+    if(panel) panel.style.display='none';
+    const tabBtn = document.querySelector('[data-tab="pedidos"]');
+    if(tabBtn) tabBtn.click();
+    setTimeout(()=> openOrderModal(n.orderId), 200);
+  }
+}
+
+function _updateBell(){
+  const bell = document.getElementById('notifBell');
+  if(!bell) return;
+  const unread = _getNotifications().filter(n=>!n.read).length;
+  bell.classList.toggle('has-notif', unread>0);
+  let badge = bell.querySelector('.notif-badge');
+  if(unread>0){
+    if(!badge){ badge=document.createElement('span'); badge.className='notif-badge'; badge.style.cssText='position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;min-width:16px;text-align:center'; bell.appendChild(badge); }
+    badge.textContent = unread>9?'9+':unread;
+  } else {
+    if(badge) badge.remove();
+  }
+}
+
+function markAllNotifRead(){
+  _getNotifications().forEach(n=>n.read=true);
+  _renderNotifList();
+  toast('Todas marcadas como leídas.','ok');
+}
+
+function clearAllNotif(){
+  __notifications = [];
+  const list = document.getElementById('notifList');
+  if(list) list.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sin notificaciones.</div>';
+  _updateBell();
+  toast('Notificaciones eliminadas.','ok');
+}
+
+function setNotifFilter(type, btn){
+  __notifFilter = type;
+  document.querySelectorAll('.notif-chip').forEach(b=>b.classList.toggle('active', b===btn));
+  _renderNotifList();
+}
+
+// ── renderFacturas ─────────────────────────────────────────────
+function renderFacturas(){
+  const container = document.getElementById('tab-facturas');
+  if(!container) return;
+
+  const orders = DB.orders||[];
+  const selectedIds = new Set(
+    [...container.querySelectorAll('.fac-check:checked')].map(el=>el.dataset.id)
+  );
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+      <div>
+        <div style="font-family:var(--fd);font-size:22px;font-weight:600;color:var(--gold3)">Facturas</div>
+        <div style="font-size:12px;color:var(--muted)">${orders.length} pedido(s) en total</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ok" onclick="exportFacturasCSV()" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">📥 Exportar CSV</button>
+        <button class="btn gold" onclick="printAllFacturas()">🖨️ Imprimir Selección</button>
+      </div>
+    </div>
+    <div class="card">
+      <table class="orders-table" style="width:100%">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="facSelectAll" onclick="toggleSelectAllFac(this)" style="accent-color:var(--gold)"></th>
+            <th>Pedido</th>
+            <th>Cliente</th>
+            <th>Fecha</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${orders.length ? orders.map(o=>`
+            <tr>
+              <td><input type="checkbox" class="fac-check" data-id="${esc(o.id)}" style="accent-color:var(--gold)"></td>
+              <td><div class="order-id">${esc(o.id)}</div></td>
+              <td><div style="font-size:13px">${esc(o.clientName||'—')}</div><div style="font-size:11px;color:var(--muted)">${esc(o.clientEmail||'')}</div></td>
+              <td style="font-size:12px;color:var(--muted)">${fmtDate(o.created_at)}</td>
+              <td><span style="font-family:var(--fd);font-size:15px;color:var(--gold)">${money2(o.total)}</span></td>
+              <td><span class="badge ${o.status||'pendiente'}">${statusLabel(o.status)}</span></td>
+              <td>
+                <div style="display:flex;gap:6px">
+                  <button class="btn sm ok" onclick="quickInvoice('${esc(o.id)}')" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">🧾 PDF</button>
+                  <button class="btn sm" onclick="openOrderModal('${esc(o.id)}')" style="background:rgba(212,175,55,.08);border-color:rgba(212,175,55,.3);color:var(--gold)">👁 Ver</button>
+                </div>
+              </td>
+            </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Sin pedidos registrados.</td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// ── exportFacturasCSV ──────────────────────────────────────────
+function exportFacturasCSV(){
+  const orders = DB.orders||[];
+  if(!orders.length){ toast('No hay pedidos para exportar.','warn'); return; }
+
+  const headers = ['ID','Cliente','Email','Fecha','Total','Estado','Dirección'];
+  const rows = orders.map(o=>[
+    o.id, o.clientName||'', o.clientEmail||'',
+    fmtDate(o.created_at), (o.total||0).toFixed(2),
+    statusLabel(o.status), o.shippingAddress||o.address||''
+  ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','));
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'facturas_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('CSV exportado correctamente.','ok');
+}
+
+// ── printAllFacturas ───────────────────────────────────────────
+function printAllFacturas(){
+  const checks = document.querySelectorAll('.fac-check:checked');
+  if(!checks.length){ toast('Selecciona al menos un pedido.','warn'); return; }
+  const ids = [...checks].map(el=>el.dataset.id);
+  const orders = DB.orders.filter(o=>ids.includes(o.id));
+  // Open print window
+  const win = window.open('','_blank','width=800,height=600');
+  const co = getCompanyInfo();
+  win.document.write(`
+    <html><head><title>Facturas</title>
+    <style>
+      body{font-family:Arial,sans-serif;color:#000;background:#fff;padding:20px}
+      .factura{border:1px solid #ccc;border-radius:8px;padding:20px;margin-bottom:30px;page-break-after:always}
+      h2{color:#333;margin-bottom:4px} .gold{color:#c9963a}
+      table{width:100%;border-collapse:collapse;margin-top:12px}
+      th{background:#f5f0e0;padding:8px;text-align:left;font-size:12px}
+      td{padding:8px;border-bottom:1px solid #eee;font-size:13px}
+      .total{font-size:18px;font-weight:bold;text-align:right;margin-top:12px}
+    </style></head><body>
+    ${orders.map(o=>`
+      <div class="factura">
+        <h2>📦 Pedido <span class="gold">#${esc(o.id)}</span></h2>
+        ${co.name ? `<div style="font-size:12px;color:#666">${esc(co.name)}</div>` : ''}
+        <div style="margin:10px 0;font-size:13px">
+          <b>Cliente:</b> ${esc(o.clientName||'—')}<br>
+          <b>Email:</b> ${esc(o.clientEmail||'—')}<br>
+          <b>Fecha:</b> ${fmtDate(o.created_at)}<br>
+          <b>Estado:</b> ${statusLabel(o.status)}<br>
+          ${o.shippingAddress ? `<b>Dirección:</b> ${esc(o.shippingAddress)}` : ''}
+        </div>
+        <table>
+          <tr><th>Producto</th><th>Qty</th><th>Precio</th><th>Subtotal</th></tr>
+          ${(o.items||[]).map(it=>`<tr>
+            <td>${esc(it.name||'Producto')}</td>
+            <td>${it.qty||1}</td>
+            <td>$${Number(it.price||0).toFixed(2)}</td>
+            <td>$${Number((it.price||0)*(it.qty||1)).toFixed(2)}</td>
+          </tr>`).join('')}
+        </table>
+        <div class="total">Total: $${Number(o.total||0).toFixed(2)}</div>
+      </div>`).join('')}
+    </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>win.print(), 500);
+}
+
+// ── toggleSelectAllFac ─────────────────────────────────────────
+function toggleSelectAllFac(checkbox){
+  document.querySelectorAll('.fac-check').forEach(el=>el.checked=checkbox.checked);
+}
+
+// ── epClearCreds / psClearCreds ────────────────────────────────
+function epClearCreds(){
+  if(!confirm('¿Eliminar credenciales de EasyPost?')) return;
+  const cfg = DB.config||{};
+  delete cfg.easypostKey;
+  DB.config = cfg;
+  save('pm_config_v1', cfg);
+  toast('Credenciales EasyPost eliminadas.','ok');
+}
+
+function psClearCreds(){
+  if(!confirm('¿Eliminar credenciales de Pirateship?')) return;
+  const cfg = DB.config||{};
+  delete cfg.pirateshipKey;
+  DB.config = cfg;
+  save('pm_config_v1', cfg);
+  toast('Credenciales Pirateship eliminadas.','ok');
+}
+
+// ── Fix: document.getElementById used as standalone ───────────
+// (Ensures it always refers to document.getElementById)
+if(typeof getElementById === 'undefined'){
+  window.getElementById = function(id){ return document.getElementById(id); };
+}
+
+// ── Initialize notifications badge on load ─────────────────────
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(_updateBell, 1500);
+});
+
 </script>
 
 
