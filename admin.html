@@ -1817,6 +1817,9 @@
 //  SUPABASE — REST API directa (sin SDK, sin workers)
 // ════════════════════════════════════════════════
 const SB_URL = 'https://sqcggascnbcnfkymqcql.supabase.co';
+const LS_ADMIN_PASS    = 'pm_admin_pass_v2';
+const LS_ADMIN_SESSION = 'pm_admin_session_v1';
+const DEFAULT_PASS     = 'admin123';
 // ── Detectar si se abre como archivo local ───────────────────
 if(location.protocol === 'file:'){
   document.addEventListener('DOMContentLoaded',()=>{
@@ -2439,7 +2442,7 @@ const LS_PRODS  = "pm_products_v1";
 const LS_ORDERS = "pm_orders_v1";
 const LS_CLIENTS= "pm_clients_v1";
 const LS_COMPANY= "pm_company_v1";
-const LS_ADMIN_PASS = "pm_admin_password_v1";
+// LS_ADMIN_PASS defined above
 const LS_PURCHASES = "pm_purchases_v1";
 
 
