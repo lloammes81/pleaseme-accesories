@@ -3235,6 +3235,187 @@ function openUserModal(userId=null){
 }
 function closeUserModal(){ const m=document.getElementById('userModal'); if(m){m.style.display='none';m.classList.remove('open');} editingUserId=null; }
 
+
+
+// ══════════════════════════════════════════════════════════════
+//  AUTH — Login, Logout, Session
+// ══════════════════════════════════════════════════════════════
+let adminSession = null;
+
+function saveAdminSession(s){ localStorage.setItem('pm_admin_session_v1', JSON.stringify(s)); }
+function loadAdminSession(){ try{ return JSON.parse(localStorage.getItem('pm_admin_session_v1')||'null'); }catch{ return null; } }
+function clearAdminSession(){ localStorage.removeItem('pm_admin_session_v1'); }
+
+function lgSwitchTab(tab){
+  const isAdmin = tab==='admin';
+  const btnA=document.getElementById('lgTabAdmin'), btnU=document.getElementById('lgTabUser');
+  const pA=document.getElementById('lgPanelAdmin'), pU=document.getElementById('lgPanelUser');
+  [btnA,btnU].forEach((b,i)=>{
+    if(!b) return;
+    b.style.background = (i===0)===isAdmin ? 'linear-gradient(135deg,#c9963a,#e8c56e)' : 'transparent';
+    b.style.color = (i===0)===isAdmin ? '#0d0900' : 'rgba(240,223,160,.5)';
+  });
+  if(pA) pA.style.display = isAdmin ? 'block' : 'none';
+  if(pU) pU.style.display = !isAdmin ? 'block' : 'none';
+}
+
+async function doAdminLogin(){
+  const pass=(document.getElementById('lgAdminPass')?.value||'').trim();
+  const btn=document.getElementById('lgAdminBtn');
+  if(!pass){ lgToast('lgAdminToast','Ingresa la contraseña.','err'); return; }
+  if(btn){ btn.textContent='Verificando...'; btn.disabled=true; }
+  try{
+    let stored=null;
+    try{
+      const rows=await fetch(SB_URL+'/rest/v1/admin_auth?select=password_hash&limit=1',{headers:SB_H}).then(r=>r.json());
+      if(rows&&rows.length) stored=rows[0].password_hash;
+    }catch(e){}
+    if(!stored) stored=localStorage.getItem(LS_ADMIN_PASS)||DEFAULT_PASS;
+    // Accept plain or legacy btoa
+    let ok=(pass===stored);
+    if(!ok){ try{ ok=(pass===atob(stored)); }catch(e){} }
+    if(!ok){ lgToast('lgAdminToast','Contraseña incorrecta.','err'); return; }
+    localStorage.setItem(LS_ADMIN_PASS, pass);
+    if(pass===DEFAULT_PASS){ showForcePasswordChange(); return; }
+    const session={isRoot:true,name:'Administrador',role:'admin'};
+    saveAdminSession(session); adminSession=session;
+    enterPanel();
+  }catch(e){ lgToast('lgAdminToast','Error al verificar.','err'); console.error(e); }
+  finally{ if(btn){ btn.textContent='→ Acceder como Admin'; btn.disabled=false; } }
+}
+
+async function doStaffLogin(){
+  const username=(document.getElementById('lgUserName')?.value||'').trim().toLowerCase();
+  const pass=(document.getElementById('lgUserPass')?.value||'').trim();
+  const btn=document.getElementById('lgUserBtn');
+  if(!username||!pass){ lgToast('lgUserToast','Ingresa usuario y contraseña.','err'); return; }
+  if(btn){ btn.textContent='Verificando...'; btn.disabled=true; }
+  try{
+    let rows=[];
+    try{
+      rows=await fetch(SB_URL+'/rest/v1/admin_users?username=eq.'+encodeURIComponent(username)+'&select=*&limit=1',{headers:SB_H}).then(r=>r.json());
+      if(!rows||!rows.length) rows=await fetch(SB_URL+'/rest/v1/admin_users?email=eq.'+encodeURIComponent(username)+'&select=*&limit=1',{headers:SB_H}).then(r=>r.json());
+    }catch(e){}
+    if(!rows||!rows.length){
+      const local=(DB.adminUsers||[]).find(u=>(u.username||'').toLowerCase()===username||(u.email||'').toLowerCase()===username);
+      if(local) rows=[local];
+    }
+    if(!rows||!rows.length){ lgToast('lgUserToast','Usuario no encontrado.','err'); return; }
+    const u=rows[0];
+    if(u.active===false){ lgToast('lgUserToast','Cuenta desactivada.','err'); return; }
+    if(u.password_hash!==pass){ lgToast('lgUserToast','Contraseña incorrecta.','err'); return; }
+    const session={isRoot:false,id:u.id,name:u.name,username:u.username||u.email||'',email:u.email,role:u.role,
+      perms:{perm_dashboard:u.perm_dashboard,perm_pedidos:u.perm_pedidos,perm_inventario:u.perm_inventario,
+        perm_clientes:u.perm_clientes,perm_productos:u.perm_productos,
+        can_edit:u.can_edit,can_delete:u.can_delete,can_export:u.can_export}};
+    saveAdminSession(session); adminSession=session;
+    fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+u.id,{method:'PATCH',headers:{...SB_H,'Prefer':'return=minimal'},
+      body:JSON.stringify({last_login:new Date().toISOString()})}).catch(()=>{});
+    enterPanel();
+  }catch(e){ lgToast('lgUserToast','Error al verificar.','err'); console.error(e); }
+  finally{ if(btn){ btn.textContent='→ Acceder'; btn.disabled=false; } }
+}
+
+function lgToast(id,msg,type){
+  const el=document.getElementById(id); if(!el) return;
+  el.textContent=msg; el.style.display='block';
+  el.style.color=type==='err'?'#ff8fa3':type==='ok'?'#2fe3b5':'#e8c56e';
+  clearTimeout(el._tid); el._tid=setTimeout(()=>el.style.display='none',3500);
+}
+
+function showForcePasswordChange(){
+  const m=document.getElementById('adminPassModal'); if(m) m.style.display='flex';
+  toast('Primera vez: cambia la contraseña admin123.','warn');
+}
+
+function enterPanel(){
+  const ls=document.getElementById('adminLoginScreen'), panel=document.getElementById('adminPanel');
+  if(ls) ls.style.display='none';
+  if(panel){ panel.style.display='block'; }
+  try{ initDB(); }catch(e){ console.error('initDB:',e); }
+  const hn=document.getElementById('headerUserName'); if(hn&&adminSession) hn.textContent=adminSession.name||'Admin';
+  if(adminSession&&!adminSession.isRoot){
+    const pm={dashboard:'perm_dashboard',pedidos:'perm_pedidos',inventario:'perm_inventario',
+      clientes:'perm_clientes',productos:'perm_productos',facturas:false,usuarios:false,notificaciones:false};
+    document.querySelectorAll('.tab-btn').forEach(btn=>{
+      const p=pm[btn.dataset.tab];
+      if(p===false||(p&&!adminSession.perms[p])) btn.style.display='none';
+    });
+    ['wipeBtn','importFile','openAdminPassBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  }
+  const firstTab=document.querySelector('.tab-btn:not([style*="display:none"])');
+  if(firstTab) setTimeout(()=>firstTab.click(),100);
+}
+
+// Auto-restore session on page load
+(function(){
+  const s=loadAdminSession();
+  if(s){ adminSession=s; window.addEventListener('DOMContentLoaded',()=>{ setTimeout(enterPanel,200); }); }
+})();
+
+// ── Admin password ─────────────────────────────────────────────
+function openAdminPassModal(){
+  const m=document.getElementById('adminPassModal'); if(m) m.style.display='flex';
+  ['adminPassCurrent','adminPassNew','adminPassConfirm'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+function closeAdminPassModal(){ const m=document.getElementById('adminPassModal'); if(m) m.style.display='none'; }
+function saveAdminPassword(){
+  const current=(document.getElementById('adminPassCurrent')?.value||'').trim();
+  const nextp=(document.getElementById('adminPassNew')?.value||'').trim();
+  const confirm=(document.getElementById('adminPassConfirm')?.value||'').trim();
+  let saved=localStorage.getItem(LS_ADMIN_PASS)||DEFAULT_PASS;
+  let decoded=saved; try{decoded=atob(saved);}catch(e){}
+  const isDefault=(saved===DEFAULT_PASS||decoded===DEFAULT_PASS);
+  if(!isDefault&&current!==saved&&current!==decoded){ toast('La contraseña actual no coincide.','err'); return; }
+  if(!nextp||nextp.length<4){ toast('Mínimo 4 caracteres.','warn'); return; }
+  if(nextp!==confirm){ toast('La confirmación no coincide.','err'); return; }
+  localStorage.setItem(LS_ADMIN_PASS,nextp);
+  fetch(SB_URL+'/rest/v1/admin_auth?id=eq.1',{method:'PATCH',headers:{...SB_H,'Prefer':'return=minimal'},
+    body:JSON.stringify({password_hash:nextp,updated_at:new Date().toISOString()})}).catch(()=>{
+    fetch(SB_URL+'/rest/v1/admin_auth',{method:'POST',headers:{...SB_H,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({id:1,password_hash:nextp,updated_at:new Date().toISOString()})}).catch(()=>{});
+  });
+  toast('✅ Contraseña actualizada.','ok'); closeAdminPassModal();
+}
+function showAdminLogoutMenu(){
+  if(!confirm('¿Cerrar sesión?')) return;
+  clearAdminSession(); adminSession=null; location.reload();
+}
+
+async function saveAdminUser(){
+  const g=id=>(document.getElementById(id)?.value||'').trim();
+  const gc=id=>document.getElementById(id)?.checked||false;
+  const name=g('uName'); const username=g('uUsername').toLowerCase().replace(/[^a-z0-9_]/g,'_');
+  const email=g('uEmail'); const pass=g('uPass'); const role=g('uRole')||'staff';
+  if(!name||!username){ toast('Nombre y usuario son obligatorios.','warn'); return; }
+  if(!editingUserId&&!pass){ toast('Contraseña obligatoria para nuevos usuarios.','warn'); return; }
+  if(pass&&pass.length<4){ toast('Mínimo 4 caracteres.','warn'); return; }
+  const user={id:editingUserId||'usr_'+Date.now(),name,username,email,role,active:gc('uActive'),
+    perm_dashboard:gc('pDashboard'),perm_pedidos:gc('pPedidos'),perm_inventario:gc('pInventario'),
+    perm_clientes:gc('pClientes'),perm_productos:gc('pProductos'),
+    can_edit:gc('pCanEdit'),can_delete:gc('pCanDelete'),can_export:gc('pCanExport'),
+    updated_at:new Date().toISOString()};
+  if(pass) user.password_hash=pass;
+  if(!DB.adminUsers) DB.adminUsers=[];
+  if(editingUserId){ const idx=DB.adminUsers.findIndex(u=>u.id===editingUserId); if(idx>=0) DB.adminUsers[idx]={...DB.adminUsers[idx],...user}; }
+  else DB.adminUsers.push(user);
+  save('pm_admin_users',DB.adminUsers);
+  try{
+    const sbU={...user};
+    await fetch(SB_URL+'/rest/v1/admin_users',{method:'POST',headers:{...SB_H,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(sbU)});
+  }catch(e){ console.warn('SB admin_users:',e); }
+  closeUserModal(); renderUsersGrid(); updateCounts();
+  toast((editingUserId?'Usuario actualizado':'Usuario creado')+': '+name,'ok');
+}
+
+async function deleteAdminUser(id){
+  if(!confirm('¿Eliminar este usuario?')) return;
+  DB.adminUsers=(DB.adminUsers||[]).filter(u=>u.id!==id);
+  save('pm_admin_users',DB.adminUsers);
+  try{ await fetch(SB_URL+'/rest/v1/admin_users?id=eq.'+id,{method:'DELETE',headers:SB_H}); }catch(e){}
+  renderUsersGrid(); updateCounts(); toast('Usuario eliminado.','ok');
+}
+
 </script>
 
 
