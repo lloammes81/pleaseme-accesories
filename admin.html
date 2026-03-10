@@ -3131,7 +3131,7 @@ function renderOrders(){
         <div style="font-size:13px;color:var(--text)">${esc(o.clientName)}</div>
         <div class="order-meta">${esc(o.clientEmail)}</div>
       </td>
-      <td style="font-size:12px;color:var(--muted)">${o.items.reduce((a,i)=>a+i.qty,0)} </td>
+      <td style="font-size:12px;color:var(--muted)">${(o.items||o.record?.items||[]).reduce((a,i)=>a+(i.qty||0),0)} </td>
       <td style="font-family:var(--fd);font-size:16px;color:var(--gold);font-weight:600">${money(o.total)}</td>
       <td style="font-size:12px;color:var(--muted)">${fmtDate(o.created_at)}</td>
       <td><span class="badge ${o.status}">${statusLabel(o.status)}</span></td>
@@ -3157,21 +3157,7 @@ window.deleteOrder = function(id){
 
 // New order (manual)
 $("newOrderBtn").addEventListener("click",()=>{
-  // Create a quick blank order
-  const clientName = prompt("Nombre del cliente:");
-  if(!clientName) return;
-  const total = parseFloat(prompt("Total del pedido ($):")||"0");
-  if(isNaN(total)||total<=0){ toast("Total inválido.","err"); return; }
-  const now = new Date().toISOString();
-  const id = "ORD-"+String(DB.orders.length+1).padStart(4,"0");
-  DB.orders.unshift({
-    id, clientId:"", clientName, clientEmail:"", clientPhone:"",
-    items:[{productId:"",name:"Prenda personalizada",size:"—",color:"—",qty:1,price:total,image:""}],
-    total, status:"pendiente", notes:"Pedido creado manualmente.",
-    address:"", created_at:now
-  });
-  persist(); renderOrders(); updateCounts();
-  toast(`Pedido ${id} creado ✅`,"ok");
+  openNewOrderModal();
 });
 
 // Order Modal
@@ -3195,7 +3181,7 @@ window.openOrderModal = function(id){
     <div class="detail-block">
       <span class="label">Resumen</span>
       <div class="detail-val">${money(o.total)}</div>
-      <div class="detail-sub">${o.items.reduce((a,i)=>a+i.qty,0)}  · ${fmtDateTime(o.created_at)}</div>
+      <div class="detail-sub">${(o.items||o.record?.items||[]).reduce((a,i)=>a+(i.qty||0),0)} artículo(s) · ${fmtDateTime(o.created_at)}</div>
       <div class="detail-sub" style="margin-top:4px"><span class="badge ${o.status}">${statusLabel(o.status)}</span></div>
     </div>
     <div class="detail-block" style="grid-column:1/-1">
@@ -3204,7 +3190,8 @@ window.openOrderModal = function(id){
     </div>
   `;
 
-  $("orderItemsList").innerHTML = o.items.map(item=>`
+  const _orderItems = o.items||o.record?.items||[];
+  $("orderItemsList").innerHTML = _orderItems.map(item=>`
     <div class="order-item-row">
       <img class="item-img" src="${item.image}" alt="" onerror="this.style.display='none'"/>
       <div>
@@ -3257,7 +3244,7 @@ $("printOrderBtn").addEventListener("click",()=>{
     <p>Fecha: ${fmtDateTime(o.created_at)} · Estado: ${o.status.toUpperCase()}</p>
     <p>Dirección: ${o.address||"—"}</p>
     <table><tr><th><span data-i18n="product">Producto</span></th><th>Talla</th><th>Color</th><th>Cant.</th><th>Precio</th></tr>
-    ${o.items.map(i=>`<tr><td>${i.name}</td><td>${i.size}</td><td>${i.color}</td><td>${i.qty}</td><td>${money(i.price*i.qty)}</td></tr>`).join("")}
+    ${(o.items||o.record?.items||[]).map(i=>`<tr><td>${i.name}</td><td>${i.size||"—"}</td><td>${i.color||"—"}</td><td>${i.qty}</td><td>${money(i.price*i.qty)}</td></tr>`).join("")}
     </table>
     <p class="total">Total: ${money(o.total)}</p>
     <p style="margin-top:20px;font-size:12px;color:#888">Notas: ${o.notes||"—"}</p>
@@ -3762,19 +3749,29 @@ function renderFacturas(){
   list.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
   const el=document.getElementById('facBody'); if(!el) return;
   if(!list.length){el.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Sin facturas. Crea la primera con "Nueva Factura".</td></tr>';return;}
-  el.innerHTML=list.map(o=>`
-    <tr style="cursor:pointer">
-      <td><input type="checkbox" data-fac-id="${o.id}" style="accent-color:var(--gold)"/></td>
-      <td style="font-size:12px;color:var(--gold);font-weight:600;font-family:monospace">${esc(o.invoice_num||'—')}</td>
+  el.innerHTML=list.map(o=>{
+    const items = o.items||o.record?.items||[];
+    const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
+    const facStatus = o.invoice_status||o.invoiceStatus||o.status||'pendiente';
+    return `
+    <tr style="cursor:pointer" onclick="openOrderModal('${o.id}')">
+      <td onclick="event.stopPropagation()"><input type="checkbox" data-fac-id="${o.id}" style="accent-color:var(--gold)"/></td>
+      <td style="font-size:11px;color:var(--gold);font-weight:600;font-family:monospace">${esc(invNum)}</td>
+      <td style="font-size:11px;color:var(--muted);font-family:monospace">${esc(o.id||'—')}</td>
       <td style="font-size:13px;color:var(--text)">${esc(o.clientName||o.name||'—')}</td>
       <td style="font-size:11px;color:var(--muted)">${fmtDate(o.created_at)}</td>
-      <td style="font-family:var(--fd);color:var(--gold)">$${Number(o.total||0).toFixed(2)}</td>
-      <td><span class="badge ${o.invoice_status||o.status||'pendiente'}">${(o.invoice_status||o.status||'Pendiente').toUpperCase()}</span></td>
-      <td onclick="event.stopPropagation()"><div style="display:flex;gap:6px">
-        <button class="btn sm" onclick="quickInvoice('${o.id}')">PDF</button>
-        <button class="btn sm danger" onclick="deleteOrder('${o.id}')">🗑</button>
+      <td style="text-align:center;font-size:12px;color:var(--muted)">${items.length}</td>
+      <td style="font-family:var(--fd);color:var(--text)">$${Number(o.subtotal||o.total||0).toFixed(2)}</td>
+      <td style="font-family:var(--fd);color:var(--muted)">$${Number(o.shipping||o.shipping_cost||0).toFixed(2)}</td>
+      <td style="font-family:var(--fd);color:var(--gold);font-weight:700">$${Number(o.total||0).toFixed(2)}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(o.method||o.payment_method||'—')}</td>
+      <td><span class="badge ${facStatus}">${facStatus.toUpperCase()}</span></td>
+      <td onclick="event.stopPropagation()"><div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn sm" onclick="quickInvoice('${o.id}')" title="Generar PDF" style="background:rgba(47,227,181,.12);border-color:rgba(47,227,181,.35);color:#2fe3b5">🧾 PDF</button>
+        <button class="btn sm danger" onclick="deleteOrder('${o.id}')" title="Eliminar">🗑</button>
       </div></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   // KPIs
   const allOrders=DB.orders||[];
   const sF=id=>{ const e=document.getElementById(id); if(e) return e; return {textContent:''}; };
@@ -4432,7 +4429,7 @@ function waSendCampaign(){
     <!-- Actions -->
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button onclick="closeNewOrderModal()" style="padding:11px 20px;background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--muted);cursor:pointer;font-size:13px">Cancelar</button>
-      <button onclick="sbSaveOrder(false)" style="padding:11px 20px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);border-radius:10px;color:var(--gold);cursor:pointer;font-size:13px;font-weight:600">💾 Guardar</button>
+      <button onclick="saveNewOrderOnly()" style="padding:11px 20px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);border-radius:10px;color:var(--gold);cursor:pointer;font-size:13px;font-weight:600">💾 Guardar pedido</button>
       <button onclick="invoiceNewOrder()" style="padding:11px 24px;background:linear-gradient(135deg,#c9963a,#e8c56e);border:none;border-radius:10px;color:#0d0900;cursor:pointer;font-size:13px;font-weight:700">🧾 Generar Factura</button>
     </div>
   </div>
@@ -4653,5 +4650,157 @@ function waSendCampaign(){
 </div>
 
 
+<script>
 
+// ══════════════════════════════════════════════════════════════
+//  FIXES: cancelOrder, refundOrder, factura filters, saveNewOrderOnly
+// ══════════════════════════════════════════════════════════════
+
+// Cancel order button
+const _cancelBtn = document.getElementById('cancelOrderBtn');
+if(_cancelBtn) _cancelBtn.addEventListener('click', ()=>{
+  const o = DB.orders.find(x=>x.id===currentOrderId); if(!o) return;
+  if(!confirm('¿Cancelar el pedido '+o.id+'?')) return;
+  o.status = 'cancelado';
+  persist(); renderOrders(); renderFacturas();
+  toast('Pedido cancelado.','warn');
+  document.getElementById('orderModal').classList.remove('open');
+});
+
+// Refund order button
+const _refundBtn = document.getElementById('refundOrderBtn');
+if(_refundBtn) _refundBtn.addEventListener('click', ()=>{
+  const o = DB.orders.find(x=>x.id===currentOrderId); if(!o) return;
+  if(!confirm('¿Marcar pedido '+o.id+' como reembolsado?')) return;
+  o.status = 'reembolsado';
+  persist(); renderOrders(); renderFacturas();
+  toast('Pedido marcado como reembolsado.','warn');
+  document.getElementById('orderModal').classList.remove('open');
+});
+
+// Factura filter listeners
+['facQ','facStatus','facPeriod'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el && !el._ffBound){
+    el._ffBound = true;
+    el.addEventListener('input', renderFacturas);
+    el.addEventListener('change', renderFacturas);
+  }
+});
+
+// Override renderFacturas to support facPeriod filter
+const _origRenderFacturas = renderFacturas;
+renderFacturas = function(){
+  _origRenderFacturas();
+  // apply period filter on top
+  const period = (document.getElementById('facPeriod')?.value||'');
+  if(!period) return;
+  const now = new Date();
+  const facBody = document.getElementById('facBody');
+  if(!facBody) return;
+  const rows = facBody.querySelectorAll('tr');
+  rows.forEach(row=>{
+    const id = row.querySelector('[data-fac-id]')?.dataset?.facId ||
+               row.querySelector('button[onclick*="quickInvoice"]')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+    if(!id) return;
+    const o = (DB.orders||[]).find(x=>x.id===id);
+    if(!o){ row.style.display='none'; return; }
+    const d = new Date(o.created_at||0);
+    let show = true;
+    if(period==='today') show = d.toDateString()===now.toDateString();
+    else if(period==='week'){
+      const weekAgo = new Date(now); weekAgo.setDate(now.getDate()-7);
+      show = d >= weekAgo;
+    }
+    else if(period==='month') show = d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+    else if(period==='year') show = d.getFullYear()===now.getFullYear();
+    row.style.display = show ? '' : 'none';
+  });
+};
+
+// saveNewOrderOnly — save order without generating invoice
+function saveNewOrderOnly(){
+  const g = id => document.getElementById(id);
+  const clientName = (g('nomClientName')?.value||'').trim();
+  if(!clientName){ toast('El nombre del cliente es requerido.','warn'); return; }
+  const subtotal = _nomItems.reduce((s,i)=>s+i.price*i.qty, 0);
+  const ship = parseFloat(g('nomShipping')?.value||0);
+  const disc = parseFloat(g('nomDiscountVal')?.value||0);
+  const total = Math.max(0, subtotal + ship - disc);
+  const now = new Date().toISOString();
+  const yr = new Date().getFullYear();
+  const ordNum = 'ORD-'+String(Date.now()).slice(-6);
+  const invNum = 'F-'+yr+'-'+String(Date.now()).slice(-5);
+  const items = _nomItems.map(i=>({
+    productId: i.prodId||i.id||'',
+    name: i.name, size: i.size||'—', color: i.color||'—',
+    qty: i.qty, price: i.price, image: i.image||''
+  }));
+  const o = {
+    id: ordNum,
+    invoice_num: invNum,
+    clientName, 
+    clientEmail: g('nomClientEmail')?.value||'',
+    clientPhone: g('nomClientPhone')?.value||'',
+    items, total, subtotal, shipping: ship,
+    discountValue: disc,
+    method: g('nomMethod')?.value||'card',
+    status: g('nomOrderStatus')?.value||'pendiente',
+    invoice_status: 'pendiente',
+    notes: g('nomNotes')?.value||'',
+    address: g('nomAddress')?.value||'',
+    created_at: now, updated_at: now
+  };
+  DB.orders.unshift(o);
+  persist();
+  sbSaveOrder(o).catch(()=>{});
+  renderOrders(); renderFacturas(); updateCounts();
+  closeNewOrderModal();
+  toast('Pedido '+ordNum+' guardado ✅','ok');
+}
+window.saveNewOrderOnly = saveNewOrderOnly;
+
+// Also fix invoiceNewOrder to use same robust builder
+const _origInvoiceNewOrder = window.invoiceNewOrder;
+window.invoiceNewOrder = function(){
+  const g = id => document.getElementById(id);
+  const clientName = (g('nomClientName')?.value||'').trim();
+  if(!clientName){ toast('El nombre del cliente es requerido.','warn'); return; }
+  const subtotal = _nomItems.reduce((s,i)=>s+i.price*i.qty, 0);
+  const ship = parseFloat(g('nomShipping')?.value||0);
+  const disc = parseFloat(g('nomDiscountVal')?.value||0);
+  const total = Math.max(0, subtotal + ship - disc);
+  const now = new Date().toISOString();
+  const yr = new Date().getFullYear();
+  const ordNum = 'ORD-'+String(Date.now()).slice(-6);
+  const invNum = 'F-'+yr+'-'+String(Date.now()).slice(-5);
+  const items = _nomItems.map(i=>({
+    productId: i.prodId||i.id||'',
+    name: i.name, size: i.size||'—', color: i.color||'—',
+    qty: i.qty, price: i.price, image: i.image||''
+  }));
+  const o = {
+    id: ordNum, invoice_num: invNum,
+    clientName,
+    clientEmail: g('nomClientEmail')?.value||'',
+    clientPhone: g('nomClientPhone')?.value||'',
+    items, total, subtotal, shipping: ship,
+    discountValue: disc,
+    method: g('nomMethod')?.value||'card',
+    status: g('nomOrderStatus')?.value||'pendiente',
+    invoice_status: 'pendiente',
+    notes: g('nomNotes')?.value||'',
+    address: g('nomAddress')?.value||'',
+    created_at: now, updated_at: now
+  };
+  DB.orders.unshift(o);
+  persist();
+  sbSaveOrder(o).catch(()=>{});
+  renderOrders(); renderFacturas(); updateCounts();
+  closeNewOrderModal();
+  toast('Pedido '+ordNum+' creado. Generando factura...','ok');
+  setTimeout(()=>quickInvoice(ordNum), 500);
+};
+
+</script>
 </body></html>
