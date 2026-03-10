@@ -3904,13 +3904,13 @@ function editProduct(id){
   if(g('pCategory')) g('pCategory').value=p.category||'';
   if(g('pSizes'))    g('pSizes').value=(p.sizes||[]).join(', ');
   if(g('pColors'))   g('pColors').value=(p.colors||[]).join(', ');
-  if(g('pDesc'))     g('pDesc').value=p.desc||'';
+  if(g('pDesc'))     g('pDesc').value=p.description||p.desc||'';
   if(g('pSaveBtn'))  g('pSaveBtn').dataset.editId=id;
   // Switch to productos tab
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab==='productos'));
-  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  document.querySelectorAll('.page').forEach(pg=>pg.classList.remove('active'));
   const tp=document.getElementById('tab-productos');
-  if(tp) tp.style.display='block';
+  if(tp){ tp.classList.add('active'); tp.style.display=''; }
   window.scrollTo(0,0);
 }
 
@@ -4437,6 +4437,207 @@ function waSendCampaign(){
     </div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     PRODUCT FORM — FULL SAVE / EDIT / IMAGE LOGIC
+══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  /* ── state ── */
+  let _pImages = [];   // base64 or URL strings currently staged
+  let _editingId = null;
+
+  /* ── helpers ── */
+  const $=id=>document.getElementById(id);
+  const readFileAsDataURL = f => new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result);
+    r.onerror=rej;
+    r.readAsDataURL(f);
+  });
+
+  function renderThumbs(){
+    const grid=$('pThumbGrid'); if(!grid) return;
+    if(!_pImages.length){
+      grid.innerHTML='<div class="pmeta" style="grid-column:1/-1;padding:6px 0">Sin imágenes.</div>';
+      return;
+    }
+    grid.innerHTML=_pImages.map((src,i)=>`
+      <div style="position:relative;width:72px;height:72px;flex-shrink:0">
+        <img src="${src}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,.3)"
+          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2272%22 height=%2272%22><rect fill=%22%230a0800%22 width=%2272%22 height=%2272%22/><text x=%2236%22 y=%2242%22 text-anchor=%22middle%22 font-size=%2228%22>💎</text></svg>'"/>
+        <button onclick="window._prodRemoveImg(${i})"
+          style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.75);border:none;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
+      </div>`).join('');
+  }
+  window._prodRemoveImg=function(i){ _pImages.splice(i,1); renderThumbs(); };
+
+  function resetForm(){
+    _editingId=null; _pImages=[];
+    ['pName','pPrice','pStock','pSizes','pColors','pDesc'].forEach(id=>{ const el=$(id); if(el) el.value=''; });
+    const cat=$('pCategory'); if(cat) cat.value='';
+    const cur=$('pCurrency'); if(cur) cur.value='USD';
+    const title=$('prodFormTitle'); if(title) title.textContent='Registrar prenda';
+    const btn=$('pSaveBtn'); if(btn){ btn.textContent='✓ Guardar prenda'; delete btn.dataset.editId; }
+    renderThumbs();
+  }
+
+  async function saveProduct(){
+    const name=($('pName')?.value||'').trim();
+    const price=parseFloat($('pPrice')?.value||0);
+    const stock=parseInt($('pStock')?.value||0,10);
+    const category=$('pCategory')?.value||'';
+    const currency=$('pCurrency')?.value||'USD';
+    const sizes=($('pSizes')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const colors=($('pColors')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const description=($('pDesc')?.value||'').trim();
+
+    if(!name){ if(window.toast) toast('El nombre es obligatorio.','warn'); else alert('El nombre es obligatorio.'); return; }
+    if(isNaN(price)||price<0){ if(window.toast) toast('Precio inválido.','warn'); else alert('Precio inválido.'); return; }
+
+    const editId=$('pSaveBtn')?.dataset?.editId||_editingId;
+
+    if(editId){
+      /* UPDATE existing */
+      const idx=(DB.products||[]).findIndex(p=>p.id===editId);
+      if(idx>-1){
+        const existing=DB.products[idx];
+        DB.products[idx]={
+          ...existing,
+          name,price,stock,category,currency,sizes,colors,
+          description,desc:description,
+          images:_pImages.length?_pImages:existing.images,
+          active:existing.active!==undefined?existing.active:true,
+          updated_at:new Date().toISOString()
+        };
+      }
+      if(window.toast) toast('Producto actualizado: '+name,'ok');
+    } else {
+      /* CREATE new */
+      const newProd={
+        id:'p_'+Math.random().toString(16).slice(2)+'_'+Date.now().toString(16),
+        name,price,stock,category,currency,sizes,colors,
+        description,desc:description,
+        images:_pImages,
+        active:true,
+        created_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      };
+      DB.products=[...( DB.products||[]),newProd];
+      if(window.toast) toast('Producto creado: '+name,'ok');
+    }
+
+    /* ── Persist: Supabase primary, localStorage as cache ── */
+    const _changedId = editId || DB.products[DB.products.length-1]?.id;
+    const _changedProd = (DB.products||[]).find(p=>p.id===_changedId);
+    try{
+      if(_changedProd && window.SB_URL && window.SB_H){
+        const row = window.toRow ? toRow('productos', _changedProd) : {
+          id:_changedProd.id,
+          record:{..._changedProd},
+          name:_changedProd.name||'',
+          category:_changedProd.category||'',
+          price:Number(_changedProd.price||0),
+          stock:Number(_changedProd.stock||0),
+          active:_changedProd.active!==false,
+          updated_at:_changedProd.updated_at||new Date().toISOString(),
+          created_at:_changedProd.created_at||new Date().toISOString()
+        };
+        await fetch(SB_URL+'/rest/v1/productos',{
+          method:'POST',
+          headers:{...SB_H,'Prefer':'resolution=merge-duplicates,return=minimal'},
+          body:JSON.stringify(row)
+        });
+      }
+    }catch(e){ console.warn('[SB] producto upsert:',e); }
+    /* Update localStorage cache */
+    if(window.save) save('pm_products_v1',DB.products);
+
+    if(window.renderProducts) renderProducts();
+    if(window.renderInventory) renderInventory();
+    if(window.updateCounts) updateCounts();
+    resetForm();
+  }
+
+  /* ── wire up after DOM ready ── */
+  function bindForm(){
+    /* save button */
+    const saveBtn=$('pSaveBtn');
+    if(saveBtn && !saveBtn._pmBound){
+      saveBtn._pmBound=true;
+      saveBtn.addEventListener('click',saveProduct);
+    }
+
+    /* reset button */
+    const resetBtn=$('pResetBtn');
+    if(resetBtn && !resetBtn._pmBound){
+      resetBtn._pmBound=true;
+      resetBtn.addEventListener('click',resetForm);
+    }
+
+    /* file input */
+    const fileInput=$('pImgInput');
+    if(fileInput && !fileInput._pmBound){
+      fileInput._pmBound=true;
+      fileInput.addEventListener('change',async function(){
+        const files=Array.from(this.files||[]);
+        for(const f of files){
+          try{ const b64=await readFileAsDataURL(f); _pImages.push(b64); }catch(e){}
+        }
+        this.value='';
+        renderThumbs();
+      });
+    }
+
+    /* clear images button */
+    const clearBtn=$('pClearImgs');
+    if(clearBtn && !clearBtn._pmBound){
+      clearBtn._pmBound=true;
+      clearBtn.addEventListener('click',()=>{ _pImages=[]; renderThumbs(); });
+    }
+
+    /* drag-and-drop */
+    const drop=$('pDrop');
+    if(drop && !drop._pmBound){
+      drop._pmBound=true;
+      drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.borderColor='var(--gold)';});
+      drop.addEventListener('dragleave',()=>{drop.style.borderColor='';});
+      drop.addEventListener('drop',async e=>{
+        e.preventDefault(); drop.style.borderColor='';
+        const files=Array.from(e.dataTransfer.files||[]).filter(f=>f.type.startsWith('image/'));
+        for(const f of files){
+          try{ const b64=await readFileAsDataURL(f); _pImages.push(b64); }catch(e){}
+        }
+        renderThumbs();
+      });
+    }
+  }
+
+  /* patch editProduct to also load images into _pImages */
+  const _origEdit=window.editProduct;
+  window.editProduct=function(id){
+    const p=(DB.products||[]).find(x=>x.id===id); if(!p) return;
+    _editingId=id;
+    _pImages=Array.isArray(p.images)?[...p.images]:(p.images?[p.images]:[]);
+    if(_origEdit) _origEdit(id);
+    /* set currency which original stub skips */
+    const cur=document.getElementById('pCurrency');
+    if(cur&&p.currency) cur.value=p.currency;
+    renderThumbs();
+    /* scroll to form */
+    setTimeout(()=>{ const f=document.getElementById('pName'); if(f) f.scrollIntoView({behavior:'smooth',block:'center'}); },150);
+  };
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',bindForm);
+  } else {
+    bindForm();
+  }
+  /* also try again after a short delay in case the shell renders late */
+  setTimeout(bindForm,800);
+  setTimeout(bindForm,2000);
+})();
+</script>
 
 <!-- Client Picker Modal -->
 <div class="modal-overlay" id="clientPickerModal" style="display:none;z-index:1000">
