@@ -3952,7 +3952,8 @@ function startRealtimeOrders(){
 function printAllFacturas(){
   const checked=[...document.querySelectorAll('[data-fac-id]:checked')].map(el=>el.dataset.facId);
   if(!checked.length){ toast('Selecciona al menos una factura.','warn'); return; }
-  checked.forEach(id=>quickInvoice(id));
+  toast('Generando '+checked.length+' PDF(s)...','ok');
+  checked.forEach((id, i)=>setTimeout(()=>quickInvoice(id), i*600));
 }
 
 // ── openClientModal stub ──────────────────────────────────────
@@ -4046,7 +4047,10 @@ function quickInvoice(id){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Pedido no encontrado.','err'); return; }
   try{
-    buildInvoicePDF(o);
+    const doc = buildInvoicePDF(o);
+    const fname = 'Factura-'+(o.invoice_num||o.id||'PDF')+'.pdf';
+    doc.save(fname);
+    toast('✅ PDF generado: '+fname,'ok');
   }catch(e){
     toast('Error al generar PDF: '+e.message,'err');
     console.error('quickInvoice:', e);
