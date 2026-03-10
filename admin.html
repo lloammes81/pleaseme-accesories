@@ -2253,305 +2253,243 @@ function buildInvoicePDF(o){
   const co  = getCompanyInfo();
   const W   = 215.9;
   const H   = 279.4;
+  const M   = 15; // margin
 
-  // ── Color Palette ───────────────────────────────────────────
-  const GOLD   = [201,150,58];
-  const GOLD2  = [232,197,110];
-  const GOLD3  = [240,215,150];
-  const DARK   = [8,6,3];
-  const DARK2  = [16,12,6];
-  const DARK3  = [24,18,9];
-  const GRAY   = [100,90,75];
-  const LGRAY  = [160,148,130];
-  const CREAM  = [248,243,232];
+  // ── Paleta limpia para impresión ─────────────────────────────
+  const GOLD   = [180,130,40];
+  const GOLD2  = [201,150,58];
+  const DARK   = [30,25,15];
+  const GRAY   = [100,100,100];
+  const LGRAY  = [150,150,150];
+  const LINE   = [220,215,205];
+  const BG     = [250,248,244];
   const WHITE  = [255,255,255];
-  const LINE   = [45,35,15];
 
   // ── Formatters ──────────────────────────────────────────────
   const cur   = o.currency||'USD';
   const sym   = {USD:'$',MXN:'$',DOP:'RD$',COP:'$',EUR:'€'}[cur]||'$';
-  const fmtC  = n => sym+Number(n||0).toFixed(2)+(cur!=='USD'?' '+cur:'');
-  const money = n => sym+Number(n||0).toFixed(2);
+  const fmt   = n => sym+Number(n||0).toFixed(2)+(cur!=='USD'?' '+cur:'');
 
-  // ═══════════════════════════════════════════════════════════
-  // HEADER — deep dark background
-  // ═══════════════════════════════════════════════════════════
-  // Full dark header
-  doc.setFillColor(...DARK);
-  doc.rect(0,0,W,58,'F');
+  // ══════════════════════════════════════════════════
+  // FONDO BLANCO
+  // ══════════════════════════════════════════════════
+  doc.setFillColor(...WHITE);
+  doc.rect(0,0,W,H,'F');
 
-  // Thin gold top accent
+  // ── Franja superior dorada ──────────────────────────────────
   doc.setFillColor(...GOLD);
-  doc.rect(0,0,W,2,'F');
+  doc.rect(0,0,W,3,'F');
 
-  // Subtle diagonal pattern on header (right side shine)
-  doc.setFillColor(30,22,8);
-  doc.rect(W*0.55,0,W*0.45,58,'F');
-
-  // Gold accent on right edge
-  doc.setFillColor(...GOLD);
-  doc.rect(W-2,0,2,58,'F');
-
-  // ── Logo (square, left side of header) ──────────────────────
-  const lx=14, ly=9, lw=38, lh=38;
-  // Logo background rounded square
-  doc.setFillColor(0,0,0);
-  doc.roundedRect(lx-1, ly-1, lw+2, lh+2, 4,4,'F');
+  // ── Header: logo + info empresa ────────────────────────────
+  let y = 12;
+  // Logo area (left)
+  const lx=M, ly=y, lw=30, lh=30;
   try{
     doc.addImage(PM_DEFAULT_LOGO,'PNG',lx,ly,lw,lh);
   }catch(e){
-    // Fallback initial circle
+    // Fallback circle
     doc.setFillColor(...GOLD);
-    doc.circle(lx+lw/2, ly+lh/2, lw/2, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(18);
-    doc.setTextColor(...DARK);
-    doc.text((co.name||'P')[0].toUpperCase(), lx+lw/2, ly+lh/2+5, {align:'center'});
+    doc.circle(lx+lw/2, ly+lh/2, lw/2-2, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    doc.setTextColor(...WHITE);
+    doc.text((co.name||'P')[0].toUpperCase(), lx+lw/2, ly+lh/2+4, {align:'center'});
   }
 
-  // ── Company name & info ──────────────────────────────────────
-  const cx = lx+lw+10;
+  // Nombre empresa (right of logo)
+  const cx = lx+lw+8;
   doc.setFont('helvetica','bold');
-  doc.setFontSize(20);
-  doc.setTextColor(...GOLD2);
-  doc.text(co.name||'Pleaseme', cx, 23);
-
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...LGRAY);
-  let headerY = 30;
-  if(co.email){    doc.text('✉  '+co.email,    cx, headerY); headerY+=5; }
-  if(co.phone){    doc.text('☏  '+co.phone,    cx, headerY); headerY+=5; }
-  if(co.address){  doc.text('⌂  '+co.address,  cx, headerY); headerY+=5; }
-  if(co.instagram){doc.text('◎  '+co.instagram, cx, headerY); headerY+=5; }
-
-  // ── INVOICE / FACTURA label (right side) ─────────────────────
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(28);
-  doc.setTextColor(...GOLD);
-  doc.text('FACTURA', W-16, 26, {align:'right'});
-
-  // Invoice number
-  const invNum = o.invoice_num||('F-'+new Date().getFullYear()+'-'+String(o.id||Date.now()).slice(-5));
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...GOLD3);
-  doc.text(invNum, W-16, 34, {align:'right'});
-
-  // Date
-  const invDate = o.created_at ? new Date(o.created_at).toLocaleDateString('es',{year:'numeric',month:'long',day:'numeric'}) : new Date().toLocaleDateString('es',{year:'numeric',month:'long',day:'numeric'});
-  doc.setFontSize(7.5);
-  doc.setTextColor(...LGRAY);
-  doc.text(invDate, W-16, 40, {align:'right'});
-
-  // ─────────────────────────────────────────────────────────────
-  // BILL TO / SHIP TO Section
-  // ─────────────────────────────────────────────────────────────
-  let y = 66;
-  const halfW = (W-36)/2;
-
-  // Bill To box
-  doc.setFillColor(18,13,6);
-  doc.roundedRect(14, y-6, halfW, 38, 3,3,'F');
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.4);
-  // Left gold border accent
-  doc.setFillColor(...GOLD);
-  doc.rect(14, y-6, 1.5, 38,'F');
-
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...GOLD2);
-  doc.text('FACTURAR A', 19, y);
-
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(11);
-  doc.setTextColor(...CREAM);
-  doc.text((o.clientName||o.name||'Cliente').slice(0,32), 19, y+9);
-
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...LGRAY);
-  let bY = y+16;
-  if(o.clientEmail||o.email){ doc.text(o.clientEmail||o.email, 19, bY); bY+=5; }
-  if(o.clientPhone||o.phone){ doc.text(o.clientPhone||o.phone, 19, bY); bY+=5; }
-
-  // Ship To box
-  const col2X = 14+halfW+8;
-  doc.setFillColor(18,13,6);
-  doc.roundedRect(col2X, y-6, halfW, 38, 3,3,'F');
-  doc.setFillColor(...GOLD);
-  doc.rect(col2X, y-6, 1.5, 38,'F');
-
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...GOLD2);
-  doc.text('ENVIAR A', col2X+5, y);
-
-  const shipAddr = o.shipping_address||o.address||o.clientAddress||'';
+  doc.setFontSize(16);
+  doc.setTextColor(...DARK);
+  doc.text(co.name||'Pleaseme', cx, y+8);
   doc.setFont('helvetica','normal');
   doc.setFontSize(8);
-  doc.setTextColor(...CREAM);
-  if(shipAddr){
-    const lines = doc.splitTextToSize(shipAddr, halfW-10);
-    lines.slice(0,3).forEach((ln,i)=>{ doc.text(ln, col2X+5, y+8+i*5.5); });
-  } else {
-    doc.setTextColor(...GRAY);
-    doc.text('—', col2X+5, y+9);
-  }
-  if(o.tracking_num){
-    doc.setFontSize(7);
-    doc.setTextColor(...GOLD);
-    doc.text('Tracking: '+o.tracking_num, col2X+5, y+28);
-  }
+  doc.setTextColor(...GRAY);
+  if(co.address){ doc.text(co.address, cx, y+14); }
+  if(co.email)  { doc.text(co.email,   cx, y+19); }
+  if(co.whatsapp){ doc.text('WhatsApp: '+co.whatsapp, cx, y+24); }
 
-  // ─────────────────────────────────────────────────────────────
-  // ITEMS TABLE
-  // ─────────────────────────────────────────────────────────────
-  y = y + 38 + 8;
-
-  // Table header background
-  doc.setFillColor(...DARK);
-  doc.rect(14, y, W-28, 9,'F');
-  doc.setFillColor(...GOLD);
-  doc.rect(14, y, W-28, 1,'F'); // top line
-  doc.rect(14, y+8, W-28, 0.5,'F'); // bottom line
-
+  // FACTURA label (far right)
+  const rx = W-M;
   doc.setFont('helvetica','bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(22);
+  doc.setTextColor(...GOLD);
+  doc.text('FACTURA', rx, y+10, {align:'right'});
+  doc.setFontSize(9);
+  doc.setTextColor(...GRAY);
+  const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
+  doc.text('No. '+invNum, rx, y+16, {align:'right'});
+  doc.text('Fecha: '+new Date(o.created_at||Date.now()).toLocaleDateString('es'), rx, y+21, {align:'right'});
+  doc.text('Pedido: '+o.id, rx, y+26, {align:'right'});
+
+  y = ly+lh+8;
+
+  // ── Línea separadora ───────────────────────────────────────
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.6);
+  doc.line(M, y, W-M, y);
+  y += 7;
+
+  // ── Dos columnas: Facturar a | Enviar a ────────────────────
+  const colW = (W-M*2-8)/2;
+  const col2 = M+colW+8;
+
+  // Caja FACTURAR A
+  doc.setFillColor(...BG);
+  doc.roundedRect(M, y, colW, 32, 2,2,'F');
+  doc.setFillColor(...GOLD);
+  doc.rect(M, y, 2, 32,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(7);
   doc.setTextColor(...GOLD2);
-  const TH = {desc:14, qty:W-95, price:W-70, sub:W-20};
-  doc.text('ARTÍCULO / DESCRIPCIÓN', TH.desc+3, y+5.8);
-  doc.text('CANT.',  TH.qty,  y+5.8, {align:'right'});
-  doc.text('PRECIO', TH.price,y+5.8, {align:'right'});
-  doc.text('SUBTOTAL',TH.sub, y+5.8, {align:'right'});
+  doc.text('FACTURAR A', M+6, y+5);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.setTextColor(...DARK);
+  doc.text(o.clientName||o.name||'—', M+6, y+11);
+  doc.setFontSize(8); doc.setTextColor(...GRAY);
+  if(o.clientEmail) doc.text(o.clientEmail, M+6, y+17);
+  if(o.clientPhone) doc.text(o.clientPhone, M+6, y+22);
 
-  y += 11;
+  // Caja ENVIAR A
+  doc.setFillColor(...BG);
+  doc.roundedRect(col2, y, colW, 32, 2,2,'F');
+  doc.setFillColor(...GOLD);
+  doc.rect(col2, y, 2, 32,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(7);
+  doc.setTextColor(...GOLD2);
+  doc.text('ENVIAR A', col2+6, y+5);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  const addr = o.shipping_address||o.shippingAddress||o.address||'—';
+  const addrLines = doc.splitTextToSize(addr, colW-10);
+  addrLines.slice(0,3).forEach((l,i)=>doc.text(l, col2+6, y+11+i*5.5));
+  if(o.tracking_num||o.trackingNum){
+    doc.setFontSize(7); doc.setTextColor(...GOLD2);
+    doc.text('Tracking: '+(o.tracking_num||o.trackingNum), col2+6, y+28);
+  }
 
-  // Items
-  const items = Array.isArray(o.items) ? o.items : (o.record?.items||[]);
+  y += 38;
+
+  // ── Tabla de productos ─────────────────────────────────────
+  // Encabezado tabla
+  doc.setFillColor(...DARK);
+  doc.rect(M, y, W-M*2, 8,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(8);
+  doc.setTextColor(...WHITE);
+  const C = {
+    item: M+3,
+    qty:  W-M-70,
+    price:W-M-45,
+    sub:  W-M-3
+  };
+  doc.text('ARTÍCULO / DESCRIPCIÓN', C.item, y+5.5);
+  doc.text('CANT.',  C.qty,   y+5.5, {align:'right'});
+  doc.text('PRECIO', C.price, y+5.5, {align:'right'});
+  doc.text('TOTAL',  C.sub,   y+5.5, {align:'right'});
+  y += 9;
+
+  // Filas de items
+  const items = Array.isArray(o.items)?o.items:(o.record?.items||[]);
   items.forEach((item,i)=>{
     const rowH = 9;
-    if(i%2===0){
-      doc.setFillColor(22,16,7);
-      doc.rect(14, y-1.5, W-28, rowH,'F');
-    }
+    if(i%2===0){ doc.setFillColor(245,243,239); doc.rect(M, y-1, W-M*2, rowH,'F'); }
     const name  = item.name||item.description||'Artículo';
     const qty   = Number(item.qty||item.quantity||1);
     const price = Number(item.price||item.unit_price||0);
     const sub   = qty*price;
-
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...CREAM);
-    doc.text(doc.splitTextToSize(name,W-100)[0], TH.desc+3, y+4);
-
-    if(item.size||item.color){
-      doc.setFontSize(6.5);
-      doc.setTextColor(...LGRAY);
-      doc.text([(item.size?'Talla: '+item.size:''), (item.color?'Color: '+item.color:'')].filter(Boolean).join(' · '), TH.desc+3, y+8);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    doc.setTextColor(...DARK);
+    doc.text(doc.splitTextToSize(name, W-M*2-80)[0], C.item, y+5);
+    if(item.size&&item.size!=='—'||item.color&&item.color!=='—'){
+      doc.setFontSize(6.5); doc.setTextColor(...LGRAY);
+      const meta=[(item.size&&item.size!=='—'?'Talla: '+item.size:''),(item.color&&item.color!=='—'?'Color: '+item.color:'')].filter(Boolean).join(' · ');
+      doc.text(meta, C.item+2, y+8);
     }
-
-    doc.setFontSize(8.5);
-    doc.setTextColor(...LGRAY);
-    doc.text(String(qty),     TH.qty,   y+4, {align:'right'});
-    doc.text(money(price),    TH.price, y+4, {align:'right'});
-    doc.setTextColor(...CREAM);
-    doc.text(money(sub),      TH.sub,   y+4, {align:'right'});
-
+    doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+    doc.text(String(qty),   C.qty,   y+5, {align:'right'});
+    doc.text(fmt(price),    C.price, y+5, {align:'right'});
+    doc.setTextColor(...DARK);
+    doc.text(fmt(sub),      C.sub,   y+5, {align:'right'});
     y += rowH;
   });
 
-  // Bottom table line
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.4);
-  doc.line(14, y+1, W-14, y+1);
-  y += 6;
+  // Línea cierre tabla
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.3);
+  doc.line(M, y+1, W-M, y+1);
+  y += 7;
 
-  // ─────────────────────────────────────────────────────────────
-  // TOTALS
-  // ─────────────────────────────────────────────────────────────
-  const totX   = W-80;
-  const totLW  = 55;
-  const totVX  = W-16;
-  const rowT   = 7;
-
+  // ── Totales ────────────────────────────────────────────────
+  const totX  = W-M-75;
+  const totVX = W-M;
+  const rowT  = 7;
   const subtotal = Number(o.subtotal||o.total||0);
-  const discount = Number(o.discount_amount||0);
-  const shipping = Number(o.shipping||0);
+  const discount = Number(o.discountAmount||o.discountValue||o.discount_amount||0);
+  const shipping = Number(o.shipping||o.shipping_cost||0);
   const total    = Number(o.total||0);
 
-  const drawTotRow = (label, val, bold=false, goldVal=false)=>{
-    if(bold){
-      doc.setFillColor(...DARK);
-      doc.rect(totX-4, y-3, W-totX+4+16, rowT+2,'F');
+  const drawRow = (label, val, isBold=false)=>{
+    if(isBold){
+      doc.setFillColor(...BG);
+      doc.roundedRect(totX-4, y-4, W-totX+4-M+2, rowT+2, 2,2,'F');
       doc.setDrawColor(...GOLD);
       doc.setLineWidth(0.3);
-      doc.rect(totX-4, y-3, W-totX+4+16, rowT+2,'S');
+      doc.line(totX-4, y-4, W-M+2, y-4);
+      doc.line(totX-4, y+rowT-2, W-M+2, y+rowT-2);
     }
-    doc.setFont('helvetica', bold?'bold':'normal');
-    doc.setFontSize(bold?9:8);
-    doc.setTextColor(...(bold ? GOLD2 : LGRAY));
+    doc.setFont('helvetica', isBold?'bold':'normal');
+    doc.setFontSize(isBold?10:8.5);
+    doc.setTextColor(isBold?DARK[0]:GRAY[0], isBold?DARK[1]:GRAY[1], isBold?DARK[2]:GRAY[2]);
     doc.text(label, totX, y+2);
-    doc.setTextColor(...(goldVal ? GOLD2 : (bold ? WHITE : LGRAY)));
+    doc.setTextColor(isBold?GOLD[0]:DARK[0], isBold?GOLD[1]:DARK[1], isBold?GOLD[2]:DARK[2]);
     doc.text(val, totVX, y+2, {align:'right'});
     y += rowT;
   };
 
-  drawTotRow('Subtotal:', money(subtotal));
-  if(discount>0) drawTotRow('Descuento:', '-'+money(discount), false, true);
-  if(shipping>0) drawTotRow('Envío:', money(shipping));
+  drawRow('Subtotal:', fmt(subtotal));
+  if(discount>0) drawRow('Descuento:', '-'+fmt(discount));
+  if(shipping>0) drawRow('Envío:', fmt(shipping));
   y += 2;
-  drawTotRow('TOTAL:', fmtC(total), true, true);
+  drawRow('TOTAL A PAGAR:', fmt(total), true);
 
-  // ── Payment type ─────────────────────────────────────────────
-  if(o.payment_type){
+  // Forma de pago
+  if(o.method||o.payment_type){
     y += 4;
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...LGRAY);
-    const ptMap={'contado':'Pago de contado','credito':'Crédito','anticipo':'Anticipo/Depósito'};
-    doc.text('Forma de pago: '+(ptMap[o.payment_type]||o.payment_type), totX, y);
-    y += 5;
-    if(o.credit_days){ doc.text('Días de crédito: '+o.credit_days, totX, y); y+=5; }
-    if(o.due_date){    doc.text('Vence: '+new Date(o.due_date).toLocaleDateString('es'), totX, y); y+=5; }
-    if(o.deposit){     doc.text('Anticipo recibido: '+money(o.deposit), totX, y); y+=5; }
-    if(o.balance_due){ doc.text('Saldo pendiente: '+money(o.balance_due), totX, y); y+=5; }
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+    doc.setTextColor(...GRAY);
+    const ptMap={'contado':'Pago de contado','credito':'Crédito','anticipo':'Anticipo/Depósito','card':'Tarjeta','cash':'Efectivo','transfer':'Transferencia'};
+    doc.text('Forma de pago: '+( ptMap[o.payment_type]||ptMap[o.method]||o.method||o.payment_type), totX, y);
   }
 
-  // ── Notes ─────────────────────────────────────────────────
+  // ── Notas ──────────────────────────────────────────────────
   if(o.notes){
-    y = Math.max(y, 220);
-    doc.setDrawColor(...GOLD);
-    doc.setLineWidth(0.2);
-    doc.line(14, y, W-14, y);
+    y = Math.max(y+8, 220);
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.3);
+    doc.line(M, y, W-M, y);
     y += 5;
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...GOLD);
-    doc.text('NOTAS:', 14, y); y+=5;
-    doc.setFont('helvetica','normal');
-    doc.setTextColor(...LGRAY);
-    doc.splitTextToSize(o.notes, W-28).forEach(ln=>{ doc.text(ln, 14, y); y+=4.5; });
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+    doc.setTextColor(...GOLD2);
+    doc.text('NOTAS:', M, y); y+=5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    doc.splitTextToSize(o.notes, W-M*2).forEach(l=>{ doc.text(l, M, y); y+=4.5; });
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // FOOTER
-  // ─────────────────────────────────────────────────────────────
-  doc.setFillColor(...DARK);
-  doc.rect(0, H-22, W, 22,'F');
-  doc.setFillColor(...GOLD);
-  doc.rect(0, H-22, W, 0.8,'F');
-
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(7.5);
+  // ── Footer ─────────────────────────────────────────────────
+  // Línea dorada base
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
+  doc.line(M, H-18, W-M, H-18);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
   doc.setTextColor(...GRAY);
-  doc.text('Gracias por su preferencia — '+(co.name||'Pleaseme'), W/2, H-14, {align:'center'});
-  doc.setFontSize(7);
-  doc.setTextColor(55,45,25);
-  doc.text('Este documento es un comprobante de venta generado por '+(co.name||'Pleaseme'), W/2, H-8, {align:'center'});
+  doc.text('Gracias por su preferencia — '+(co.name||'Pleaseme'), W/2, H-12, {align:'center'});
+  doc.setFontSize(7); doc.setTextColor(...LGRAY);
+  doc.text('Documento generado por '+( co.name||'Pleaseme')+' · '+new Date().toLocaleDateString('es'), W/2, H-7, {align:'center'});
+
+  // Franja inferior dorada
+  doc.setFillColor(...GOLD);
+  doc.rect(0, H-2, W, 2,'F');
 
   return doc;
 }
+
 
 async function initDB(){
   showLoader(true);
@@ -3164,44 +3102,47 @@ $("newOrderBtn").addEventListener("click",()=>{
 let currentOrderId = null;
 window.openOrderModal = function(id){
   const o = DB.orders.find(x=>x.id===id);
-  if(!o) return;
+  if(!o){ console.warn('openOrderModal: order not found', id); return; }
   currentOrderId = id;
   window.__activeOrderId = id;
-  $("modalOrderId").textContent = (t? (getLang()==="en" ? "Order " : "Pedido ") : "Pedido ") + o.id;
-  $("modalStatusSel").value = o.status;
+  $("modalOrderId").textContent = 'Pedido ' + o.id;
+  $("modalStatusSel").value = o.status||'pendiente';
   $("orderNotes").value = o.notes||"";
 
   $("orderDetailGrid").innerHTML = `
     <div class="detail-block">
       <span class="label">Cliente</span>
-      <div class="detail-val">${esc(o.clientName)}</div>
-      <div class="detail-sub">${esc(o.clientEmail)}</div>
-      <div class="detail-sub">${esc(o.clientPhone)}</div>
+      <div class="detail-val">${esc(o.clientName||o.client_name||o.name||'—')}</div>
+      <div class="detail-sub">${esc(o.clientEmail||o.client_email||o.email||'')}</div>
+      <div class="detail-sub">${esc(o.clientPhone||o.client_phone||o.phone||'')}</div>
     </div>
     <div class="detail-block">
       <span class="label">Resumen</span>
       <div class="detail-val">${money(o.total)}</div>
-      <div class="detail-sub">${(o.items||o.record?.items||[]).reduce((a,i)=>a+(i.qty||0),0)} artículo(s) · ${fmtDateTime(o.created_at)}</div>
-      <div class="detail-sub" style="margin-top:4px"><span class="badge ${o.status}">${statusLabel(o.status)}</span></div>
+      <div class="detail-sub">${(o.items||o.record?.items||[]).reduce((a,i)=>a+(Number(i.qty)||0),0)} artículo(s) · ${fmtDateTime(o.created_at)}</div>
+      <div class="detail-sub" style="margin-top:4px"><span class="badge ${o.status||'pendiente'}">${statusLabel(o.status||'pendiente')}</span></div>
     </div>
     <div class="detail-block" style="grid-column:1/-1">
       <span class="label">Dirección de envío</span>
-      <div class="detail-sub" style="font-size:13px;color:var(--text)">${esc(o.address)||"—"}</div>
+      <div class="detail-sub" style="font-size:13px;color:var(--text)">${esc(o.shipping_address||o.shippingAddress||o.address||'—')}</div>
     </div>
+    ${o.invoice_num||o.invoiceNum?`<div class="detail-block"><span class="label">No. Factura</span><div class="detail-val" style="font-size:13px;font-family:monospace;color:var(--gold)">${esc(o.invoice_num||o.invoiceNum)}</div></div>`:''}
+    ${o.method||o.payment_method?`<div class="detail-block"><span class="label">Método de pago</span><div class="detail-val" style="font-size:13px">${esc(o.method||o.payment_method)}</div></div>`:''}
   `;
 
   const _orderItems = o.items||o.record?.items||[];
-  $("orderItemsList").innerHTML = _orderItems.map(item=>`
+  $("orderItemsList").innerHTML = (_orderItems.length ? _orderItems.map(item=>`
     <div class="order-item-row">
-      <img class="item-img" src="${item.image}" alt="" onerror="this.style.display='none'"/>
+      <img class="item-img" src="${item.image||''}" alt="" onerror="this.style.display='none'"/>
       <div>
-        <div class="item-name">${esc(item.name)}</div>
-        <div class="item-meta">Talla: ${esc(item.size)} · Color: ${esc(item.color)} · Cantidad: ${item.qty}</div>
+        <div class="item-name">${esc(item.name||'Artículo')}</div>
+        <div class="item-meta">${[item.size&&item.size!=='—'?'Talla: '+item.size:'', item.color&&item.color!=='—'?'Color: '+item.color:'', 'Cantidad: '+item.qty].filter(Boolean).join(' · ')}</div>
       </div>
-      <div class="item-price">${money(item.price*item.qty)}</div>
+      <div class="item-price">${money(Number(item.price||0)*Number(item.qty||1))}</div>
     </div>
-  `).join("")+`
-    <div style="display:flex;justify-content:flex-end;padding:10px 12px;border-top:1px solid var(--line)">
+  `).join("") : '<div style="padding:16px;color:var(--muted);text-align:center;font-size:13px">Sin artículos registrados</div>')+`
+    <div style="display:flex;justify-content:space-between;padding:10px 12px;border-top:1px solid var(--line)">
+      ${o.shipping?`<div style="font-size:13px;color:var(--muted)">Envío: ${money(o.shipping)}</div>`:'<div></div>'}
       <div style="font-family:var(--fd);font-size:18px;color:var(--gold);font-weight:600">Total: ${money(o.total)}</div>
     </div>
   `;
@@ -4722,11 +4663,75 @@ renderFacturas = function(){
   });
 };
 
+// ── Auto-upsert client into DB.clients + Supabase ──────────────
+function _autoUpsertClient(clientName, clientEmail, clientPhone, address){
+  if(!clientName) return;
+  const existing = (DB.clients||[]).find(c=>
+    (clientEmail && c.email && c.email.toLowerCase()===clientEmail.toLowerCase()) ||
+    (c.name && c.name.toLowerCase()===clientName.toLowerCase())
+  );
+  if(existing){
+    // update fields if richer data provided
+    if(clientEmail && !existing.email) existing.email = clientEmail;
+    if(clientPhone && !existing.phone) existing.phone = clientPhone;
+    existing.orders_count = (Number(existing.orders_count)||0)+1;
+    existing.updated_at = new Date().toISOString();
+    sbUpsert('clientes',[existing]).catch(()=>{});
+  } else {
+    const nc = {
+      id: 'CLI-'+String(Date.now()).slice(-8),
+      name: clientName,
+      email: clientEmail||'',
+      phone: clientPhone||'',
+      shipping_address: address||'',
+      preferred_payment: 'card',
+      orders_count: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    DB.clients = DB.clients||[];
+    DB.clients.unshift(nc);
+    sbUpsert('clientes',[nc]).catch(()=>{});
+    toast('✅ Cliente "'+clientName+'" agregado automáticamente','ok');
+  }
+}
+
+// ── Auto-upsert products that don't exist ───────────────────────
+function _autoUpsertProducts(items){
+  if(!items||!items.length) return;
+  items.forEach(item=>{
+    if(!item.name) return;
+    const exists = (DB.products||[]).find(p=>
+      (item.prodId && p.id===item.prodId) ||
+      (p.name && p.name.toLowerCase()===item.name.toLowerCase())
+    );
+    if(!exists){
+      const np = {
+        id: item.prodId||('PROD-'+String(Date.now()+Math.random()).replace('.','').slice(-8)),
+        name: item.name,
+        price: Number(item.price||0),
+        stock: 0,
+        category: 'General',
+        active: true,
+        images: item.image?[item.image]:[],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      DB.products = DB.products||[];
+      DB.products.unshift(np);
+      sbUpsert('productos',[np]).catch(()=>{});
+    }
+  });
+}
+
 // saveNewOrderOnly — save order without generating invoice
 function saveNewOrderOnly(){
   const g = id => document.getElementById(id);
   const clientName = (g('nomClientName')?.value||'').trim();
   if(!clientName){ toast('El nombre del cliente es requerido.','warn'); return; }
+  const clientEmail = g('nomClientEmail')?.value||'';
+  const clientPhone = g('nomClientPhone')?.value||'';
+  const address = g('nomAddress')?.value||'';
   const subtotal = _nomItems.reduce((s,i)=>s+i.price*i.qty, 0);
   const ship = parseFloat(g('nomShipping')?.value||0);
   const disc = parseFloat(g('nomDiscountVal')?.value||0);
@@ -4740,19 +4745,20 @@ function saveNewOrderOnly(){
     name: i.name, size: i.size||'—', color: i.color||'—',
     qty: i.qty, price: i.price, image: i.image||''
   }));
+  // Auto-add client and products if missing
+  _autoUpsertClient(clientName, clientEmail, clientPhone, address);
+  _autoUpsertProducts(items);
   const o = {
     id: ordNum,
     invoice_num: invNum,
-    clientName, 
-    clientEmail: g('nomClientEmail')?.value||'',
-    clientPhone: g('nomClientPhone')?.value||'',
+    clientName, clientEmail, clientPhone,
     items, total, subtotal, shipping: ship,
     discountValue: disc,
     method: g('nomMethod')?.value||'card',
     status: g('nomOrderStatus')?.value||'pendiente',
     invoice_status: 'pendiente',
     notes: g('nomNotes')?.value||'',
-    address: g('nomAddress')?.value||'',
+    address,
     created_at: now, updated_at: now
   };
   DB.orders.unshift(o);
@@ -4770,6 +4776,9 @@ window.invoiceNewOrder = function(){
   const g = id => document.getElementById(id);
   const clientName = (g('nomClientName')?.value||'').trim();
   if(!clientName){ toast('El nombre del cliente es requerido.','warn'); return; }
+  const clientEmail = g('nomClientEmail')?.value||'';
+  const clientPhone = g('nomClientPhone')?.value||'';
+  const address = g('nomAddress')?.value||'';
   const subtotal = _nomItems.reduce((s,i)=>s+i.price*i.qty, 0);
   const ship = parseFloat(g('nomShipping')?.value||0);
   const disc = parseFloat(g('nomDiscountVal')?.value||0);
@@ -4783,18 +4792,19 @@ window.invoiceNewOrder = function(){
     name: i.name, size: i.size||'—', color: i.color||'—',
     qty: i.qty, price: i.price, image: i.image||''
   }));
+  // Auto-add client and products if missing
+  _autoUpsertClient(clientName, clientEmail, clientPhone, address);
+  _autoUpsertProducts(items);
   const o = {
     id: ordNum, invoice_num: invNum,
-    clientName,
-    clientEmail: g('nomClientEmail')?.value||'',
-    clientPhone: g('nomClientPhone')?.value||'',
+    clientName, clientEmail, clientPhone,
     items, total, subtotal, shipping: ship,
     discountValue: disc,
     method: g('nomMethod')?.value||'card',
     status: g('nomOrderStatus')?.value||'pendiente',
     invoice_status: 'pendiente',
     notes: g('nomNotes')?.value||'',
-    address: g('nomAddress')?.value||'',
+    address,
     created_at: now, updated_at: now
   };
   DB.orders.unshift(o);
