@@ -4797,21 +4797,21 @@ window.buildInvoicePDF = function(o){
   const CX=M+CR+2, CY=HDR/2+1;
   doc.setFillColor(...GOLD2); doc.circle(CX,CY,CR,'F');       // fondo dorado
 
-  const logoSrc=(co._logoB64||co.logoUrl||co.logo_data||co.logo_url||'').trim();
-  let logoOk=false;
-  if(logoSrc){
-    try{
-      const isJpeg=logoSrc.startsWith('data:image/jpeg')||/\.(jpg|jpeg)/i.test(logoSrc);
-      const fmt2=logoSrc.startsWith('data:image/png')?'PNG':(isJpeg?'JPEG':'PNG');
-      doc.addImage(logoSrc, fmt2, CX-CR, CY-CR, CR*2, CR*2, '', 'NONE');
-      logoOk=true;
-    }catch(e){ logoOk=false; }
-  }
-  if(!logoOk){
-    doc.setFont('helvetica','bold'); doc.setFontSize(14);
-    doc.setTextColor(...DARK);
-    doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
-  }
+ const logoSrc=(co._logoB64||co.logoUrl||co.logo_data||co.logo_url||'').trim();
+let logoOk=false;
+if(logoSrc){
+  try{
+    const isJpeg=logoSrc.startsWith('data:image/jpeg')||/\.(jpg|jpeg)/i.test(logoSrc);
+    const fmt2=logoSrc.startsWith('data:image/png')?'PNG':(isJpeg?'JPEG':'PNG');
+    doc.addImage(logoSrc, fmt2, CX-CR, CY-CR, CR*2, CR*2, '', 'NONE');
+    logoOk=true;
+  }catch(e){ logoOk=false; }
+}
+if(!logoOk){
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.setTextColor(...DARK);
+  doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
+}
 
   // ── Info empresa (junto al logo) ──────────────────────────
   const EX=CX+CR+7;
