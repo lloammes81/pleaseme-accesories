@@ -4816,5 +4816,329 @@ window.invoiceNewOrder = function(){
   setTimeout(()=>quickInvoice(ordNum), 500);
 };
 
+
+// ══════════════════════════════════════════════════════════════
+//  FIX: Botón "Agregar cliente" — modal emergente completo
+// ══════════════════════════════════════════════════════════════
+(function fixClientModal(){
+
+  // Asegurar que el overlay del modal existe con estilos correctos
+  let m = document.getElementById('addClientModal');
+  if(!m){
+    m = document.createElement('div');
+    m.id = 'addClientModal';
+    document.body.appendChild(m);
+  }
+
+  // Reconstruir el modal completamente para garantizar estructura correcta
+  m.className = 'modal-overlay';
+  m.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:9999; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;';
+  m.innerHTML = `
+    <div style="background:#1a1508;border:1px solid rgba(212,175,55,.35);border-radius:16px;max-width:520px;width:100%;padding:0;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid rgba(212,175,55,.15)">
+        <b style="color:var(--gold,#d4af37);font-size:15px">👤 Nuevo cliente</b>
+        <button id="closeAddClient" style="background:none;border:none;color:#888;font-size:22px;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
+      </div>
+      <div style="padding:20px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div><label style="font-size:12px;color:#aaa;display:block;margin-bottom:4px">Nombre completo *</label>
+            <input id="acName" placeholder="Nombre completo" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#f5f0e0;padding:9px 12px;font-size:13px"/></div>
+          <div><label style="font-size:12px;color:#aaa;display:block;margin-bottom:4px">Email</label>
+            <input id="acEmail" type="email" placeholder="correo@ejemplo.com" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#f5f0e0;padding:9px 12px;font-size:13px"/></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div><label style="font-size:12px;color:#aaa;display:block;margin-bottom:4px">Teléfono / WhatsApp</label>
+            <input id="acPhone" placeholder="+1 (555) 000-0000" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#f5f0e0;padding:9px 12px;font-size:13px"/></div>
+          <div><label style="font-size:12px;color:#aaa;display:block;margin-bottom:4px">Ciudad / País</label>
+            <input id="acCity" placeholder="Santo Domingo, RD" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#f5f0e0;padding:9px 12px;font-size:13px"/></div>
+        </div>
+        <div style="margin-bottom:12px"><label style="font-size:12px;color:#aaa;display:block;margin-bottom:4px">Dirección de envío</label>
+          <textarea id="acAddress" placeholder="Calle, número, sector..." style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#f5f0e0;padding:9px 12px;font-size:13px;min-height:64px;resize:vertical"></textarea></div>
+        <div style="margin-bottom:16px"><label style="font-size:12px;color:#aaa;display:block;margin-bottom:4px">Método de pago preferido</label>
+          <select id="acPayment" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.5);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#f5f0e0;padding:9px 12px;font-size:13px">
+            <option value="card">Tarjeta</option>
+            <option value="cash">Efectivo</option>
+            <option value="transfer">Transferencia</option>
+          </select></div>
+        <button id="saveClientBtn" style="width:100%;background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;font-weight:700;border:none;border-radius:10px;padding:13px;font-size:14px;cursor:pointer">✓ Guardar cliente</button>
+      </div>
+    </div>`;
+
+  window.openAddClientModal = function(){
+    ['acName','acEmail','acPhone','acCity','acAddress'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.value='';
+    });
+    const p=document.getElementById('acPayment'); if(p) p.value='card';
+    m.style.display='flex';
+    setTimeout(()=>{ const n=document.getElementById('acName'); if(n) n.focus(); },80);
+  };
+
+  window.closeAddClientModal = function(){
+    m.style.display='none';
+  };
+
+  document.getElementById('closeAddClient').addEventListener('click', window.closeAddClientModal);
+  m.addEventListener('click', e=>{ if(e.target===m) window.closeAddClientModal(); });
+
+  document.getElementById('saveClientBtn').addEventListener('click', ()=>{
+    const name  = (document.getElementById('acName')?.value||'').trim();
+    if(!name){ 
+      const n=document.getElementById('acName');
+      if(n){ n.style.borderColor='#ff6b6b'; setTimeout(()=>n.style.borderColor='',1500); }
+      toast('El nombre es requerido.','warn'); 
+      return; 
+    }
+    const email = (document.getElementById('acEmail')?.value||'').trim();
+    const phone = (document.getElementById('acPhone')?.value||'').trim();
+    const city  = (document.getElementById('acCity')?.value||'').trim();
+    const addr  = (document.getElementById('acAddress')?.value||'').trim();
+    const pay   = document.getElementById('acPayment')?.value||'card';
+
+    const dup = (DB.clients||[]).find(c=>
+      (email && c.email && c.email.toLowerCase()===email.toLowerCase()) ||
+      (c.name && c.name.toLowerCase()===name.toLowerCase())
+    );
+    if(dup){ toast('⚠️ Ya existe un cliente con ese nombre o email.','warn'); return; }
+
+    const nc = {
+      id: 'CLI-'+String(Date.now()).slice(-8),
+      name, email, phone, city,
+      shipping_address: addr,
+      preferred_payment: pay,
+      orders_count: 0,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    DB.clients = DB.clients||[];
+    DB.clients.unshift(nc);
+    persist();
+    sbUpsert('clientes',[nc]).catch(()=>{});
+    if(typeof renderClients==='function') renderClients();
+    if(typeof updateCounts==='function') updateCounts();
+    window.closeAddClientModal();
+    toast('✅ Cliente "'+name+'" guardado correctamente','ok');
+  });
+
+  // Conectar botón principal "Agregar cliente"
+  function bindAddBtn(){
+    const btn = document.getElementById('addClientBtn');
+    if(btn && !btn._clientBound){
+      btn._clientBound = true;
+      btn.addEventListener('click', window.openAddClientModal);
+    }
+  }
+  bindAddBtn();
+  setTimeout(bindAddBtn, 600);
+  setTimeout(bindAddBtn, 2000);
+})();
+
+// ══════════════════════════════════════════════════════════════
+//  FIX: PDF — logo sin fondo (transparente) + todos los totales
+// ══════════════════════════════════════════════════════════════
+window.buildInvoicePDF = function(o){
+  const {jsPDF} = window.jspdf;
+  if(!jsPDF){ toast('Error: jsPDF no disponible','err'); return null; }
+  const doc = new jsPDF({unit:'mm', format:'letter'});
+  const co  = getCompanyInfo();
+  const W=215.9, H=279.4, M=15;
+
+  const GOLD=[180,130,40], GOLD2=[201,150,58];
+  const DARK=[25,20,10],   GRAY=[110,110,110];
+  const LGRAY=[165,165,165], LINE=[218,212,198];
+  const BG=[249,247,242],  WHITE=[255,255,255];
+  const GREEN=[30,140,70];
+
+  const cur=o.currency||'USD';
+  const sym={USD:'$',MXN:'$',DOP:'RD$',COP:'$',EUR:'€'}[cur]||'$';
+  const fmt=n=>sym+Number(n||0).toFixed(2)+(cur!=='USD'?' '+cur:'');
+
+  // Fondo blanco
+  doc.setFillColor(...WHITE); doc.rect(0,0,W,H,'F');
+  // Barra top dorada
+  doc.setFillColor(...GOLD); doc.rect(0,0,W,4,'F');
+
+  // ── HEADER ────────────────────────────────────────────────
+  let y=14;
+  const lx=M, ly=y, lw=32, lh=32;
+
+  // Logo sin fondo — usa la imagen guardada en DB.company
+  const logoSrc=(co.logoUrl||co.logo_data||co.logo_url||'').trim();
+  if(logoSrc){
+    try{
+      const isJpeg=logoSrc.startsWith('data:image/jpeg')||/\.(jpg|jpeg)/i.test(logoSrc);
+      doc.addImage(logoSrc, isJpeg?'JPEG':'PNG', lx, ly, lw, lh, '', 'NONE');
+    }catch(e){
+      // Fallback inicial
+      doc.setFillColor(...GOLD); doc.circle(lx+lw/2,ly+lh/2,lw/2-1,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...WHITE);
+      doc.text((co.name||'P')[0].toUpperCase(), lx+lw/2, ly+lh/2+4,{align:'center'});
+    }
+  } else {
+    doc.setFillColor(...GOLD); doc.circle(lx+lw/2,ly+lh/2,lw/2-1,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...WHITE);
+    doc.text((co.name||'P')[0].toUpperCase(), lx+lw/2, ly+lh/2+4,{align:'center'});
+  }
+
+  // Info empresa
+  const cx=lx+lw+8;
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(...DARK);
+  doc.text(co.name||'Pleaseme', cx, y+9);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+  let ey=y+15;
+  if(co.address){ doc.text(co.address,cx,ey); ey+=5; }
+  if(co.email)  { doc.text(co.email,  cx,ey); ey+=5; }
+  if(co.whatsapp||co.phone){ doc.text('Tel: '+(co.whatsapp||co.phone),cx,ey); }
+
+  // FACTURA derecha
+  const rx=W-M;
+  const invNum=o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
+  doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(...GOLD);
+  doc.text('FACTURA', rx, y+12, {align:'right'});
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+  doc.text('No. '+invNum, rx, y+19, {align:'right'});
+  doc.text('Fecha: '+new Date(o.created_at||Date.now()).toLocaleDateString('es-DO'), rx, y+25, {align:'right'});
+  doc.text('Pedido: '+(o.id||'—'), rx, y+31, {align:'right'});
+
+  y=ly+lh+9;
+
+  // Separador
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.7);
+  doc.line(M,y,W-M,y); y+=8;
+
+  // ── CAJAS CLIENTE / ENVÍO ─────────────────────────────────
+  const colW=(W-M*2-6)/2, col2=M+colW+6, boxH=36;
+
+  [[M,'FACTURAR A',[
+    o.clientName||o.client_name||o.name||'—',
+    o.clientEmail||o.client_email||o.email||'',
+    o.clientPhone||o.client_phone||o.phone||''
+  ]],[col2,'ENVIAR A',(()=>{
+    const a=o.shipping_address||o.shippingAddress||o.address||'—';
+    const ls=doc.splitTextToSize(a,colW-12);
+    const r=[ls[0]||'—',ls[1]||'',ls[2]||''];
+    if(o.tracking_num||o.trackingNum) r[2]='Track: '+(o.tracking_num||o.trackingNum);
+    return r;
+  })()]].forEach(([x,lbl,lines])=>{
+    doc.setFillColor(...BG); doc.roundedRect(x,y,colW,boxH,2,2,'F');
+    doc.setFillColor(...GOLD); doc.rect(x,y,2.5,boxH,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...GOLD2);
+    doc.text(lbl, x+7, y+6);
+    lines.filter(Boolean).forEach((l,i)=>{
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(i===0?9:8); 
+      doc.setTextColor(...(i===0?DARK:GRAY));
+      doc.text(String(l).slice(0,46), x+7, y+13+i*6);
+    });
+  });
+  y+=boxH+9;
+
+  // ── TABLA ARTÍCULOS ───────────────────────────────────────
+  const C={desc:M+3, qty:W-M-72, price:W-M-46, tot:W-M-2};
+  doc.setFillColor(...DARK); doc.rect(M,y,W-M*2,9,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...WHITE);
+  doc.text('ARTÍCULO / DESCRIPCIÓN',C.desc,y+6);
+  doc.text('CANT.',C.qty,y+6,{align:'right'});
+  doc.text('PRECIO',C.price,y+6,{align:'right'});
+  doc.text('TOTAL',C.tot,y+6,{align:'right'});
+  y+=10;
+
+  const items=Array.isArray(o.items)?o.items:(o.record?.items||[]);
+  let totalQty=0;
+  items.forEach((item,i)=>{
+    const hasMeta=((item.size&&item.size!=='—')||(item.color&&item.color!=='—'));
+    const rowH=hasMeta?12:9;
+    if(i%2===0){doc.setFillColor(246,244,240);doc.rect(M,y-0.5,W-M*2,rowH,'F');}
+    const name=String(item.name||'Artículo');
+    const qty=Number(item.qty||1);
+    const price=Number(item.price||0);
+    const sub=qty*price;
+    totalQty+=qty;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+    doc.text(doc.splitTextToSize(name,W-M*2-82)[0],C.desc,y+5.5);
+    if(hasMeta){
+      const meta=[(item.size&&item.size!=='—'?'Talla: '+item.size:''),(item.color&&item.color!=='—'?'Color: '+item.color:'')].filter(Boolean).join(' · ');
+      doc.setFontSize(6.5); doc.setTextColor(...LGRAY); doc.text(meta,C.desc+1,y+10);
+    }
+    doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+    doc.text(String(qty),C.qty,y+5.5,{align:'right'});
+    doc.text(fmt(price),C.price,y+5.5,{align:'right'});
+    doc.setTextColor(...DARK);
+    doc.text(fmt(sub),C.tot,y+5.5,{align:'right'});
+    y+=rowH;
+  });
+
+  // Línea cierre + resumen unidades
+  doc.setDrawColor(...LINE); doc.setLineWidth(0.3);
+  doc.line(M,y+1,W-M,y+1);
+  doc.setFont('helvetica','italic'); doc.setFontSize(7.5); doc.setTextColor(...LGRAY);
+  doc.text('Total artículos: '+totalQty+' unidad'+(totalQty!==1?'es':''), M+3, y+6);
+  y+=11;
+
+  // ── TOTALES COMPLETOS ─────────────────────────────────────
+  const subtotal=Number(o.subtotal)||items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
+  const discount=Number(o.discountAmount||o.discount_amount||o.discountValue||0);
+  const shipping=Number(o.shipping||o.shipping_cost||0);
+  const total   =Number(o.total)||Math.max(0,subtotal+shipping-discount);
+
+  const totX=W-M-80, totVX=W-M, rT=7.5;
+
+  // Separador antes de totales
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.4);
+  doc.line(totX-4,y,W-M,y); y+=5;
+
+  const drawT=(lbl,val,opts={})=>{
+    if(opts.bold){
+      doc.setFillColor(...GOLD);
+      doc.roundedRect(totX-5,y-5,W-totX+5-M+3,rT+3,2,2,'F');
+    } else if(opts.shade){
+      doc.setFillColor(...BG);
+      doc.rect(totX-5,y-5,W-totX+5-M+3,rT+3,'F');
+    }
+    doc.setFont('helvetica',opts.bold?'bold':'normal');
+    doc.setFontSize(opts.bold?10.5:8.5);
+    doc.setTextColor(...(opts.bold?WHITE:GRAY));
+    doc.text(lbl,totX,y+1);
+    doc.setTextColor(...(opts.bold?WHITE:opts.green?GREEN:opts.muted?LGRAY:DARK));
+    doc.text(val,totVX,y+1,{align:'right'});
+    y+=rT;
+  };
+
+  drawT('Subtotal:', fmt(subtotal), {shade:true});
+  drawT('Envío:', shipping>0?fmt(shipping):'Sin costo — gratis', {muted:shipping===0});
+  drawT('Descuento:', discount>0?'— '+fmt(discount):'Sin descuento', {muted:discount===0, green:discount>0});
+  y+=2;
+  drawT('TOTAL A PAGAR:', fmt(total), {bold:true});
+
+  // Pago
+  const ptMap={contado:'Pago de contado',credito:'Crédito',anticipo:'Anticipo/Depósito',card:'Tarjeta de crédito/débito',cash:'Efectivo',transfer:'Transferencia bancaria'};
+  const pm=ptMap[o.payment_type]||ptMap[o.method]||o.method||o.payment_type||'';
+  if(pm){
+    y+=5; doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    doc.text('Forma de pago: '+pm, totX, y);
+  }
+
+  // Notas
+  if(o.notes){
+    y=Math.max(y+10,228);
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M,y,W-M,y); y+=5;
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...GOLD2);
+    doc.text('NOTAS:', M, y); y+=5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    doc.splitTextToSize(o.notes,W-M*2).forEach(l=>{doc.text(l,M,y);y+=4.5;});
+  }
+
+  // Footer
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.4);
+  doc.line(M,H-18,W-M,H-18);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+  doc.text('Gracias por su preferencia — '+(co.name||'Pleaseme'), W/2, H-12, {align:'center'});
+  doc.setFontSize(7); doc.setTextColor(...LGRAY);
+  doc.text('Generado el '+new Date().toLocaleDateString('es')+' · '+invNum, W/2, H-7, {align:'center'});
+  doc.setFillColor(...GOLD); doc.rect(0,H-3,W,3,'F');
+
+  return doc;
+};
+
 </script>
 </body></html>
