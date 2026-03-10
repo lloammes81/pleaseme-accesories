@@ -2392,67 +2392,155 @@ function bindCompanyInfoPreview(){
     });
   });
 }
+// ── COMPANY INFO (branding/contact) ───────────────────────
+function getCompanyInfo(){
+  if(DB.company) return DB.company;
+  if(DB.config&&DB.config.company) return DB.config.company;
+  try{ return JSON.parse(localStorage.getItem(LS_COMPANY)||"{}") || {}; }catch(e){ return {}; }
+}
+
+function companyPreviewHtml(c){
+  const rows = [];
+  if(c.name)    rows.push(`<div><b>Compañía:</b> ${esc(c.name)}</div>`);
+  if(c.email)   rows.push(`<div><b>Email:</b> ${esc(c.email)}</div>`);
+  if(c.whatsapp) rows.push(`<div><b>WhatsApp:</b> ${esc(c.whatsapp)}</div>`);
+  if(c.instagram) rows.push(`<div><b>Instagram:</b> ${esc(c.instagram)}</div>`);
+  if(c.address)  rows.push(`<div><b>Dirección:</b> ${esc(c.address)}</div>`);
+  const logoSrc = c.logo_data || c.logoUrl || c.logo_url || '';
+  if(logoSrc)   rows.push(`<div style="margin-top:6px"><img src="${esc(logoSrc)}" style="max-width:120px;max-height:60px;border-radius:8px;border:1px solid rgba(212,175,55,.25);background:#080603;padding:4px" onerror="this.style.display='none'"/></div>`);
+  return rows.length ? rows.join("") : "Aquí verás un resumen guardado.";
+}
+
+function bindLogoFileInput(){
+  const input = $("coLogoFile");
+  if(!input) return;
+  // Evitar duplicar el listener
+  if(input._bound) return;
+  input._bound = true;
+  input.addEventListener("change", function(){
+    const file = this.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const base64 = e.target.result; // data:image/png;base64,...
+      if(!DB.company) DB.company = {};
+      DB.company.logo_data = base64;
+      DB.company.logoUrl   = base64;
+      // Preview
+      const prev = $("coLogoPreviewImg");
+      if(prev) prev.innerHTML = `<img src="${base64}" style="max-width:120px;max-height:60px;border-radius:8px;border:1px solid rgba(212,175,55,.25);background:#080603;padding:4px"/>`;
+      // Actualizar preview general
+      if($("companyPreview")) $("companyPreview").innerHTML = companyPreviewHtml({
+        name:      $("coName")?.value.trim(),
+        email:     $("coEmail")?.value.trim(),
+        whatsapp:  $("coWhatsApp")?.value.trim(),
+        instagram: $("coInstagram")?.value.trim(),
+        address:   $("coAddress")?.value.trim(),
+        logo_data: base64
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadCompanyInfoForm(){
+  const c = getCompanyInfo();
+  if($("coName"))      $("coName").value      = c.name      || "";
+  if($("coLogoUrl"))   $("coLogoUrl").value   = c.logoUrl   || c.logo_url || "";
+  if($("coEmail"))     $("coEmail").value      = c.email     || "";
+  if($("coWhatsApp"))  $("coWhatsApp").value   = c.whatsapp  || "";
+  if($("coInstagram")) $("coInstagram").value  = c.instagram || "";
+  if($("coAddress"))   $("coAddress").value    = c.address   || "";
+  if($("companyPreview")) $("companyPreview").innerHTML = companyPreviewHtml(c);
+  // Mostrar logo actual si existe
+  const logoSrc = c.logo_data || c.logoUrl || c.logo_url || '';
+  if(logoSrc && $("coLogoPreviewImg")){
+    $("coLogoPreviewImg").innerHTML = `<img src="${logoSrc}" style="max-width:120px;max-height:60px;border-radius:8px;border:1px solid rgba(212,175,55,.25);background:#080603;padding:4px" onerror="this.style.display='none'"/>`;
+  }
+  bindLogoFileInput();
+}
+
+function bindCompanyInfoPreview(){
+  ["coName","coLogoUrl","coEmail","coWhatsApp","coInstagram","coAddress"].forEach(id=>{
+    $(id)?.addEventListener("input", ()=>{
+      $("companyPreview").innerHTML = companyPreviewHtml({
+        name:      $("coName").value.trim(),
+        logoUrl:   $("coLogoUrl").value.trim(),
+        logo_data: DB.company?.logo_data || '',
+        email:     $("coEmail").value.trim(),
+        whatsapp:  $("coWhatsApp").value.trim(),
+        instagram: $("coInstagram").value.trim(),
+        address:   $("coAddress").value.trim()
+      });
+    });
+  });
+}
+
 function saveCompanyInfo(){
   const logoUrl  = $("coLogoUrl").value.trim();
-  const logoData = DB.company?.logo_data || '';   // base64 subido
+  const logoData = DB.company?.logo_data || '';  // base64 del FileReader
   const c = {
-    name:         $("coName").value.trim(),
-    email:        $("coEmail").value.trim(),
-    whatsapp:     $("coWhatsApp").value.trim(),
-    instagram:    $("coInstagram").value.trim(),
-    address:      $("coAddress").value.trim(),
-    logo_url:     logoUrl,
-    logo_data:    logoData,
-    google_key:   $("coGoogleKey")?.value.trim()||'',
-    ep_user: $("coEpUser")?.value.trim()||'',
-    ep_pass: $("coEpPass")?.value||'',
-    ps_user: $("coPsUser")?.value.trim()||'',
-    ps_token: $("coPsToken")?.value||'',
-    currency:     $("coCurrency")?.value||'USD',
-    logoUrl:      logoData || logoUrl,
-    updated_at:   new Date().toISOString()
+    name:       $("coName").value.trim(),
+    email:      $("coEmail").value.trim(),
+    whatsapp:   $("coWhatsApp").value.trim(),
+    instagram:  $("coInstagram").value.trim(),
+    address:    $("coAddress").value.trim(),
+    logo_url:   logoUrl,
+    logo_data:  logoData,
+    google_key: $("coGoogleKey")?.value.trim()  || '',
+    ep_user:    $("coEpUser")?.value.trim()     || '',
+    ep_pass:    $("coEpPass")?.value            || '',
+    ps_user:    $("coPsUser")?.value.trim()     || '',
+    ps_token:   $("coPsToken")?.value           || '',
+    currency:   $("coCurrency")?.value          || 'USD',
+    logoUrl:    logoData || logoUrl,   // para PDF y preview
+    updated_at: new Date().toISOString()
   };
+
   // Cache local
   DB.company = c;
   localStorage.setItem(LS_COMPANY, JSON.stringify(c));
+
   let cfg = {};
   try{ cfg = JSON.parse(localStorage.getItem("pm_config")||"{}") || {}; }catch(e){}
-  if(c.whatsapp)     cfg.wa          = c.whatsapp;
-  if(c.email)        cfg.contactEmail = c.email;
-  if(c.google_key)   { cfg.googleKey   = c.google_key;   CFG.googleKey   = c.google_key;   initGooglePlaces(); }
-  if(c.ep_user)  { cfg.epUser=c.ep_user;   CFG.epUser=c.ep_user; }
-  if(c.ep_pass)  { cfg.epPass=c.ep_pass;   CFG.epPass=c.ep_pass; }
-  if(c.ps_user)  { cfg.psUser=c.ps_user;   CFG.psUser=c.ps_user; psUpdateCredUI(); }
-  if(c.ps_token) { cfg.psToken=c.ps_token; CFG.psToken=c.ps_token; }
-  // Show saved status
+  if(c.whatsapp)   cfg.wa           = c.whatsapp;
+  if(c.email)      cfg.contactEmail = c.email;
+  if(c.google_key) { cfg.googleKey  = c.google_key;  CFG.googleKey  = c.google_key;  initGooglePlaces(); }
+  if(c.ep_user)    { cfg.epUser     = c.ep_user;     CFG.epUser     = c.ep_user; }
+  if(c.ep_pass)    { cfg.epPass     = c.ep_pass;     CFG.epPass     = c.ep_pass; }
+  if(c.ps_user)    { cfg.psUser     = c.ps_user;     CFG.psUser     = c.ps_user;  psUpdateCredUI(); }
+  if(c.ps_token)   { cfg.psToken    = c.ps_token;    CFG.psToken    = c.ps_token; }
+  if(c.currency)   { cfg.cur        = c.currency;    CFG.cur        = c.currency; }
   epUpdateCredUI();
-  if(c.currency)     { cfg.cur         = c.currency;     CFG.cur         = c.currency; }
   localStorage.setItem("pm_config", JSON.stringify(cfg));
 
-  // Guardar en tabla company (UPDATE fila id=1)
+  // Guardar en Supabase tabla company (fila id=1)
   sbPATCH('company', 1, {
-    name:         c.name,
-    email:        c.email,
-    whatsapp:     c.whatsapp,
-    instagram:    c.instagram,
-    address:      c.address,
-    logo_url:     c.logo_url,
-    logo_data:    c.logo_data,
-    google_key:   c.google_key,
-    ep_user: c.ep_user,
-    ep_pass: c.ep_pass,
-    ps_user: c.ps_user,
-    ps_token: c.ps_token,
-    currency:     c.currency,
-    updated_at:   c.updated_at
+    name:       c.name,
+    email:      c.email,
+    whatsapp:   c.whatsapp,
+    instagram:  c.instagram,
+    address:    c.address,
+    logo_url:   c.logo_url,
+    logo_data:  c.logo_data,
+    google_key: c.google_key,
+    ep_user:    c.ep_user,
+    ep_pass:    c.ep_pass,
+    ps_user:    c.ps_user,
+    ps_token:   c.ps_token,
+    currency:   c.currency,
+    updated_at: c.updated_at
   }).catch(e=>console.error('[SB] company save:',e));
 
-  // También sync config storefront
+  // Sync config storefront
   sbPOST('config',{key:'storefront',value:cfg},'POST','resolution=merge-duplicates,return=minimal')
     .catch(e=>console.error('[SB] config:',e));
 
   toast("Información de compañía guardada ✅", "ok");
-  if($("companyInfoModal")){$("companyInfoModal").classList.remove("open"); $("companyInfoModal").style.display="none";}
+  if($("companyInfoModal")){
+    $("companyInfoModal").classList.remove("open");
+    $("companyInfoModal").style.display="none";
+  }
 }
 
 
