@@ -4797,17 +4797,70 @@ window.buildInvoicePDF = function(o){
   const CX=M+CR+2, CY=HDR/2+1;
   doc.setFillColor(...GOLD2); doc.circle(CX,CY,CR,'F');       // fondo dorado
 
- const logoSrc=(co._logoB64||co.logoUrl||co.logo_data||co.logo_url||'').trim();
+const logoSrc=(co._logoB64||co.logoUrl||co.logo_data||co.logo_url||'').trim();
 let logoOk=false;
-if(logoSrc){
-  try{
-    const isJpeg=logoSrc.startsWith('data:image/jpeg')||/\.(jpg|jpeg)/i.test(logoSrc);
-    const fmt2=logoSrc.startsWith('data:image/png')?'PNG':(isJpeg?'JPEG':'PNG');
-    doc.addImage(logoSrc, fmt2, CX-CR, CY-CR, CR*2, CR*2, '', 'NONE');
-    logoOk=true;
-  }catch(e){ logoOk=false; }
+
+function normalizeLogoForPdfSync(src, callback){
+  if(!src) return callback(new Error('Logo vacío'));
+
+  if(
+    src.startsWith('data:image/png') ||
+    src.startsWith('data:image/jpeg') ||
+    src.startsWith('data:image/jpg')
+  ){
+    return callback(null, src);
+  }
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+
+  img.onload = function(){
+    try{
+      const canvas = document.createElement('canvas');
+      const w = img.naturalWidth || img.width || 300;
+      const h = img.naturalHeight || img.height || 150;
+      canvas.width = w;
+      canvas.height = h;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+
+      const pngData = canvas.toDataURL('image/png');
+      callback(null, pngData);
+    }catch(err){
+      callback(err);
+    }
+  };
+
+  img.onerror = function(){
+    callback(new Error('No se pudo cargar el logo'));
+  };
+
+  img.src = src;
 }
-if(!logoOk){
+
+if(logoSrc){
+  normalizeLogoForPdfSync(logoSrc, function(err, pdfLogo){
+    if(!err && pdfLogo){
+      try{
+        const isJpeg = pdfLogo.startsWith('data:image/jpeg') || pdfLogo.startsWith('data:image/jpg');
+        const fmt2 = isJpeg ? 'JPEG' : 'PNG';
+        doc.addImage(pdfLogo, fmt2, CX-CR, CY-CR, CR*2, CR*2, '', 'NONE');
+        logoOk = true;
+      }catch(e){
+        console.error('Error cargando logo en PDF:', e, logoSrc);
+        logoOk = false;
+      }
+    }
+
+    if(!logoOk){
+      doc.setFont('helvetica','bold'); doc.setFontSize(14);
+      doc.setTextColor(...DARK);
+      doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
+    }
+  });
+} else {
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
   doc.setTextColor(...DARK);
   doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
