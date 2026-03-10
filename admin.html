@@ -2863,6 +2863,7 @@ function renderOrders(){
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn sm" onclick="openOrderModal('${o.id}')">Ver</button>
+          <button class="btn sm" onclick="openEditInvoice('${o.id}')" title="Editar" style="background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.3);color:#d4af37">✏️</button>
           <button class="btn sm" onclick="quickInvoice('${o.id}')" title="Generar factura" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">🧾</button>
           <button class="btn sm" onclick="quickLabel('${o.id}')" title="Etiqueta envío" style="background:rgba(212,175,55,.08);border-color:rgba(212,175,55,.3);color:var(--gold)">📦</button>
           ${o.clientPhone?`<button class="btn sm" onclick="event.stopPropagation();quickWA('${o.id}')" title="Enviar WhatsApp" style="background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3);color:#25d366">💬</button>`:''}
@@ -3077,12 +3078,16 @@ function nomRemoveItem(i){ _nomItems.splice(i,1); nomRenderItems(); nomRecalc();
 function nomRecalc(){
   const sub=_nomItems.reduce((s,i)=>s+i.price*i.qty,0);
   const ship=Number(document.getElementById('nomShipping')?.value||0);
-  const disc=Number(document.getElementById('nomDiscountVal')?.value||0);
-  const total=Math.max(0,sub+ship-disc);
+  const discVal=Number(document.getElementById('nomDiscountVal')?.value||0);
+  const discType=document.getElementById('nomDiscountType')?.value||'pct';
+  const discAmt = discType==='pct' ? sub*(discVal/100) : discVal;
+  const total=Math.max(0,sub+ship-discAmt);
   const subEl=document.getElementById('nomSubtotal');
   const totEl=document.getElementById('nomTotal');
+  const prevEl=document.getElementById('nomDiscountPreview');
   if(subEl) subEl.textContent='$'+sub.toFixed(2);
-  if(totEl) totEl.textContent='$'+total.toFixed(2);
+  if(totEl) totEl.textContent='$'+total.toFixed(2)+' USD';
+  if(prevEl) prevEl.textContent = discAmt>0 ? '− $'+discAmt.toFixed(2)+' USD' : '';
 }
 async function nomSaveNewProduct(name, price){
   const exists=(DB.products||[]).find(p=>(p.name||'').toLowerCase()===name.toLowerCase());
@@ -3495,6 +3500,7 @@ function renderFacturas(){
       <td style="font-size:11px;color:var(--muted)">${esc(o.method||o.payment_method||'—')}</td>
       <td><span class="badge ${facStatus}">${facStatus.toUpperCase()}</span></td>
       <td onclick="event.stopPropagation()"><div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn sm" onclick="openEditInvoice('${o.id}')" title="Editar factura" style="background:rgba(212,175,55,.12);border-color:rgba(212,175,55,.35);color:#d4af37">✏️ Editar</button>
         <button class="btn sm" onclick="quickInvoice('${o.id}')" title="Generar PDF" style="background:rgba(47,227,181,.12);border-color:rgba(47,227,181,.35);color:#2fe3b5">🧾 PDF</button>
         <button class="btn sm danger" onclick="deleteOrder('${o.id}')" title="Eliminar">🗑</button>
       </div></td>
@@ -3771,10 +3777,33 @@ function confirmAndLabel(){
   toast('✅ Pedido confirmado como "procesando"','ok');
   setTimeout(()=>quickLabel(id), 300);
 }
-function quickInvoice(id){
+// Precarga logo como base64 para jsPDF
+async function _loadLogoBase64(){
+  const co=getCompanyInfo();
+  const src=(co.logoUrl||co.logo_data||co.logo_url||'').trim();
+  if(!src||src.startsWith('data:')) return src; // ya es base64 o vacío
+  return new Promise(res=>{
+    const img=new Image(); img.crossOrigin='anonymous';
+    img.onload=()=>{
+      try{
+        const c=document.createElement('canvas');
+        c.width=img.naturalWidth; c.height=img.naturalHeight;
+        c.getContext('2d').drawImage(img,0,0);
+        res(c.toDataURL('image/png'));
+      }catch(e){ res(src); }
+    };
+    img.onerror=()=>res('');
+    img.src=src;
+  });
+}
+
+async function quickInvoice(id){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Pedido no encontrado.','err'); return; }
   try{
+    // Precargar logo
+    const logoB64 = await _loadLogoBase64();
+    if(logoB64){ const co=getCompanyInfo(); co._logoB64=logoB64; }
     const fn = window.buildInvoicePDF || buildInvoicePDF;
     const doc = fn(o);
     if(!doc){ return; }
@@ -4122,8 +4151,15 @@ function waSendCampaign(){
       </div>
       <div>
         <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">DESCUENTO</label>
-        <input id="nomDiscountVal" type="number" step="0.01" value="0" placeholder="$0.00" oninput="nomRecalc()"
-          style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="nomDiscountVal" type="number" step="0.01" min="0" value="0" placeholder="0" oninput="nomRecalc()"
+            style="flex:1;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+          <select id="nomDiscountType" onchange="nomRecalc()" style="padding:9px 8px;background:rgba(0,0,0,.5);border:1px solid rgba(212,175,55,.3);border-radius:8px;color:var(--gold);font-size:13px;font-weight:700">
+            <option value="pct">%</option>
+            <option value="fixed">$</option>
+          </select>
+        </div>
+        <div id="nomDiscountPreview" style="font-size:10px;color:rgba(212,175,55,.6);margin-top:3px;text-align:right"></div>
       </div>
       <div>
         <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">PAGO</label>
@@ -4523,7 +4559,9 @@ function saveNewOrderOnly(){
   const address = g('nomAddress')?.value||'';
   const subtotal = _nomItems.reduce((s,i)=>s+i.price*i.qty, 0);
   const ship = parseFloat(g('nomShipping')?.value||0);
-  const disc = parseFloat(g('nomDiscountVal')?.value||0);
+  const discVal = parseFloat(g('nomDiscountVal')?.value||0);
+  const discType = g('nomDiscountType')?.value||'pct';
+  const disc = discType==='pct' ? subtotal*(discVal/100) : discVal;
   const total = Math.max(0, subtotal + ship - disc);
   const now = new Date().toISOString();
   const yr = new Date().getFullYear();
@@ -4542,7 +4580,7 @@ function saveNewOrderOnly(){
     invoice_num: invNum,
     clientName, clientEmail, clientPhone,
     items, total, subtotal, shipping: ship,
-    discountValue: disc,
+    discountValue: disc, discountAmount: disc,
     method: g('nomMethod')?.value||'card',
     status: g('nomOrderStatus')?.value||'pendiente',
     invoice_status: 'pendiente',
@@ -4570,7 +4608,9 @@ window.invoiceNewOrder = function(){
   const address = g('nomAddress')?.value||'';
   const subtotal = _nomItems.reduce((s,i)=>s+i.price*i.qty, 0);
   const ship = parseFloat(g('nomShipping')?.value||0);
-  const disc = parseFloat(g('nomDiscountVal')?.value||0);
+  const discVal = parseFloat(g('nomDiscountVal')?.value||0);
+  const discType = g('nomDiscountType')?.value||'pct';
+  const disc = discType==='pct' ? subtotal*(discVal/100) : discVal;
   const total = Math.max(0, subtotal + ship - disc);
   const now = new Date().toISOString();
   const yr = new Date().getFullYear();
@@ -4588,7 +4628,7 @@ window.invoiceNewOrder = function(){
     id: ordNum, invoice_num: invNum,
     clientName, clientEmail, clientPhone,
     items, total, subtotal, shipping: ship,
-    discountValue: disc,
+    discountValue: disc, discountAmount: disc,
     method: g('nomMethod')?.value||'card',
     status: g('nomOrderStatus')?.value||'pendiente',
     invoice_status: 'pendiente',
@@ -4757,13 +4797,13 @@ window.buildInvoicePDF = function(o){
   const CX=M+CR+2, CY=HDR/2+1;
   doc.setFillColor(...GOLD2); doc.circle(CX,CY,CR,'F');       // fondo dorado
 
-  const logoSrc=(co.logoUrl||co.logo_data||co.logo_url||'').trim();
+  const logoSrc=(co._logoB64||co.logoUrl||co.logo_data||co.logo_url||'').trim();
   let logoOk=false;
   if(logoSrc){
     try{
       const isJpeg=logoSrc.startsWith('data:image/jpeg')||/\.(jpg|jpeg)/i.test(logoSrc);
-      // Dibuja imagen sobre el círculo (misma posición/tamaño que el círculo)
-      doc.addImage(logoSrc, isJpeg?'JPEG':'PNG', CX-CR, CY-CR, CR*2, CR*2, '', 'NONE');
+      const fmt2=logoSrc.startsWith('data:image/png')?'PNG':(isJpeg?'JPEG':'PNG');
+      doc.addImage(logoSrc, fmt2, CX-CR, CY-CR, CR*2, CR*2, '', 'NONE');
       logoOk=true;
     }catch(e){ logoOk=false; }
   }
@@ -4962,6 +5002,232 @@ window.buildInvoicePDF = function(o){
   return doc;
 };
 
+
+
+// ══════════════════════════════════════════════════════════════
+//  EDITAR FACTURA — modal completo
+// ══════════════════════════════════════════════════════════════
+(function(){
+  // Crear modal en DOM
+  const el = document.createElement('div');
+  el.id = 'editInvoiceModal';
+  el.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9000;overflow-y:auto;padding:24px 12px';
+  el.innerHTML = `
+  <div style="max-width:680px;margin:0 auto;background:#13100a;border:1px solid rgba(212,175,55,.25);border-radius:16px;padding:28px;color:var(--text,#e8e0cc)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div style="font-size:17px;font-weight:700;color:#d4af37">✏️ Editar Factura</div>
+      <button onclick="closeEditInvoice()" style="background:none;border:none;color:#888;font-size:22px;cursor:pointer;line-height:1">×</button>
+    </div>
+
+    <!-- Info cliente -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div style="grid-column:1/-1">
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">CLIENTE</label>
+        <input id="ei_clientName" placeholder="Nombre del cliente" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">TELÉFONO</label>
+        <input id="ei_clientPhone" placeholder="Teléfono" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">EMAIL</label>
+        <input id="ei_clientEmail" placeholder="Email" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">DIRECCIÓN DE ENVÍO</label>
+        <input id="ei_address" placeholder="Dirección" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box"/>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;margin-bottom:8px">ARTÍCULOS</div>
+      <div id="ei_itemsList" style="border:1px solid rgba(212,175,55,.15);border-radius:8px;overflow:hidden;margin-bottom:8px"></div>
+      <button onclick="eiAddItem()" style="width:100%;padding:8px;background:rgba(212,175,55,.08);border:1px dashed rgba(212,175,55,.3);border-radius:8px;color:#d4af37;font-size:12px;cursor:pointer">+ Agregar artículo</button>
+    </div>
+
+    <!-- Montos -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">ENVÍO ($)</label>
+        <input id="ei_shipping" type="number" step="0.01" min="0" value="0" oninput="eiRecalc()" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">DESCUENTO</label>
+        <div style="display:flex;gap:5px">
+          <input id="ei_discountVal" type="number" step="0.01" min="0" value="0" oninput="eiRecalc()" style="flex:1;padding:9px 10px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box"/>
+          <select id="ei_discountType" onchange="eiRecalc()" style="padding:9px 6px;background:rgba(0,0,0,.6);border:1px solid rgba(212,175,55,.3);border-radius:8px;color:#d4af37;font-size:13px;font-weight:700">
+            <option value="pct">%</option>
+            <option value="fixed">$</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">ESTADO</label>
+        <select id="ei_status" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px">
+          <option value="pendiente">Pendiente</option>
+          <option value="procesando">Procesando</option>
+          <option value="enviado">Enviado</option>
+          <option value="entregado">Entregado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Notas -->
+    <div style="margin-bottom:16px">
+      <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">NOTAS</label>
+      <textarea id="ei_notes" rows="2" placeholder="Notas de la factura..." style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+
+    <!-- Total preview -->
+    <div style="background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.15);border-radius:10px;padding:14px;margin-bottom:18px;text-align:right">
+      <div style="font-size:11px;color:#888;margin-bottom:3px">Subtotal: <span id="ei_subtotalPreview" style="color:#e8e0cc">$0.00</span> &nbsp;|&nbsp; Descuento: <span id="ei_discPreview" style="color:#d4af37">$0.00</span></div>
+      <div style="font-size:11px;color:#888;margin-bottom:2px">TOTAL A PAGAR</div>
+      <div id="ei_totalPreview" style="font-size:26px;color:#d4af37;font-weight:800">$0.00 USD</div>
+    </div>
+
+    <!-- Botones -->
+    <div style="display:flex;gap:10px">
+      <button onclick="closeEditInvoice()" style="flex:1;padding:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#888;font-size:14px;cursor:pointer">Cancelar</button>
+      <button onclick="saveEditInvoice()" style="flex:2;padding:12px;background:linear-gradient(135deg,#b48226,#d4af37);border:none;border-radius:10px;color:#13100a;font-size:14px;font-weight:700;cursor:pointer">💾 Guardar cambios</button>
+      <button onclick="saveAndPrintInvoice()" style="flex:1.5;padding:12px;background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.4);border-radius:10px;color:#d4af37;font-size:13px;font-weight:700;cursor:pointer">📄 Guardar & PDF</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+
+  // Cerrar con click en overlay
+  el.addEventListener('click', e=>{ if(e.target===el) closeEditInvoice(); });
+})();
+
+let _eiOrderId = null;
+let _eiItems = [];
+
+function openEditInvoice(id){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o){ toast('Pedido no encontrado','err'); return; }
+  _eiOrderId = id;
+  _eiItems = (o.items||[]).map(i=>({...i}));
+
+  const g = k=>document.getElementById(k);
+  g('ei_clientName').value  = o.clientName||'';
+  g('ei_clientPhone').value = o.clientPhone||'';
+  g('ei_clientEmail').value = o.clientEmail||'';
+  g('ei_address').value     = o.address||o.shipping_address||'';
+  g('ei_shipping').value    = Number(o.shipping||o.shipping_cost||0);
+  g('ei_notes').value       = o.notes||'';
+  g('ei_status').value      = o.status||'pendiente';
+
+  // Descuento: si es >= 1 y total hace sentido como %, mostrar como %
+  const rawDisc = Number(o.discountAmount||o.discount_amount||o.discountValue||0);
+  const sub = _eiItems.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
+  if(rawDisc>0 && rawDisc<100 && rawDisc === Math.round(rawDisc) && (sub*(rawDisc/100)) > 0.5){
+    g('ei_discountVal').value = rawDisc;
+    g('ei_discountType').value = 'pct';
+  } else {
+    g('ei_discountVal').value = rawDisc;
+    g('ei_discountType').value = 'fixed';
+  }
+
+  eiRenderItems();
+  eiRecalc();
+  document.getElementById('editInvoiceModal').style.display='block';
+}
+window.openEditInvoice = openEditInvoice;
+
+function closeEditInvoice(){
+  document.getElementById('editInvoiceModal').style.display='none';
+}
+window.closeEditInvoice = closeEditInvoice;
+
+function eiRenderItems(){
+  const el=document.getElementById('ei_itemsList');
+  if(!el) return;
+  if(!_eiItems.length){
+    el.innerHTML='<div style="padding:12px;text-align:center;color:#666;font-size:12px">Sin artículos</div>';
+    return;
+  }
+  el.innerHTML=_eiItems.map((item,i)=>`
+    <div style="display:grid;grid-template-columns:1fr 60px 80px 70px auto;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);background:${i%2===0?'rgba(0,0,0,.2)':'transparent'}">
+      <input value="${(item.name||'').replace(/"/g,'&quot;')}" oninput="_eiItems[${i}].name=this.value;eiRecalc()" style="background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);border-radius:6px;padding:5px 8px;color:#e8e0cc;font-size:12px;width:100%;box-sizing:border-box" placeholder="Nombre"/>
+      <input type="number" value="${item.qty||1}" min="1" oninput="_eiItems[${i}].qty=Number(this.value)||1;eiRecalc()" style="background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);border-radius:6px;padding:5px 6px;color:#e8e0cc;font-size:12px;text-align:center;width:100%;box-sizing:border-box"/>
+      <input type="number" step="0.01" value="${Number(item.price||0).toFixed(2)}" oninput="_eiItems[${i}].price=Number(this.value)||0;eiRecalc()" style="background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);border-radius:6px;padding:5px 8px;color:#d4af37;font-size:12px;width:100%;box-sizing:border-box" placeholder="Precio"/>
+      <div style="font-size:12px;color:#e8e0cc;text-align:right">$${(Number(item.price||0)*Number(item.qty||1)).toFixed(2)}</div>
+      <button onclick="_eiItems.splice(${i},1);eiRenderItems();eiRecalc()" style="background:none;border:none;color:rgba(255,80,80,.6);cursor:pointer;font-size:16px;padding:0 4px">✕</button>
+    </div>
+  `).join('');
+}
+window.eiRenderItems = eiRenderItems;
+
+function eiAddItem(){
+  _eiItems.push({name:'',qty:1,price:0,size:'—',color:'—'});
+  eiRenderItems();
+  eiRecalc();
+}
+window.eiAddItem = eiAddItem;
+
+function eiRecalc(){
+  const sub=_eiItems.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
+  const ship=Number(document.getElementById('ei_shipping')?.value||0);
+  const dv=Number(document.getElementById('ei_discountVal')?.value||0);
+  const dt=document.getElementById('ei_discountType')?.value||'pct';
+  const discAmt = dt==='pct' ? sub*(dv/100) : dv;
+  const total=Math.max(0,sub+ship-discAmt);
+  const sp=document.getElementById('ei_subtotalPreview');
+  const dp=document.getElementById('ei_discPreview');
+  const tp=document.getElementById('ei_totalPreview');
+  if(sp) sp.textContent='$'+sub.toFixed(2);
+  if(dp) dp.textContent=discAmt>0?'− $'+discAmt.toFixed(2):'$0.00';
+  if(tp) tp.textContent='$'+total.toFixed(2)+' USD';
+}
+window.eiRecalc = eiRecalc;
+
+function saveEditInvoice(){
+  const g=k=>document.getElementById(k);
+  const o=DB.orders.find(x=>x.id===_eiOrderId);
+  if(!o){ toast('Pedido no encontrado','err'); return; }
+
+  const sub=_eiItems.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
+  const ship=Number(g('ei_shipping')?.value||0);
+  const dv=Number(g('ei_discountVal')?.value||0);
+  const dt=g('ei_discountType')?.value||'pct';
+  const discAmt=dt==='pct'?sub*(dv/100):dv;
+  const total=Math.max(0,sub+ship-discAmt);
+
+  o.clientName   = g('ei_clientName').value.trim()||o.clientName;
+  o.clientPhone  = g('ei_clientPhone').value.trim();
+  o.clientEmail  = g('ei_clientEmail').value.trim();
+  o.address      = g('ei_address').value.trim();
+  o.notes        = g('ei_notes').value.trim();
+  o.status       = g('ei_status').value;
+  o.items        = _eiItems.filter(i=>i.name||i.price>0);
+  o.subtotal     = sub;
+  o.shipping     = ship;
+  o.discountValue  = discAmt;
+  o.discountAmount = discAmt;
+  o.total        = total;
+  o.updated_at   = new Date().toISOString();
+
+  persist();
+  sbSaveOrder(o).catch(()=>{});
+  renderOrders(); renderFacturas(); updateCounts();
+  closeEditInvoice();
+  toast('✅ Factura actualizada — '+o.invoice_num,'ok');
+}
+window.saveEditInvoice = saveEditInvoice;
+
+async function saveAndPrintInvoice(){
+  saveEditInvoice();
+  const o=DB.orders.find(x=>x.id===_eiOrderId);
+  if(!o) return;
+  const logoB64 = await _loadLogoBase64();
+  if(logoB64){ const co=getCompanyInfo(); co._logoB64=logoB64; }
+  try{
+    const doc=(window.buildInvoicePDF||buildInvoicePDF)(o);
+    if(doc) doc.save('Factura-'+(o.invoice_num||o.id)+'.pdf');
+  }catch(e){ toast('Error PDF: '+e.message,'err'); }
+}
+window.saveAndPrintInvoice = saveAndPrintInvoice;
 
 </script>
 </body></html>
