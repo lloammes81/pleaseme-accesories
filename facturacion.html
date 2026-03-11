@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>✦ Facturación — Pleaseme</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --gold:#d4af37; --gold2:#e8c56e; --goldf:#f0d880;
@@ -246,6 +247,13 @@
   </div>
 </div>
 
+<!-- ── SUPABASE STATUS BAR ── -->
+<div id="sbStatusBar" style="display:none;background:rgba(255,200,0,.1);border-bottom:1px solid rgba(255,200,0,.3);padding:8px 24px;font-size:12px;color:#ffc800;display:flex;align-items:center;gap:10px">
+  <span>⚠</span>
+  <span>Supabase no configurado — los datos se guardan solo en este navegador. Agrega tu URL y clave en el código.</span>
+  <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:11px">SUPABASE_URL / SUPABASE_KEY</code>
+</div>
+
 <!-- ── KPI BAR ── -->
 <div style="padding:20px 24px 0;max-width:1300px;margin:0 auto">
   <div class="kpi-bar">
@@ -457,7 +465,24 @@
 
 <script>
 // ══════════════════════════════════════════════════════
-//  CONSTANTES — Mismas claves que el admin
+//  SUPABASE CONFIG — reemplaza con tus credenciales
+// ══════════════════════════════════════════════════════
+const SUPABASE_URL  = 'TU_SUPABASE_URL';   // ej: https://abcdef.supabase.co
+const SUPABASE_KEY  = 'TU_ANON_KEY';       // ej: eyJhbGci...
+
+// ── Inicializar cliente Supabase ──
+let SB = null;
+try{
+  if(SUPABASE_URL !== 'TU_SUPABASE_URL' && window.supabase){
+    SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('[Supabase] Conectado ✓');
+  } else {
+    console.warn('[Supabase] Credenciales no configuradas — usando localStorage');
+  }
+}catch(e){ console.error('[Supabase] Error init:', e.message); }
+
+// ══════════════════════════════════════════════════════
+//  CONSTANTES localStorage (fallback / cache)
 // ══════════════════════════════════════════════════════
 const LS_ORDERS  = 'pm_orders_v1';
 const LS_PRODS   = 'pm_products_v1';
@@ -472,49 +497,121 @@ let items = [];
 // ══════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════
-(function init(){
-  load();
+(async function init(){
+  await loadAll();
   setDefaultDate();
   generateInvNum();
-  // Cargar edición desde parámetro URL si existe
   const params = new URLSearchParams(window.location.search);
   const editId = params.get('edit');
-  if(editId){
-    setTimeout(()=>{ loadForEdit(editId); }, 100);
-  }
+  if(editId) setTimeout(()=>{ loadForEdit(editId); }, 200);
   renderList();
   updateKPIs();
-  // Escuchar cambios del admin en otras pestañas
+  loadCompanyFromSupabase();
+  if(!SB){ const sb=g('sbStatusBar'); if(sb) sb.style.display='flex'; }
   window.addEventListener('storage', e=>{
     if([LS_ORDERS,LS_PRODS,LS_CLIENTS].includes(e.key)){
-      load(); renderList(); updateKPIs();
+      loadAll().then(()=>{ renderList(); updateKPIs(); });
     }
   });
 })();
 
-function load(){
+// ══════════════════════════════════════════════════════
+//  CARGA DE DATOS (Supabase → localStorage fallback)
+// ══════════════════════════════════════════════════════
+async function loadAll(){
+  if(SB){
+    await Promise.all([loadOrders(), loadProducts(), loadClients()]);
+  } else {
+    loadLocal();
+  }
+}
+
+function loadLocal(){
   try{ DB.orders   = JSON.parse(localStorage.getItem(LS_ORDERS)||'[]'); }catch{ DB.orders=[]; }
   try{ DB.products = JSON.parse(localStorage.getItem(LS_PRODS)||'[]'); }catch{ DB.products=[]; }
   try{ DB.clients  = JSON.parse(localStorage.getItem(LS_CLIENTS)||'[]'); }catch{ DB.clients=[]; }
-  // fallback keys
-  if(!DB.orders.length){
-    try{ DB.orders=JSON.parse(localStorage.getItem('pm_orders')||'[]'); }catch{}
-  }
-  if(!DB.products.length){
-    try{ DB.products=JSON.parse(localStorage.getItem('pm_products_v1')||'[]'); }catch{}
-  }
+  if(!DB.orders.length)   try{ DB.orders=JSON.parse(localStorage.getItem('pm_orders')||'[]'); }catch{}
+  if(!DB.products.length) try{ DB.products=JSON.parse(localStorage.getItem('pm_products_v1')||'[]'); }catch{}
 }
 
+async function loadOrders(){
+  try{
+    const {data,error} = await SB.from('orders').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    DB.orders = data||[];
+    localStorage.setItem(LS_ORDERS, JSON.stringify(DB.orders));
+  }catch(e){ console.error('[SB] loadOrders:', e.message); try{DB.orders=JSON.parse(localStorage.getItem(LS_ORDERS)||'[]');}catch{} }
+}
+
+async function loadProducts(){
+  try{
+    const {data,error} = await SB.from('products').select('*').order('name');
+    if(error) throw error;
+    DB.products = data||[];
+    localStorage.setItem(LS_PRODS, JSON.stringify(DB.products));
+  }catch(e){ console.error('[SB] loadProducts:', e.message); try{DB.products=JSON.parse(localStorage.getItem(LS_PRODS)||'[]');}catch{} }
+}
+
+async function loadClients(){
+  try{
+    const {data,error} = await SB.from('clients').select('*').order('name');
+    if(error) throw error;
+    DB.clients = data||[];
+    localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
+  }catch(e){ console.error('[SB] loadClients:', e.message); try{DB.clients=JSON.parse(localStorage.getItem(LS_CLIENTS)||'[]');}catch{} }
+}
+
+// ══════════════════════════════════════════════════════
+//  PERSISTENCIA
+// ══════════════════════════════════════════════════════
 function persist(){
-  localStorage.setItem(LS_ORDERS,   JSON.stringify(DB.orders));
-  localStorage.setItem(LS_CLIENTS,  JSON.stringify(DB.clients));
-  // Notificar al admin (y otras pestañas) del cambio
+  // Solo guarda en localStorage como cache local — Supabase se maneja en saveOnly()
+  localStorage.setItem(LS_ORDERS,  JSON.stringify(DB.orders));
+  localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
   window.dispatchEvent(new StorageEvent('storage', { key: LS_ORDERS }));
-  window.dispatchEvent(new StorageEvent('storage', { key: LS_CLIENTS }));
 }
 
+// ══════════════════════════════════════════════════════
+//  COMPANY INFO — Supabase tabla "company" + localStorage
+// ══════════════════════════════════════════════════════
 function getCompanyInfo(){
   try{ return JSON.parse(localStorage.getItem(LS_COMPANY)||'{}') || {}; }catch{ return {}; }
+}
+
+async function loadCompanyFromSupabase(){
+  if(!SB) return;
+  try{
+    const {data,error} = await SB.from('company').select('*').limit(1).single();
+    if(error && error.code !== 'PGRST116') throw error; // PGRST116 = sin filas
+    if(data){
+      // Guardar en localStorage (logo puede estar en Storage o en tabla)
+      const co = getCompanyInfo();
+      co.name      = data.name||co.name||'';
+      co.email     = data.email||co.email||'';
+      co.whatsapp  = data.whatsapp||co.whatsapp||'';
+      co.id        = data.id;
+      // Logo: si hay logo_url en Supabase Storage, descargarlo como base64
+      if(data.logo_url){
+        co.logo_url = data.logo_url;
+        // Intentar convertir la URL pública a base64 para el PDF
+        fetchLogoBase64(data.logo_url).then(b64=>{ if(b64){ co._logoB64=b64; localStorage.setItem(LS_COMPANY,JSON.stringify(co)); } });
+      }
+      localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+    }
+  }catch(e){ console.error('[SB] loadCompany:', e.message); }
+}
+
+async function fetchLogoBase64(url){
+  try{
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return await new Promise(resolve=>{
+      const r = new FileReader();
+      r.onload = e => resolve(e.target.result);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(blob);
+    });
+  }catch(e){ console.warn('fetchLogoBase64 error:', e.message); return null; }
 }
 
 // ══════════════════════════════════════════════════════
@@ -635,17 +732,75 @@ function removeLogo(){
   toast('Logo eliminado','warn');
 }
 
-function saveCompany(){
+async function saveCompany(){
   const co = getCompanyInfo();
   co.name     = g('co_name').value.trim();
   co.email    = g('co_email').value.trim();
   co.whatsapp = g('co_whatsapp').value.trim();
-  try{
-    localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+
+  // Guardar en localStorage siempre
+  try{ localStorage.setItem(LS_COMPANY, JSON.stringify(co)); }catch(e){ console.warn(e); }
+
+  // Guardar en Supabase si está conectado
+  if(SB){
+    try{
+      const sbData = { name: co.name, email: co.email, whatsapp: co.whatsapp };
+
+      // Subir logo a Supabase Storage si hay uno nuevo
+      if(co._logoB64 && co._logoB64.startsWith('data:image')){
+        const logoUrl = await uploadLogoToStorage(co._logoB64);
+        if(logoUrl){
+          sbData.logo_url = logoUrl;
+          co.logo_url = logoUrl;
+          localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+        }
+      }
+
+      // Upsert en tabla company (actualiza si existe, crea si no)
+      if(co.id){
+        const {error} = await SB.from('company').update(sbData).eq('id', co.id);
+        if(error) throw error;
+      } else {
+        const {data:ins,error} = await SB.from('company').insert([sbData]).select().single();
+        if(error) throw error;
+        co.id = ins.id;
+        localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+      }
+      toast('✅ Configuración guardada en Supabase','ok');
+    }catch(e){
+      console.error('[SB] saveCompany:', e.message);
+      toast('✅ Guardado localmente (sin conexión Supabase)','ok');
+    }
+  } else {
     toast('✅ Configuración guardada','ok');
-    setTimeout(()=>{ g('companyPanel').style.display='none'; }, 800);
+  }
+
+  setTimeout(()=>{ g('companyPanel').style.display='none'; }, 800);
+}
+
+async function uploadLogoToStorage(base64jpeg){
+  if(!SB) return null;
+  try{
+    // Convertir base64 a Blob
+    const parts  = base64jpeg.split(',');
+    const mime   = parts[0].match(/:(.*?);/)[1];
+    const binary = atob(parts[1]);
+    const arr    = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) arr[i]=binary.charCodeAt(i);
+    const blob   = new Blob([arr], {type:mime});
+    const path   = 'company/logo.jpg';
+
+    // Subir (upsert) al bucket "assets"
+    const {error:upErr} = await SB.storage.from('assets').upload(path, blob, {upsert:true, contentType:'image/jpeg'});
+    if(upErr) throw upErr;
+
+    // Obtener URL pública
+    const {data} = SB.storage.from('assets').getPublicUrl(path);
+    console.log('[SB Storage] Logo subido:', data.publicUrl);
+    return data.publicUrl || null;
   }catch(e){
-    toast('Error al guardar: '+e.message,'err');
+    console.error('[SB Storage] uploadLogo:', e.message);
+    return null;
   }
 }
 
@@ -999,36 +1154,112 @@ function validate(data){
   return true;
 }
 
-function saveOnly(){
+async function saveOnly(){
   const data = collectData();
   if(!validate(data)) return;
 
-  // ── Auto-registrar cliente nuevo si no existe en la base de datos ──
+  // ── Solo guardar cliente si NO existe (nunca guardar artículos) ──
   const clientNameLower = (data.clientName||'').toLowerCase().trim();
   const clienteExiste = DB.clients.some(c=>(c.name||'').toLowerCase().trim()===clientNameLower);
   if(!clienteExiste && data.clientName){
     const nuevoCliente = {
-      id:      'cli-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
-      name:    data.clientName,
-      email:   data.clientEmail||'',
-      phone:   data.clientPhone||'',
-      address: data.address||'',
+      name:       data.clientName,
+      email:      data.clientEmail||'',
+      phone:      data.clientPhone||'',
+      address:    data.address||'',
       created_at: new Date().toISOString(),
     };
-    DB.clients.push(nuevoCliente);
-    toast('👤 Cliente nuevo guardado: '+data.clientName,'ok');
+    if(SB){
+      try{
+        const {data:ins,error} = await SB.from('clients').insert([nuevoCliente]).select().single();
+        if(error) throw error;
+        nuevoCliente.id = ins.id;
+        DB.clients.push(nuevoCliente);
+        localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
+        toast('👤 Cliente guardado en Supabase: '+data.clientName,'ok');
+      }catch(e){
+        console.error('[SB] insert client:', e.message);
+        nuevoCliente.id = 'cli-'+Date.now();
+        DB.clients.push(nuevoCliente);
+        toast('👤 Cliente guardado localmente: '+data.clientName,'ok');
+      }
+    } else {
+      nuevoCliente.id = 'cli-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
+      DB.clients.push(nuevoCliente);
+      localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
+      toast('👤 Cliente guardado: '+data.clientName,'ok');
+    }
   }
 
+  // ── Guardar/actualizar factura (con artículos en campo items JSON, NO en tabla products) ──
   if(editingId){
+    if(SB){
+      try{
+        const {error} = await SB.from('orders').update({
+          client_name:    data.clientName,
+          client_email:   data.clientEmail,
+          client_phone:   data.clientPhone,
+          address:        data.address,
+          invoice_num:    data.invoice_num,
+          status:         data.status,
+          payment_method: data.payment_method,
+          notes:          data.notes,
+          items:          data.items,   // artículos guardados como JSON en la factura
+          subtotal:       data.subtotal,
+          shipping:       data.shipping,
+          discount:       data.discountAmount,
+          total:          data.total,
+          updated_at:     new Date().toISOString(),
+        }).eq('id', editingId);
+        if(error) throw error;
+        toast('✅ Factura actualizada en Supabase — '+data.invoice_num,'ok');
+      }catch(e){
+        console.error('[SB] update order:', e.message);
+        toast('✅ Factura actualizada localmente','ok');
+      }
+    }
     const idx = DB.orders.findIndex(o=>o.id===editingId);
     if(idx>=0) DB.orders[idx] = {...DB.orders[idx], ...data, id:editingId};
-    toast('✅ Factura actualizada — '+data.invoice_num,'ok');
   } else {
-    const newOrder = {id:'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), ...data};
-    DB.orders.unshift(newOrder);
-    editingId = newOrder.id;
-    toast('✅ Factura guardada — '+data.invoice_num,'ok');
+    const orderData = {
+      client_name:    data.clientName,
+      client_email:   data.clientEmail,
+      client_phone:   data.clientPhone,
+      address:        data.address,
+      invoice_num:    data.invoice_num,
+      status:         data.status,
+      payment_method: data.payment_method,
+      notes:          data.notes,
+      items:          data.items,   // artículos como JSON — NO se guardan en tabla products
+      subtotal:       data.subtotal,
+      shipping:       data.shipping,
+      discount:       data.discountAmount,
+      total:          data.total,
+      created_at:     data.created_at,
+      updated_at:     new Date().toISOString(),
+    };
+    if(SB){
+      try{
+        const {data:ins,error} = await SB.from('orders').insert([orderData]).select().single();
+        if(error) throw error;
+        editingId = ins.id;
+        DB.orders.unshift({...data, id:ins.id});
+        toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
+      }catch(e){
+        console.error('[SB] insert order:', e.message);
+        const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+        editingId = localId;
+        DB.orders.unshift({...data, id:localId});
+        toast('✅ Factura guardada localmente — '+data.invoice_num,'ok');
+      }
+    } else {
+      const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+      editingId = localId;
+      DB.orders.unshift({...data, id:localId});
+      toast('✅ Factura guardada — '+data.invoice_num,'ok');
+    }
   }
+
   persist();
   renderList();
   updateKPIs();
@@ -1218,23 +1449,33 @@ function closeVoidModal(){
   if(modal) modal.style.display = 'none';
 }
 
-function confirmVoid(){
+async function confirmVoid(){
   const modal = g('voidModal');
   const id = modal._targetId;
   const reason = g('voidReason').value;
   const note = g('voidNote').value.trim();
   const idx = DB.orders.findIndex(o=>o.id===id);
   if(idx<0){ toast('Factura no encontrada','err'); return; }
-  DB.orders[idx].status = 'cancelado';
-  DB.orders[idx].invoice_status = 'cancelado';
-  DB.orders[idx].void_reason = reason;
-  DB.orders[idx].void_note = note;
-  DB.orders[idx].void_at = new Date().toISOString();
+
+  const voidData = {
+    status:       'cancelado',
+    void_reason:  reason,
+    void_note:    note,
+    void_at:      new Date().toISOString(),
+    updated_at:   new Date().toISOString(),
+  };
+
+  if(SB){
+    try{
+      const {error} = await SB.from('orders').update(voidData).eq('id', id);
+      if(error) throw error;
+    }catch(e){ console.error('[SB] voidInvoice:', e.message); }
+  }
+
+  Object.assign(DB.orders[idx], voidData, {invoice_status:'cancelado'});
   persist();
   closeVoidModal();
-  if(editingId===id){
-    g('f_status').value = 'cancelado';
-  }
+  if(editingId===id) g('f_status').value = 'cancelado';
   renderList();
   updateKPIs();
   toast('Factura anulada correctamente','warn');
