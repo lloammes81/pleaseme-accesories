@@ -114,7 +114,7 @@
     .s-procesando{background:rgba(100,150,255,.12);color:#6496ff;border:1px solid rgba(100,150,255,.3)}
     .s-enviado{background:rgba(100,200,255,.12);color:#64c8ff;border:1px solid rgba(100,200,255,.3)}
     .s-entregado,.s-pagado{background:rgba(47,227,181,.12);color:#2fe3b5;border:1px solid rgba(47,227,181,.3)}
-    .s-cancelado{background:rgba(255,85,85,.12);color:#ff5555;border:1px solid rgba(255,85,85,.25)}
+    .s-cancelado,.s-anulado{background:rgba(255,85,85,.12);color:#ff5555;border:1px solid rgba(255,85,85,.25)}
 
     /* ── SEARCH / FILTERS ── */
     .search-wrap{position:relative;margin-bottom:12px}
@@ -167,6 +167,23 @@
 
     .add-item-row{display:grid;grid-template-columns:1fr 70px 90px 80px auto;gap:8px;padding:8px 10px;background:rgba(212,175,55,.04);align-items:end}
     .add-item-row input{font-size:12px;padding:6px 8px}
+
+    /* ── LISTBOX DE PRODUCTOS ── */
+    .listbox-wrap{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:rgba(0,0,0,.2);margin-bottom:0}
+    .listbox-header{display:grid;grid-template-columns:1fr 55px 80px 75px 30px;gap:6px;padding:6px 10px;background:rgba(212,175,55,.08);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+    .listbox-empty{padding:16px;text-align:center;color:var(--muted);font-size:12px;font-style:italic}
+    .listbox-items{max-height:220px;overflow-y:auto}
+    .listbox-row{display:grid;grid-template-columns:1fr 55px 80px 75px 30px;gap:6px;padding:7px 10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.04);transition:.15s;cursor:default}
+    .listbox-row:last-child{border-bottom:none}
+    .listbox-row:hover{background:rgba(212,175,55,.05)}
+    .listbox-row.selected{background:rgba(212,175,55,.1);border-left:2px solid var(--gold)}
+    .lb-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .lb-size{font-size:10px;color:var(--muted)}
+    .lb-qty,.lb-price{font-size:12px;text-align:center;color:var(--text)}
+    .lb-total{font-size:12px;font-weight:700;text-align:right;color:var(--gold)}
+    .lb-del{background:none;border:none;color:rgba(255,85,85,.5);cursor:pointer;font-size:14px;padding:0;display:flex;align-items:center;justify-content:center;transition:.15s}
+    .lb-del:hover{color:#ff5555}
+    .listbox-count{padding:5px 10px;font-size:10px;color:var(--muted);background:rgba(0,0,0,.2);border-top:1px solid var(--border);display:flex;justify-content:space-between}
   </style>
 </head>
 <body>
@@ -181,11 +198,51 @@
     </div>
   </div>
   <div class="header-actions">
+    <button class="btn btn-outline" onclick="toggleCompanyPanel()" title="Configurar empresa & logo">⚙ Empresa</button>
     <button class="btn btn-outline" onclick="openNewInvoice()">＋ Nueva Factura</button>
     <button class="btn btn-green" onclick="exportCSV()">⬇ CSV</button>
     <button class="btn btn-outline" onclick="window.close()" title="Cerrar ventana">✕ Cerrar</button>
   </div>
 </header>
+
+<!-- ── PANEL EMPRESA (colapsable) ── -->
+<div id="companyPanel" style="display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px">
+  <div style="max-width:1300px;margin:0 auto">
+    <div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:16px;align-items:end">
+      <!-- Logo upload -->
+      <div>
+        <label class="lbl" style="margin-bottom:6px">Logo de la empresa</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="logoPreview" style="width:52px;height:52px;border-radius:10px;background:rgba(212,175,55,.15);border:1px dashed rgba(212,175,55,.4);display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;cursor:pointer" onclick="g('logoFileInput').click()" title="Click para subir logo">
+            <span id="logoPreviewIcon">🏢</span>
+          </div>
+          <div>
+            <input type="file" id="logoFileInput" accept="image/*" style="display:none" onchange="handleLogoUpload(this)"/>
+            <button class="btn btn-outline btn-sm" onclick="g('logoFileInput').click()">📁 Subir Logo</button>
+            <button class="btn btn-sm btn-red" onclick="removeLogo()" style="margin-left:4px;padding:5px 8px">✕</button>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px">PNG, JPG — aparece en el PDF</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="lbl">Nombre de la empresa</label>
+        <input id="co_name" placeholder="Mi Empresa S.A." />
+      </div>
+      <div class="field">
+        <label class="lbl">Email</label>
+        <input id="co_email" type="email" placeholder="contacto@empresa.com" />
+      </div>
+      <div class="field">
+        <label class="lbl">WhatsApp / Teléfono</label>
+        <input id="co_whatsapp" placeholder="+1 (000) 000-0000" />
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-gold btn-sm" onclick="saveCompany()">💾 Guardar configuración</button>
+      <button class="btn btn-outline btn-sm" onclick="toggleCompanyPanel()">Cerrar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── KPI BAR ── -->
 <div style="padding:20px 24px 0;max-width:1300px;margin:0 auto">
@@ -248,20 +305,42 @@
 
       <!-- ARTÍCULOS -->
       <div class="card-title">Artículos</div>
-      <div class="items-wrap" id="itemsWrap">
-        <div class="items-header">
-          <span>Producto</span><span style="text-align:center">Cant.</span><span style="text-align:right">Precio</span><span style="text-align:right">Total</span><span></span>
+
+      <!-- LISTBOX de productos agregados -->
+      <div class="listbox-wrap" style="margin-bottom:10px">
+        <div class="listbox-header">
+          <span>Producto</span><span style="text-align:center">Cant.</span><span style="text-align:right">Precio</span><span style="text-align:right">Subtotal</span><span></span>
         </div>
-        <div id="itemsList"></div>
-        <div class="add-item-row">
-          <div class="prod-wrap">
-            <input id="newItemName" placeholder="Buscar o escribir producto..." oninput="prodSearch(this.value)" autocomplete="off"/>
-            <div class="prod-dropdown" id="prodDropdown"></div>
-          </div>
+        <div class="listbox-items" id="itemsList">
+          <div class="listbox-empty" id="itemsEmpty">Sin artículos — agrega productos abajo</div>
+        </div>
+        <div class="listbox-count" id="listboxFooter" style="display:none">
+          <span id="listboxCount">0 artículos</span>
+          <span id="listboxSubtotal" style="color:var(--gold);font-weight:700">$0.00</span>
+        </div>
+      </div>
+
+      <!-- Fila para agregar nuevo artículo -->
+      <div class="add-item-row" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+        <div class="prod-wrap">
+          <label class="lbl" style="margin-bottom:3px">Producto</label>
+          <input id="newItemName" placeholder="Buscar o escribir producto..." oninput="prodSearch(this.value)" onfocus="showProdDropdown(this.value)" autocomplete="off"/>
+          <div class="prod-dropdown" id="prodDropdown"></div>
+        </div>
+        <div>
+          <label class="lbl" style="margin-bottom:3px">Cant.</label>
           <input id="newItemQty" type="number" min="1" value="1" placeholder="1" style="text-align:center"/>
+        </div>
+        <div>
+          <label class="lbl" style="margin-bottom:3px">Precio</label>
           <input id="newItemPrice" type="number" step="0.01" placeholder="0.00"/>
-          <input id="newItemSize" placeholder="Talla/Color"/>
-          <button class="btn btn-outline btn-icon" onclick="addItem()" title="Agregar">＋</button>
+        </div>
+        <div>
+          <label class="lbl" style="margin-bottom:3px">Talla/Color</label>
+          <input id="newItemSize" placeholder="Ej: L, Rojo"/>
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn btn-gold btn-icon" onclick="addItem()" title="Agregar (Enter en último campo)" style="width:38px;height:38px;font-size:18px">＋</button>
         </div>
       </div>
 
@@ -326,9 +405,10 @@
 
       <!-- ACCIONES -->
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-outline" onclick="resetForm()" style="flex:1;min-width:100px">✕ Cancelar</button>
-        <button class="btn btn-outline" onclick="saveOnly()" style="flex:1.5;min-width:130px">💾 Guardar</button>
-        <button class="btn btn-gold" onclick="saveAndPDF()" style="flex:2;min-width:160px">🧾 Guardar & PDF</button>
+        <button class="btn btn-outline" onclick="resetForm()" style="flex:1;min-width:100px">✕ Nuevo</button>
+        <button class="btn btn-outline" onclick="saveOnly()" style="flex:1.5;min-width:120px">💾 Guardar</button>
+        <button class="btn btn-outline" onclick="printCurrentInvoice()" style="flex:1.2;min-width:110px" id="btnPrint" title="Imprimir factura">🖨 Imprimir</button>
+        <button class="btn btn-gold" onclick="saveAndPDF()" style="flex:2;min-width:150px">🧾 Guardar & PDF</button>
       </div>
     </div>
   </div>
@@ -436,6 +516,73 @@ function getCompanyInfo(){
 }
 
 // ══════════════════════════════════════════════════════
+//  PANEL EMPRESA
+// ══════════════════════════════════════════════════════
+function toggleCompanyPanel(){
+  const panel = g('companyPanel');
+  if(panel.style.display === 'none'){
+    loadCompanyPanel();
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function loadCompanyPanel(){
+  const co = getCompanyInfo();
+  g('co_name').value    = co.name||'';
+  g('co_email').value   = co.email||'';
+  g('co_whatsapp').value= co.whatsapp||'';
+  updateLogoPreview(co._logoB64||co.logoB64||co.logo_b64||co.logoUrl||co.logo_url||co.logo_data||co.logo||'');
+}
+
+function updateLogoPreview(src){
+  const preview = g('logoPreview');
+  const icon = g('logoPreviewIcon');
+  if(src && src.length > 50){
+    preview.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:contain;border-radius:8px"/>`;
+  } else {
+    preview.innerHTML = '<span id="logoPreviewIcon">🏢</span>';
+  }
+}
+
+function handleLogoUpload(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 2*1024*1024){ toast('Logo muy grande (máx 2MB)','warn'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const b64 = e.target.result;
+    updateLogoPreview(b64);
+    // Guardar temporalmente
+    const co = getCompanyInfo();
+    co._logoB64 = b64;
+    localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+    toast('✅ Logo cargado — guarda la configuración','ok');
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo(){
+  const co = getCompanyInfo();
+  delete co._logoB64; delete co.logoB64; delete co.logo_b64;
+  delete co.logoUrl; delete co.logo_url; delete co.logo_data; delete co.logo;
+  localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+  updateLogoPreview('');
+  toast('Logo eliminado','warn');
+}
+
+function saveCompany(){
+  const co = getCompanyInfo();
+  co.name     = g('co_name').value.trim();
+  co.email    = g('co_email').value.trim();
+  co.whatsapp = g('co_whatsapp').value.trim();
+  localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+  toast('✅ Configuración guardada','ok');
+  setTimeout(()=>{ g('companyPanel').style.display='none'; }, 800);
+}
+
+// ══════════════════════════════════════════════════════
 //  TOAST
 // ══════════════════════════════════════════════════════
 let _toastTimer;
@@ -483,6 +630,9 @@ function resetForm(){
   renderItems();
   recalc();
   document.querySelectorAll('.invoice-card').forEach(c=>c.classList.remove('active'));
+  // Asegurar campos activos en nueva factura
+  g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=false);
+  const vb = g('voidBanner'); if(vb) vb.style.display='none';
 }
 
 function openNewInvoice(){
@@ -495,17 +645,52 @@ function openNewInvoice(){
 // ══════════════════════════════════════════════════════
 function renderItems(){
   const el = g('itemsList');
-  if(!items.length){ el.innerHTML='<div class="items-empty">Sin artículos — busca o escribe un producto arriba</div>'; return; }
-  el.innerHTML = items.map((it,i)=>`
-    <div class="item-row">
-      <input value="${esc(it.name)}" oninput="items[${i}].name=this.value;recalc()" placeholder="Nombre"/>
-      <input type="number" value="${it.qty||1}" min="1" oninput="items[${i}].qty=Number(this.value)||1;recalc()" style="text-align:center"/>
-      <input type="number" step="0.01" value="${Number(it.price||0).toFixed(2)}" oninput="items[${i}].price=Number(this.value)||0;recalc()" placeholder="0.00"/>
-      <div class="item-total">$${(Number(it.price||0)*Number(it.qty||1)).toFixed(2)}</div>
-      <button onclick="items.splice(${i},1);renderItems();recalc()" style="background:none;border:none;color:rgba(255,85,85,.6);cursor:pointer;font-size:16px;padding:0">✕</button>
-    </div>
-  `).join('');
+  const emptyEl = g('itemsEmpty');
+  const footerEl = g('listboxFooter');
+  const countEl = g('listboxCount');
+  const subtotalEl = g('listboxSubtotal');
+
+  if(!items.length){
+    el.innerHTML = '<div class="listbox-empty">Sin artículos — agrega productos abajo</div>';
+    if(footerEl) footerEl.style.display = 'none';
+    recalc();
+    return;
+  }
+
+  el.innerHTML = items.map((it, i) => {
+    const lineTotal = (Number(it.price||0) * Number(it.qty||1)).toFixed(2);
+    const sizeLabel = it.size && it.size !== '—' ? `<div class="lb-size">${esc(it.size)}</div>` : '';
+    return `
+    <div class="listbox-row" id="lbrow-${i}" onclick="selectListboxRow(${i})">
+      <div><div class="lb-name" title="${esc(it.name)}">${esc(it.name)}</div>${sizeLabel}</div>
+      <div class="lb-qty">
+        <input type="number" value="${it.qty||1}" min="1"
+          style="width:44px;padding:3px 4px;text-align:center;font-size:12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:5px;color:var(--text)"
+          oninput="items[${i}].qty=Number(this.value)||1;renderItems()"
+          onclick="event.stopPropagation()"
+        />
+      </div>
+      <div class="lb-price">$${Number(it.price||0).toFixed(2)}</div>
+      <div class="lb-total">$${lineTotal}</div>
+      <button class="lb-del" onclick="event.stopPropagation();items.splice(${i},1);renderItems()" title="Eliminar">✕</button>
+    </div>`;
+  }).join('');
+
+  // Footer con conteo y subtotal
+  const sub = items.reduce((s, i) => s + Number(i.price||0)*Number(i.qty||1), 0);
+  if(footerEl){
+    footerEl.style.display = 'flex';
+    countEl.textContent = items.length + ' artículo' + (items.length !== 1 ? 's' : '');
+    subtotalEl.textContent = '$' + sub.toFixed(2);
+  }
+
   recalc();
+}
+
+function selectListboxRow(i){
+  document.querySelectorAll('.listbox-row').forEach(r => r.classList.remove('selected'));
+  const row = document.getElementById('lbrow-'+i);
+  if(row) row.classList.add('selected');
 }
 
 function addItem(){
@@ -524,16 +709,20 @@ function addItem(){
 }
 
 // ── Product Search Dropdown ──
-// Solo LECTURA — muestra productos del inventario para autollenar,
-// pero al agregar el artículo a la factura NO se modifica DB.products
 function prodSearch(q){
+  showProdDropdown(q);
+}
+
+function showProdDropdown(q){
   const dd = g('prodDropdown');
-  if(!q){ dd.style.display='none'; return; }
-  const results = DB.products
-    .filter(p=>(p.name||'').toLowerCase().includes(q.toLowerCase()))
-    .slice(0,10);
+  let results = DB.products;
+  if(q && q.trim()){
+    results = results.filter(p=>(p.name||'').toLowerCase().includes(q.toLowerCase()));
+  }
+  results = results.slice(0,12);
+
   if(!results.length){
-    dd.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:var(--muted);text-align:center">Sin coincidencias — escribe el nombre y agrégalo manualmente</div>';
+    dd.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:var(--muted);text-align:center">Sin productos en inventario — escribe el nombre manualmente</div>';
     dd.style.display='block';
     return;
   }
@@ -558,9 +747,23 @@ document.addEventListener('click', e=>{
   if(!e.target.closest('#f_clientName') && !e.target.closest('#clientDropdown')) g('clientDropdown').style.display='none';
 });
 
-// ── Enter en campos de nuevo item ──
-['newItemName','newItemQty','newItemPrice','newItemSize'].forEach(id=>{
-  g(id)?.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addItem(); } });
+// ── Enter en campos de nuevo item — mueve al siguiente campo ──
+const itemFieldOrder = ['newItemName','newItemQty','newItemPrice','newItemSize'];
+itemFieldOrder.forEach((id, idx) => {
+  g(id)?.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      g('prodDropdown').style.display = 'none';
+      const next = itemFieldOrder[idx + 1];
+      if(next){
+        g(next).focus();
+        g(next).select && g(next).select();
+      } else {
+        // Último campo (Talla) → agregar item
+        addItem();
+      }
+    }
+  });
 });
 
 // ══════════════════════════════════════════════════════
@@ -691,6 +894,13 @@ function collectData(){
 function validate(data){
   if(!data.clientName){ toast('El nombre del cliente es requerido','warn'); g('f_clientName').focus(); return false; }
   if(!data.items.length){ toast('Agrega al menos un artículo','warn'); return false; }
+  // No permitir modificar facturas anuladas
+  if(editingId){
+    const existing = DB.orders.find(o=>o.id===editingId);
+    if(existing && (existing.status==='cancelado'||existing.status==='anulado')){
+      toast('⚠ No se puede modificar una factura anulada','err'); return false;
+    }
+  }
   return true;
 }
 
@@ -769,6 +979,25 @@ function loadForEdit(id){
   renderItems();
   recalc();
 
+  // Si está anulada — mostrar aviso y bloquear campos
+  const isVoided = o.status==='cancelado'||o.status==='anulado';
+  const voidBanner = g('voidBanner') || (() => {
+    const el = document.createElement('div');
+    el.id = 'voidBanner';
+    el.style.cssText = 'display:none;background:rgba(255,85,85,.12);border:1px solid rgba(255,85,85,.4);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#ff5555;font-weight:600';
+    g('formPanel').querySelector('.card').insertBefore(el, g('formPanel').querySelector('.card').firstChild.nextSibling);
+    return el;
+  })();
+  if(isVoided){
+    const reasonLabel = {error_datos:'Error en datos del cliente',error_productos:'Error en productos/precios',duplicada:'Factura duplicada',cliente_cancelo:'Cliente canceló',devolucion:'Devolución',otro:'Otro'}[o.void_reason]||o.void_reason||'';
+    voidBanner.style.display = 'block';
+    voidBanner.innerHTML = `🚫 FACTURA ANULADA${reasonLabel?' — '+reasonLabel:''}${o.void_note?' · '+o.void_note:''}`;
+    g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
+  } else {
+    voidBanner.style.display = 'none';
+    g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=false);
+  }
+
   // Highlight en lista
   document.querySelectorAll('.invoice-card').forEach(c=>c.classList.toggle('active', c.dataset.id===id));
   window.scrollTo({top:0,behavior:'smooth'});
@@ -817,7 +1046,11 @@ function renderList(){
           <div class="inv-total">$${Number(o.total||0).toFixed(2)}</div>
           <div style="display:flex;gap:4px">
             <button class="btn btn-sm btn-green" onclick="event.stopPropagation();quickPDF('${o.id}')" title="Generar PDF">🧾</button>
-            <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteInvoice('${o.id}')" title="Eliminar">🗑</button>
+            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();printInvoice('${o.id}')" title="Imprimir">🖨</button>
+            ${status==='cancelado'||status==='anulado'
+              ? `<span class="status-badge s-cancelado" style="display:flex;align-items:center;padding:2px 8px">ANULADA</span>`
+              : `<button class="btn btn-sm btn-red" onclick="event.stopPropagation();voidInvoice('${o.id}')" title="Anular factura">🚫 Anular</button>`
+            }
           </div>
         </div>
       </div>
@@ -838,21 +1071,213 @@ function updateKPIs(){
 }
 
 // ══════════════════════════════════════════════════════
-//  ELIMINAR
+//  ANULAR FACTURA (no se elimina, solo se cancela)
 // ══════════════════════════════════════════════════════
-function deleteInvoice(id){
-  if(!confirm('¿Eliminar esta factura permanentemente?')) return;
-  DB.orders = DB.orders.filter(o=>o.id!==id);
-  persist();
-  if(editingId===id) resetForm();
-  renderList();
-  updateKPIs();
-  toast('Factura eliminada','warn');
+function voidInvoice(id){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o){ toast('Factura no encontrada','err'); return; }
+  const st = o.status||o.invoice_status||'';
+  if(st==='cancelado'||st==='anulado'){ toast('Esta factura ya está anulada','warn'); return; }
+
+  // Modal de motivo
+  showVoidModal(id);
 }
 
+function showVoidModal(id){
+  // Crear modal si no existe
+  let modal = g('voidModal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'voidModal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:400;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:var(--surface);border:1px solid rgba(255,85,85,.4);border-radius:14px;padding:24px;width:400px;max-width:90vw">
+        <div style="font-size:18px;font-weight:700;color:#ff5555;margin-bottom:6px">🚫 Anular Factura</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Esta acción no se puede revertir. La factura quedará registrada como ANULADA y no podrá modificarse.</div>
+        <label class="lbl">Motivo de anulación</label>
+        <select id="voidReason" style="margin-bottom:10px">
+          <option value="error_datos">Error en datos del cliente</option>
+          <option value="error_productos">Error en productos/precios</option>
+          <option value="duplicada">Factura duplicada</option>
+          <option value="cliente_cancelo">Cliente canceló el pedido</option>
+          <option value="devolucion">Devolución de mercancía</option>
+          <option value="otro">Otro motivo</option>
+        </select>
+        <label class="lbl">Observación (opcional)</label>
+        <input id="voidNote" placeholder="Descripción adicional..." style="margin-bottom:16px"/>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline" style="flex:1" onclick="closeVoidModal()">Cancelar</button>
+          <button class="btn btn-red" style="flex:1;background:rgba(255,85,85,.2);border-color:rgba(255,85,85,.5);color:#ff5555" onclick="confirmVoid()">🚫 Confirmar Anulación</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal._targetId = id;
+  g('voidNote').value = '';
+  modal.style.display = 'flex';
+  setTimeout(()=>{ g('voidNote').focus(); },100);
+}
+
+function closeVoidModal(){
+  const modal = g('voidModal');
+  if(modal) modal.style.display = 'none';
+}
+
+function confirmVoid(){
+  const modal = g('voidModal');
+  const id = modal._targetId;
+  const reason = g('voidReason').value;
+  const note = g('voidNote').value.trim();
+  const idx = DB.orders.findIndex(o=>o.id===id);
+  if(idx<0){ toast('Factura no encontrada','err'); return; }
+  DB.orders[idx].status = 'cancelado';
+  DB.orders[idx].invoice_status = 'cancelado';
+  DB.orders[idx].void_reason = reason;
+  DB.orders[idx].void_note = note;
+  DB.orders[idx].void_at = new Date().toISOString();
+  persist();
+  closeVoidModal();
+  if(editingId===id){
+    g('f_status').value = 'cancelado';
+  }
+  renderList();
+  updateKPIs();
+  toast('Factura anulada correctamente','warn');
+}
+
+// Cerrar modal al click fuera
+document.addEventListener('click', e=>{
+  const modal = g('voidModal');
+  if(modal && e.target===modal) closeVoidModal();
+});
+
 // ══════════════════════════════════════════════════════
-//  PDF RÁPIDO (sin abrir form)
+//  IMPRIMIR FACTURA
 // ══════════════════════════════════════════════════════
+function printInvoice(id){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o){ toast('Factura no encontrada','err'); return; }
+  openPrintWindow(o);
+}
+
+function printCurrentInvoice(){
+  if(!editingId){ toast('Guarda la factura primero','warn'); return; }
+  const o = DB.orders.find(x=>x.id===editingId);
+  if(!o){ saveOnly(); setTimeout(()=>printCurrentInvoice(),400); return; }
+  openPrintWindow(o);
+}
+
+function openPrintWindow(o){
+  const co = getCompanyInfo();
+  const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
+  const logoSrc = co._logoB64||co.logoB64||co.logo_b64||co.logoUrl||co.logo_url||co.logo_data||co.logo||'';
+  const sub = (o.items||[]).reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
+  const ship = Number(o.shipping||o.shipping_cost||0);
+  const disc = Number(o.discountAmount||o.discountValue||o.discount_amount||0);
+  const total = o.total||0;
+  const statusLabels = {pendiente:'Pendiente',procesando:'Procesando',enviado:'Enviado',entregado:'Entregado',pagado:'Pagado',cancelado:'ANULADA'};
+  const statusColors = {pendiente:'#b8860b',procesando:'#4169e1',enviado:'#0090b8',entregado:'#1e8449',pagado:'#1e8449',cancelado:'#c0392b'};
+  const st = o.status||o.invoice_status||'pendiente';
+
+  const itemsHtml = (o.items||[]).map((item,i)=>`
+    <tr style="background:${i%2===0?'#f9f6f0':'#fff'}">
+      <td style="padding:7px 10px;font-size:12px;border-bottom:1px solid #e8e0d0">
+        ${item.name||''}${item.size&&item.size!=='—'?`<br><span style="font-size:10px;color:#888">Talla: ${item.size}</span>`:''}
+      </td>
+      <td style="padding:7px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e8e0d0">${item.qty||1}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e8e0d0">$${Number(item.price||0).toFixed(2)}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e8e0d0;font-weight:600">$${(Number(item.price||0)*Number(item.qty||1)).toFixed(2)}</td>
+    </tr>`).join('');
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"/>
+  <title>Factura ${invNum}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1a1408;padding:20px}
+    @page{margin:15mm 12mm;size:letter}
+    @media print{body{padding:0}.no-print{display:none!important}}
+    .header-bar{background:#12100a;color:#f0d880;padding:18px 20px;border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:0}
+    .gold-line{height:3px;background:linear-gradient(90deg,#b48226,#e8c56e,#b48226);margin-bottom:18px}
+    .logo-circle{width:48px;height:48px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:20px;font-weight:900;color:#12100a;flex-shrink:0}
+    .logo-circle img{width:100%;height:100%;object-fit:contain}
+    h1{font-family:Georgia,serif;font-size:22px;color:#f0d880;margin:0}
+    .section{margin-bottom:14px}
+    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+    .info-box{background:#f9f6f0;border:1px solid #e0d8c8;border-radius:6px;padding:12px}
+    .info-box .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#b48226;margin-bottom:4px}
+    .info-box .val{font-size:13px;font-weight:600;color:#1a1408}
+    .info-box .sub{font-size:11px;color:#666;margin-top:2px}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px}
+    thead tr{background:#12100a;color:#f0d880}
+    thead th{padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;text-align:left}
+    thead th:not(:first-child){text-align:right}
+    .totals-section{display:flex;justify-content:flex-end}
+    .totals-box{width:220px}
+    .total-row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:#555}
+    .total-final{display:flex;justify-content:space-between;background:#12100a;color:#f0d880;padding:8px 12px;border-radius:6px;font-size:15px;font-weight:700;margin-top:6px}
+    .footer-note{margin-top:20px;text-align:center;font-size:11px;color:#888;border-top:1px solid #e0d8c8;padding-top:12px}
+    .void-banner{background:#c0392b;color:#fff;text-align:center;padding:10px;font-size:14px;font-weight:700;letter-spacing:2px;border-radius:6px;margin-bottom:14px}
+    .print-btn{background:linear-gradient(135deg,#b48226,#d4af37);border:none;color:#13100a;padding:10px 22px;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer;margin-right:8px}
+    .close-btn{background:#333;border:none;color:#ccc;padding:10px 18px;font-size:14px;border-radius:8px;cursor:pointer}
+  </style></head><body>
+  <div class="no-print" style="margin-bottom:16px;display:flex;gap:8px">
+    <button class="print-btn" onclick="window.print()">🖨 Imprimir</button>
+    <button class="close-btn" onclick="window.close()">✕ Cerrar</button>
+  </div>
+  ${st==='cancelado'||st==='anulado'?`<div class="void-banner">⚠ FACTURA ANULADA ${o.void_reason?'— '+o.void_reason:''}</div>`:''}
+  <div class="header-bar">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div class="logo-circle">${logoSrc?`<img src="${logoSrc}" alt="logo"/>`:(co.name||'P')[0].toUpperCase()}</div>
+      <div>
+        <div style="font-family:Georgia,serif;font-size:16px;font-weight:700;color:#f0d880">${co.name||'Pleaseme'}</div>
+        ${co.email?`<div style="font-size:11px;color:#c8b87a;margin-top:2px">${co.email}</div>`:''}
+        ${co.whatsapp?`<div style="font-size:11px;color:#c8b87a">Tel: ${co.whatsapp}</div>`:''}
+      </div>
+    </div>
+    <div style="text-align:right">
+      <h1>FACTURA</h1>
+      <div style="font-size:12px;color:#c8b87a;margin-top:4px">No. ${invNum}</div>
+      <div style="font-size:11px;color:#c8b87a">${new Date(o.created_at||Date.now()).toLocaleDateString('es')}</div>
+      <div style="display:inline-block;margin-top:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${statusColors[st]||'#555'};color:#fff">${statusLabels[st]||st}</div>
+    </div>
+  </div>
+  <div class="gold-line"></div>
+  <div class="info-grid">
+    <div class="info-box">
+      <div class="lbl">Facturar a</div>
+      <div class="val">${o.clientName||'—'}</div>
+      ${o.clientEmail?`<div class="sub">${o.clientEmail}</div>`:''}
+      ${o.clientPhone?`<div class="sub">Tel: ${o.clientPhone}</div>`:''}
+      ${o.address?`<div class="sub">${o.address}</div>`:''}
+    </div>
+    <div class="info-box">
+      <div class="lbl">Detalles</div>
+      <div class="val">No. ${invNum}</div>
+      <div class="sub">Fecha: ${new Date(o.created_at||Date.now()).toLocaleDateString('es')}</div>
+      <div class="sub">Pago: ${({card:'Tarjeta',paypal:'PayPal',cash:'Efectivo',transfer:'Transferencia',whatsapp:'WhatsApp'}[o.payment_method||o.method]||o.payment_method||'—')}</div>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Artículo</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th></tr></thead>
+    <tbody>${itemsHtml}</tbody>
+  </table>
+  <div class="totals-section">
+    <div class="totals-box">
+      <div class="total-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
+      ${ship>0?`<div class="total-row"><span>Envío</span><span>$${ship.toFixed(2)}</span></div>`:''}
+      ${disc>0?`<div class="total-row" style="color:#c0392b"><span>Descuento</span><span>− $${disc.toFixed(2)}</span></div>`:''}
+      <div class="total-final"><span>TOTAL</span><span>$${Number(total).toFixed(2)}</span></div>
+    </div>
+  </div>
+  ${o.notes?`<div style="margin-top:14px;background:#f9f6f0;border:1px solid #e0d8c8;border-radius:6px;padding:10px"><span style="font-size:10px;font-weight:700;color:#b48226;text-transform:uppercase">Notas: </span><span style="font-size:12px;color:#555">${o.notes}</span></div>`:''}
+  <div class="footer-note">Gracias por su preferencia — ${co.name||'Pleaseme'}<br><span style="font-size:10px">Generado el ${new Date().toLocaleDateString('es')} · ${invNum}</span></div>
+  <script>window.onload=()=>{ setTimeout(()=>window.print(),300); }<\/script>
+  </body></html>`;
+
+  const win = window.open('','_blank','width=820,height=1000,scrollbars=yes');
+  if(win){ win.document.write(html); win.document.close(); }
+  else toast('Permite ventanas emergentes para imprimir','warn');
+}
 async function quickPDF(id){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Factura no encontrada','err'); return; }
@@ -950,16 +1375,23 @@ function buildInvoicePDF(o){
   const CR=13, CX=M+CR+2, CY=HDR/2+1;
   doc.setFillColor(...GOLD2); doc.circle(CX,CY,CR,'F');
 
-  const logoSrc=(co._logoB64||co.logoUrl||co.logo_data||co.logo_url||'').trim();
-  if(logoSrc){
+  const logoSrc=(co._logoB64||co.logoB64||co.logo_b64||co.logoUrl||co.logo_url||co.logo_data||co.logo||'').trim();
+  if(logoSrc && logoSrc.length > 50){
     try{
-      const isJpeg=logoSrc.startsWith('data:image/jpeg')||logoSrc.startsWith('data:image/jpg');
-      doc.addImage(logoSrc, isJpeg?'JPEG':'PNG', CX-CR, CY-CR, CR*2, CR*2,'','NONE');
-    }catch{
+      let imgFormat = 'PNG';
+      if(logoSrc.startsWith('data:image/jpeg')||logoSrc.startsWith('data:image/jpg')) imgFormat = 'JPEG';
+      else if(logoSrc.startsWith('data:image/webp')) imgFormat = 'WEBP';
+      // Círculo de fondo para el logo
+      doc.setFillColor(...GOLD2); doc.circle(CX, CY, CR, 'F');
+      doc.addImage(logoSrc, imgFormat, CX-CR+1, CY-CR+1, (CR-1)*2, (CR-1)*2, '', 'NONE');
+    }catch(err){
+      console.warn('Logo PDF error:', err);
+      doc.setFillColor(...GOLD2); doc.circle(CX,CY,CR,'F');
       doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...DARK);
       doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
     }
   } else {
+    doc.setFillColor(...GOLD2); doc.circle(CX,CY,CR,'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...DARK);
     doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
   }
