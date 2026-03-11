@@ -1273,7 +1273,7 @@
         </select>
         <button class="btn primary" id="updateStatusBtn">Actualizar estado</button>
         <button class="btn ok" id="printOrderBtn"><span data-i18n="print">🖨 Imprimir</span></button>
-        <button class="btn ok" id="invoiceBtn" onclick="generateInvoice()" style="background:rgba(47,227,181,.15);border-color:rgba(47,227,181,.4);color:#2fe3b5">🧾 Factura PDF</button>
+        <button class="btn ok" id="invoiceBtn" onclick="abrirVentanaFacturacionDesdeModal()" style="background:rgba(47,227,181,.15);border-color:rgba(47,227,181,.4);color:#2fe3b5">🧾 Factura PDF</button>
         <button class="btn ok" id="labelBtn" onclick="generateLabel()" style="background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.4);color:var(--gold)">📦 Label Envío</button>
         <button class="btn ok" id="confirmAndLabelBtn" onclick="confirmAndLabel()" style="background:linear-gradient(135deg,rgba(201,150,58,.2),rgba(232,197,110,.15));border-color:rgba(212,175,55,.6);color:var(--gold2);font-weight:700">✅ Confirmar + Label</button>
         <button class="btn warn" id="cancelOrderBtn"><span data-i18n="cancelOrder">✖ Cancelar pedido</span></button>
@@ -1723,8 +1723,8 @@
     <button class="btn gold" onclick="printAllFacturas()">
       🖨️ Imprimir Selección
     </button>
-    <button class="btn gold" onclick="openNewOrderModal()" style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;font-weight:700;border:none">
-      ✦ Nueva Factura / Pedido
+    <button class="btn gold" onclick="abrirVentanaFacturacion()" style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;font-weight:700;border:none">
+      ✦ Abrir Facturación
     </button>
   </div>
 
@@ -2392,155 +2392,67 @@ function bindCompanyInfoPreview(){
     });
   });
 }
-// ── COMPANY INFO (branding/contact) ───────────────────────
-function getCompanyInfo(){
-  if(DB.company) return DB.company;
-  if(DB.config&&DB.config.company) return DB.config.company;
-  try{ return JSON.parse(localStorage.getItem(LS_COMPANY)||"{}") || {}; }catch(e){ return {}; }
-}
-
-function companyPreviewHtml(c){
-  const rows = [];
-  if(c.name)    rows.push(`<div><b>Compañía:</b> ${esc(c.name)}</div>`);
-  if(c.email)   rows.push(`<div><b>Email:</b> ${esc(c.email)}</div>`);
-  if(c.whatsapp) rows.push(`<div><b>WhatsApp:</b> ${esc(c.whatsapp)}</div>`);
-  if(c.instagram) rows.push(`<div><b>Instagram:</b> ${esc(c.instagram)}</div>`);
-  if(c.address)  rows.push(`<div><b>Dirección:</b> ${esc(c.address)}</div>`);
-  const logoSrc = c.logo_data || c.logoUrl || c.logo_url || '';
-  if(logoSrc)   rows.push(`<div style="margin-top:6px"><img src="${esc(logoSrc)}" style="max-width:120px;max-height:60px;border-radius:8px;border:1px solid rgba(212,175,55,.25);background:#080603;padding:4px" onerror="this.style.display='none'"/></div>`);
-  return rows.length ? rows.join("") : "Aquí verás un resumen guardado.";
-}
-
-function bindLogoFileInput(){
-  const input = $("coLogoFile");
-  if(!input) return;
-  // Evitar duplicar el listener
-  if(input._bound) return;
-  input._bound = true;
-  input.addEventListener("change", function(){
-    const file = this.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = function(e){
-      const base64 = e.target.result; // data:image/png;base64,...
-      if(!DB.company) DB.company = {};
-      DB.company.logo_data = base64;
-      DB.company.logoUrl   = base64;
-      // Preview
-      const prev = $("coLogoPreviewImg");
-      if(prev) prev.innerHTML = `<img src="${base64}" style="max-width:120px;max-height:60px;border-radius:8px;border:1px solid rgba(212,175,55,.25);background:#080603;padding:4px"/>`;
-      // Actualizar preview general
-      if($("companyPreview")) $("companyPreview").innerHTML = companyPreviewHtml({
-        name:      $("coName")?.value.trim(),
-        email:     $("coEmail")?.value.trim(),
-        whatsapp:  $("coWhatsApp")?.value.trim(),
-        instagram: $("coInstagram")?.value.trim(),
-        address:   $("coAddress")?.value.trim(),
-        logo_data: base64
-      });
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-function loadCompanyInfoForm(){
-  const c = getCompanyInfo();
-  if($("coName"))      $("coName").value      = c.name      || "";
-  if($("coLogoUrl"))   $("coLogoUrl").value   = c.logoUrl   || c.logo_url || "";
-  if($("coEmail"))     $("coEmail").value      = c.email     || "";
-  if($("coWhatsApp"))  $("coWhatsApp").value   = c.whatsapp  || "";
-  if($("coInstagram")) $("coInstagram").value  = c.instagram || "";
-  if($("coAddress"))   $("coAddress").value    = c.address   || "";
-  if($("companyPreview")) $("companyPreview").innerHTML = companyPreviewHtml(c);
-  // Mostrar logo actual si existe
-  const logoSrc = c.logo_data || c.logoUrl || c.logo_url || '';
-  if(logoSrc && $("coLogoPreviewImg")){
-    $("coLogoPreviewImg").innerHTML = `<img src="${logoSrc}" style="max-width:120px;max-height:60px;border-radius:8px;border:1px solid rgba(212,175,55,.25);background:#080603;padding:4px" onerror="this.style.display='none'"/>`;
-  }
-  bindLogoFileInput();
-}
-
-function bindCompanyInfoPreview(){
-  ["coName","coLogoUrl","coEmail","coWhatsApp","coInstagram","coAddress"].forEach(id=>{
-    $(id)?.addEventListener("input", ()=>{
-      $("companyPreview").innerHTML = companyPreviewHtml({
-        name:      $("coName").value.trim(),
-        logoUrl:   $("coLogoUrl").value.trim(),
-        logo_data: DB.company?.logo_data || '',
-        email:     $("coEmail").value.trim(),
-        whatsapp:  $("coWhatsApp").value.trim(),
-        instagram: $("coInstagram").value.trim(),
-        address:   $("coAddress").value.trim()
-      });
-    });
-  });
-}
-
 function saveCompanyInfo(){
   const logoUrl  = $("coLogoUrl").value.trim();
-  const logoData = DB.company?.logo_data || '';  // base64 del FileReader
+  const logoData = DB.company?.logo_data || '';   // base64 subido
   const c = {
-    name:       $("coName").value.trim(),
-    email:      $("coEmail").value.trim(),
-    whatsapp:   $("coWhatsApp").value.trim(),
-    instagram:  $("coInstagram").value.trim(),
-    address:    $("coAddress").value.trim(),
-    logo_url:   logoUrl,
-    logo_data:  logoData,
-    google_key: $("coGoogleKey")?.value.trim()  || '',
-    ep_user:    $("coEpUser")?.value.trim()     || '',
-    ep_pass:    $("coEpPass")?.value            || '',
-    ps_user:    $("coPsUser")?.value.trim()     || '',
-    ps_token:   $("coPsToken")?.value           || '',
-    currency:   $("coCurrency")?.value          || 'USD',
-    logoUrl:    logoData || logoUrl,   // para PDF y preview
-    updated_at: new Date().toISOString()
+    name:         $("coName").value.trim(),
+    email:        $("coEmail").value.trim(),
+    whatsapp:     $("coWhatsApp").value.trim(),
+    instagram:    $("coInstagram").value.trim(),
+    address:      $("coAddress").value.trim(),
+    logo_url:     logoUrl,
+    logo_data:    logoData,
+    google_key:   $("coGoogleKey")?.value.trim()||'',
+    ep_user: $("coEpUser")?.value.trim()||'',
+    ep_pass: $("coEpPass")?.value||'',
+    ps_user: $("coPsUser")?.value.trim()||'',
+    ps_token: $("coPsToken")?.value||'',
+    currency:     $("coCurrency")?.value||'USD',
+    logoUrl:      logoData || logoUrl,
+    updated_at:   new Date().toISOString()
   };
-
   // Cache local
   DB.company = c;
   localStorage.setItem(LS_COMPANY, JSON.stringify(c));
-
   let cfg = {};
   try{ cfg = JSON.parse(localStorage.getItem("pm_config")||"{}") || {}; }catch(e){}
-  if(c.whatsapp)   cfg.wa           = c.whatsapp;
-  if(c.email)      cfg.contactEmail = c.email;
-  if(c.google_key) { cfg.googleKey  = c.google_key;  CFG.googleKey  = c.google_key;  initGooglePlaces(); }
-  if(c.ep_user)    { cfg.epUser     = c.ep_user;     CFG.epUser     = c.ep_user; }
-  if(c.ep_pass)    { cfg.epPass     = c.ep_pass;     CFG.epPass     = c.ep_pass; }
-  if(c.ps_user)    { cfg.psUser     = c.ps_user;     CFG.psUser     = c.ps_user;  psUpdateCredUI(); }
-  if(c.ps_token)   { cfg.psToken    = c.ps_token;    CFG.psToken    = c.ps_token; }
-  if(c.currency)   { cfg.cur        = c.currency;    CFG.cur        = c.currency; }
+  if(c.whatsapp)     cfg.wa          = c.whatsapp;
+  if(c.email)        cfg.contactEmail = c.email;
+  if(c.google_key)   { cfg.googleKey   = c.google_key;   CFG.googleKey   = c.google_key;   initGooglePlaces(); }
+  if(c.ep_user)  { cfg.epUser=c.ep_user;   CFG.epUser=c.ep_user; }
+  if(c.ep_pass)  { cfg.epPass=c.ep_pass;   CFG.epPass=c.ep_pass; }
+  if(c.ps_user)  { cfg.psUser=c.ps_user;   CFG.psUser=c.ps_user; psUpdateCredUI(); }
+  if(c.ps_token) { cfg.psToken=c.ps_token; CFG.psToken=c.ps_token; }
+  // Show saved status
   epUpdateCredUI();
+  if(c.currency)     { cfg.cur         = c.currency;     CFG.cur         = c.currency; }
   localStorage.setItem("pm_config", JSON.stringify(cfg));
 
-  // Guardar en Supabase tabla company (fila id=1)
+  // Guardar en tabla company (UPDATE fila id=1)
   sbPATCH('company', 1, {
-    name:       c.name,
-    email:      c.email,
-    whatsapp:   c.whatsapp,
-    instagram:  c.instagram,
-    address:    c.address,
-    logo_url:   c.logo_url,
-    logo_data:  c.logo_data,
-    google_key: c.google_key,
-    ep_user:    c.ep_user,
-    ep_pass:    c.ep_pass,
-    ps_user:    c.ps_user,
-    ps_token:   c.ps_token,
-    currency:   c.currency,
-    updated_at: c.updated_at
+    name:         c.name,
+    email:        c.email,
+    whatsapp:     c.whatsapp,
+    instagram:    c.instagram,
+    address:      c.address,
+    logo_url:     c.logo_url,
+    logo_data:    c.logo_data,
+    google_key:   c.google_key,
+    ep_user: c.ep_user,
+    ep_pass: c.ep_pass,
+    ps_user: c.ps_user,
+    ps_token: c.ps_token,
+    currency:     c.currency,
+    updated_at:   c.updated_at
   }).catch(e=>console.error('[SB] company save:',e));
 
-  // Sync config storefront
+  // También sync config storefront
   sbPOST('config',{key:'storefront',value:cfg},'POST','resolution=merge-duplicates,return=minimal')
     .catch(e=>console.error('[SB] config:',e));
 
   toast("Información de compañía guardada ✅", "ok");
-  if($("companyInfoModal")){
-    $("companyInfoModal").classList.remove("open");
-    $("companyInfoModal").style.display="none";
-  }
+  if($("companyInfoModal")){$("companyInfoModal").classList.remove("open"); $("companyInfoModal").style.display="none";}
 }
 
 
@@ -2951,7 +2863,7 @@ function renderOrders(){
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn sm" onclick="openOrderModal('${o.id}')">Ver</button>
-          <button class="btn sm" onclick="openEditInvoice('${o.id}')" title="Editar" style="background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.3);color:#d4af37">✏️</button>
+          <button class="btn sm" onclick="abrirVentanaFacturacion('${o.id}')" title="Editar factura" style="background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.3);color:#d4af37">✏️</button>
           <button class="btn sm" onclick="quickInvoice('${o.id}')" title="Generar factura" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">🧾</button>
           <button class="btn sm" onclick="quickLabel('${o.id}')" title="Etiqueta envío" style="background:rgba(212,175,55,.08);border-color:rgba(212,175,55,.3);color:var(--gold)">📦</button>
           ${o.clientPhone?`<button class="btn sm" onclick="event.stopPropagation();quickWA('${o.id}')" title="Enviar WhatsApp" style="background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3);color:#25d366">💬</button>`:''}
@@ -3588,7 +3500,7 @@ function renderFacturas(){
       <td style="font-size:11px;color:var(--muted)">${esc(o.method||o.payment_method||'—')}</td>
       <td><span class="badge ${facStatus}">${facStatus.toUpperCase()}</span></td>
       <td onclick="event.stopPropagation()"><div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button class="btn sm" onclick="openEditInvoice('${o.id}')" title="Editar factura" style="background:rgba(212,175,55,.12);border-color:rgba(212,175,55,.35);color:#d4af37">✏️ Editar</button>
+        <button class="btn sm" onclick="abrirVentanaFacturacion('${o.id}')" title="Editar factura" style="background:rgba(212,175,55,.12);border-color:rgba(212,175,55,.35);color:#d4af37">✏️ Editar</button>
         <button class="btn sm" onclick="quickInvoice('${o.id}')" title="Generar PDF" style="background:rgba(47,227,181,.12);border-color:rgba(47,227,181,.35);color:#2fe3b5">🧾 PDF</button>
         <button class="btn sm danger" onclick="deleteOrder('${o.id}')" title="Eliminar">🗑</button>
       </div></td>
@@ -3846,7 +3758,6 @@ function renderNotifList(){
 }
 
 // ── Invoice / Label functions ──────────────────────────────────
-// ── Invoice / Label functions ──────────────────────────────────
 function generateInvoice(){
   const id = window.__activeOrderId || currentOrderId;
   if(!id){ toast('No hay pedido activo.','warn'); return; }
@@ -3866,24 +3777,23 @@ function confirmAndLabel(){
   toast('✅ Pedido confirmado como "procesando"','ok');
   setTimeout(()=>quickLabel(id), 300);
 }
-
+// Precarga logo como base64 para jsPDF
 async function _loadLogoBase64(){
   const co=getCompanyInfo();
-  const src=(co.logo_data||co._logoB64||co.logoUrl||co.logo_url||'').trim();
-  if(!src) return '';
-  if(src.startsWith('data:')) return src;
+  const src=(co.logoUrl||co.logo_data||co.logo_url||'').trim();
+  if(!src||src.startsWith('data:')) return src; // ya es base64 o vacío
   return new Promise(res=>{
     const img=new Image(); img.crossOrigin='anonymous';
     img.onload=()=>{
       try{
         const c=document.createElement('canvas');
-        c.width=img.naturalWidth||300; c.height=img.naturalHeight||150;
+        c.width=img.naturalWidth; c.height=img.naturalHeight;
         c.getContext('2d').drawImage(img,0,0);
         res(c.toDataURL('image/png'));
-      }catch(e){ res(''); }
+      }catch(e){ res(src); }
     };
     img.onerror=()=>res('');
-    img.src=src+'?cb='+Date.now();
+    img.src=src;
   });
 }
 
@@ -3891,10 +3801,12 @@ async function quickInvoice(id){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Pedido no encontrado.','err'); return; }
   try{
+    // Precargar logo
     const logoB64 = await _loadLogoBase64();
-    if(logoB64){ const co=getCompanyInfo(); co._logoB64=logoB64; DB.company=co; }
-    const doc = await window.buildInvoicePDF(o);
-    if(!doc){ toast('No se pudo generar el PDF.','err'); return; }
+    if(logoB64){ const co=getCompanyInfo(); co._logoB64=logoB64; }
+    const fn = window.buildInvoicePDF || buildInvoicePDF;
+    const doc = fn(o);
+    if(!doc){ return; }
     const fname = 'Factura-'+(o.invoice_num||o.id||'PDF')+'.pdf';
     doc.save(fname);
     toast('✅ PDF generado: '+fname,'ok');
@@ -3903,7 +3815,6 @@ async function quickInvoice(id){
     console.error('quickInvoice:', e);
   }
 }
-
 function quickLabel(id){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Pedido no encontrado.','err'); return; }
@@ -3913,8 +3824,8 @@ function quickLabel(id){
     showManualTrackingEntry(id);
   }
 }
-
 function invoiceNewOrder(){
+  // Save first, then generate invoice
   const clientName = (document.getElementById('nomClientName')||{}).value||'Cliente';
   const total = parseFloat((document.getElementById('nomTotal')||{}).textContent?.replace(/[^0-9.]/g,'')||0);
   const now = new Date().toISOString();
@@ -3943,6 +3854,7 @@ function invoiceNewOrder(){
   setTimeout(()=>quickInvoice(id), 500);
 }
 
+// ── Facturas tab helpers ───────────────────────────────────────
 function exportFacturasCSV(){
   const orders = DB.orders||[];
   if(!orders.length){ toast('No hay facturas.','warn'); return; }
@@ -3963,6 +3875,7 @@ function toggleSelectAllFac(el){
   document.querySelectorAll('[data-fac-id]').forEach(cb=>{ cb.checked = el.checked; });
 }
 
+// ── Credentials clear ─────────────────────────────────────────
 function psClearCreds(){
   if(!confirm('¿Borrar credenciales de Pirateship?')) return;
   CFG.psUser=''; CFG.psToken='';
@@ -3984,6 +3897,7 @@ function epClearCreds(){
   toast('Credenciales EasyPost borradas.','warn');
 }
 
+// ── WA Tab ────────────────────────────────────────────────────
 let _waCampaignLog=[];
 function loadWaLog(){ try{_waCampaignLog=JSON.parse(localStorage.getItem('pm_wa_campaigns_v1')||'[]');}catch{_waCampaignLog=[];} }
 function renderWaTab(){ loadWaLog(); waUpdateSegmentCounts(); waUpdatePreview(); renderWaCampaignLog(); }
@@ -4008,6 +3922,7 @@ function renderWaCampaignLog(){
   el.innerHTML=_waCampaignLog.slice(-10).reverse().map(c=>`<div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05)"><div style="font-size:12px;color:var(--gold)">${esc(c.name||'Campaña')}</div><div style="font-size:10px;color:var(--muted)">${fmtDate(c.date)} · ${c.sent||0} enviados</div></div>`).join('');
 }
 
+// ── Quick WhatsApp for individual order ─────────────────────────────
 function quickWA(orderId){
   const o=(DB.orders||[]).find(x=>x.id===orderId); if(!o) return;
   const phone=(o.clientPhone||'').replace(/\D/g,'');
@@ -4026,6 +3941,7 @@ function quickWA(orderId){
     modal.dataset.phone=phone;
     modal.style.display='flex';
   } else {
+    // Fallback: open WA directly
     const msg=`Hola ${o.clientName||''}! Te escribimos de ${co.name||'Pleaseme'} sobre tu pedido ${o.id}. Total: $${Number(o.total||0).toFixed(2)} - ${statusLabel(o.status)}`;
     window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');
   }
@@ -4061,6 +3977,7 @@ function waSendCampaign(){
     if(!targets.length) targets=pendEmails.map(e=>({name:e,email:e,phone:''}));
   }
   if(!targets.length){ toast('No hay clientes en este segmento.','warn'); return; }
+  // Open WA links one by one (browser will open new tabs)
   let sent=0;
   targets.forEach((c,i)=>{
     const phone=(c.phone||c.whatsapp||'').replace(/\D/g,'');
@@ -4069,6 +3986,7 @@ function waSendCampaign(){
     setTimeout(()=>{ window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank'); }, i*800);
     sent++;
   });
+  // Log campaign
   loadWaLog();
   _waCampaignLog.push({name:'Campaña '+new Date().toLocaleDateString('es'),date:new Date().toISOString(),sent,seg});
   localStorage.setItem('pm_wa_campaigns_v1',JSON.stringify(_waCampaignLog));
@@ -4077,9 +3995,438 @@ function waSendCampaign(){
   toast('📲 Enviando a '+sent+' contactos...','ok');
 }
 
+</script>
+
+
+<!-- ═══ REALTIME ORDER NOTIFICATION ═══ -->
+<div id="newOrderAlert" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9999;
+  background:linear-gradient(135deg,#0d0a05,#1a1408);
+  border:1px solid rgba(212,175,55,.5);border-radius:16px;
+  padding:20px 24px;min-width:300px;max-width:360px;
+  box-shadow:0 8px 40px rgba(0,0,0,.7);animation:slideUp .4s ease">
+  <style>@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}</style>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <div style="font-size:22px">🛍️</div>
+    <div>
+      <div style="font-family:var(--fd);color:var(--gold);font-size:15px;font-weight:700">¡Nuevo Pedido!</div>
+      <div style="font-size:11px;color:var(--muted)" id="alertTime">Ahora mismo</div>
+    </div>
+    <button onclick="document.getElementById('newOrderAlert').style.display='none'"
+      style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">✕</button>
+  </div>
+  <div id="alertBody" style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:14px"></div>
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <button onclick="confirmAndLabelNew()" class="btn" style="flex:1;font-size:12px;font-weight:700;background:linear-gradient(135deg,rgba(201,150,58,.25),rgba(232,197,110,.15));border-color:rgba(212,175,55,.5);color:var(--gold2)">✅ Confirmar + Label</button>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button onclick="viewNewOrder()" class="btn primary" style="flex:1;font-size:12px">Ver pedido</button>
+    <button onclick="invoiceNewOrder()" class="btn ok" style="font-size:12px;background:rgba(47,227,181,.15);border-color:rgba(47,227,181,.4);color:#2fe3b5">🧾 Factura</button>
+    <button onclick="labelNewOrder()" class="btn" style="font-size:12px;background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.3);color:var(--gold)">📦 Label</button>
+  </div>
+</div>
+
+<!-- ═══ CARRIER SELECTOR MODAL ═══ -->
+<div class="modal-overlay" id="carrierModal" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">
+      <b>📦 Seleccionar Carrier</b>
+      <button class="btn sm" onclick="document.getElementById('carrierModal').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Elige el carrier para generar el label de envío:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+        <button class="carrier-btn" onclick="confirmLabel('USPS')"  style="background:rgba(30,50,150,.15);border:1px solid rgba(30,50,150,.4)">
+          <span style="font-size:28px">🇺🇸</span>
+          <span style="color:#6699ff;font-weight:700;font-size:14px">USPS</span>
+          <span style="font-size:10px;color:var(--muted)">United States Postal</span>
+        </button>
+        <button class="carrier-btn" onclick="confirmLabel('UPS')"   style="background:rgba(160,90,0,.15);border:1px solid rgba(160,90,0,.4)">
+          <span style="font-size:28px">🟫</span>
+          <span style="color:#c8720a;font-weight:700;font-size:14px">UPS</span>
+          <span style="font-size:10px;color:var(--muted)">United Parcel Service</span>
+        </button>
+        <button class="carrier-btn" onclick="confirmLabel('FedEx')" style="background:rgba(100,0,150,.15);border:1px solid rgba(100,0,150,.4)">
+          <span style="font-size:28px">🟣</span>
+          <span style="color:#c040ff;font-weight:700;font-size:14px">FedEx</span>
+          <span style="font-size:10px;color:var(--muted)">Federal Express</span>
+        </button>
+        <button class="carrier-btn" onclick="confirmLabel('DHL')"   style="background:rgba(220,160,0,.15);border:1px solid rgba(220,160,0,.4)">
+          <span style="font-size:28px">🟡</span>
+          <span style="color:#f5c518;font-weight:700;font-size:14px">DHL</span>
+          <span style="font-size:10px;color:var(--muted)">DHL Express</span>
+        </button>
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:14px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Número de tracking (opcional)</label>
+        <input id="trackingInput" placeholder="Ej: 9400111899223397658239" style="width:100%;margin-bottom:12px"/>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Servicio</label>
+        <select id="serviceSelect" style="width:100%">
+          <option value="Standard">Standard / Economy</option>
+          <option value="Priority">Priority Mail</option>
+          <option value="Express">Express / Overnight</option>
+          <option value="Ground">Ground</option>
+          <option value="2-Day">2-Day Air</option>
+        </select>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px;background:rgba(212,175,55,.05);border-radius:9px;border:1px solid rgba(212,175,55,.1)">
+          <input type="checkbox" id="autoPrintToggle" style="accent-color:var(--gold);width:15px;height:15px;flex-shrink:0"
+            onchange="localStorage.setItem('pm_auto_print_label',this.checked)"/>
+          <label for="autoPrintToggle" style="font-size:12px;color:var(--text2);cursor:pointer;line-height:1.4">
+            🖨️ Imprimir automáticamente al generar label
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ═══ NUEVA FACTURA / PEDIDO MODAL ═══ -->
+<div class="modal-overlay" id="newOrderModal" style="display:none;z-index:500">
+  <div class="modal" style="max-width:780px;width:95%;max-height:90vh;overflow-y:auto">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">
+      <b style="font-family:var(--fd);color:var(--gold);font-size:16px">✦ Nueva Factura</b>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:var(--muted)" id="nomInvoicePreview"></span>
+        <button onclick="closeNewOrderModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+      </div>
+    </div>
+
+    <!-- Cliente -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">CLIENTE</label>
+        <div style="display:flex;gap:6px">
+          <input id="nomClientName" placeholder="Nombre del cliente" style="flex:1;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px"/>
+          <button onclick="openClientPicker()" style="padding:9px 12px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);border-radius:8px;color:var(--gold);cursor:pointer;font-size:13px" title="Seleccionar cliente">👤</button>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">EMAIL</label>
+        <input id="nomClientEmail" type="email" placeholder="cliente@correo.com" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">TELÉFONO</label>
+        <input id="nomClientPhone" type="tel" placeholder="+1 (000) 000-0000" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">DIRECCIÓN ENVÍO</label>
+        <input id="nomAddress" placeholder="Dirección completa" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+    </div>
+
+    <!-- Artículos -->
+    <div style="margin-bottom:16px">
+      <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:8px">ARTÍCULOS</label>
+      <div style="display:grid;grid-template-columns:2fr 60px 90px 80px auto;gap:8px;margin-bottom:8px;align-items:end">
+        <div style="position:relative">
+          <input id="nomItemNameIn" placeholder="Nombre del producto" oninput="nomFilterProducts(this.value)" onkeydown="nomItemKeydown(event,'nomItemNameIn')"
+            style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+        </div>
+        <input id="nomItemQtyIn" type="number" min="1" value="1" placeholder="Cant" onkeydown="nomItemKeydown(event,'nomItemQtyIn')"
+          style="padding:9px 8px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;text-align:center"/>
+        <input id="nomItemPriceIn" type="number" step="0.01" placeholder="Precio" onkeydown="nomItemKeydown(event,'nomItemPriceIn')"
+          style="padding:9px 8px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px"/>
+        <input id="nomItemSizeIn" placeholder="Talla" onkeydown="nomItemKeydown(event,'nomItemSizeIn')"
+          style="padding:9px 8px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px"/>
+        <button onclick="nomCommitItem()" style="padding:9px 14px;background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.4);border-radius:8px;color:var(--gold);cursor:pointer;font-size:18px;white-space:nowrap">+</button>
+      </div>
+      <!-- Dropdown portal -->
+      <div id="nomProdPortal" style="display:none;position:fixed;background:rgba(10,8,3,.98);border:1px solid rgba(212,175,55,.25);border-radius:10px;z-index:1100;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:220px;overflow-y:auto"></div>
+      <!-- Items list -->
+      <div id="nomItemsList" style="min-height:48px;border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden"></div>
+      <div id="nomItemsEmpty" style="display:flex;align-items:center;justify-content:center;padding:20px;color:var(--muted);font-size:12px;border:1px dashed rgba(255,255,255,.08);border-radius:8px;margin-top:4px">
+        Sin artículos — busca o escribe el nombre de un producto
+      </div>
+    </div>
+
+    <!-- Totales -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">ENVÍO</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="nomShipping" type="number" step="0.01" value="0" oninput="nomRecalc()"
+            style="flex:1;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px"/>
+          <label style="font-size:11px;color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:4px">
+            <input type="checkbox" id="nomFreeShip" onchange="document.getElementById('nomShipping').value=this.checked?0:document.getElementById('nomShipping').value;document.getElementById('nomShipping').disabled=this.checked;nomRecalc()"/> Gratis
+          </label>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">DESCUENTO</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="nomDiscountVal" type="number" step="0.01" min="0" value="0" placeholder="0" oninput="nomRecalc()"
+            style="flex:1;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+          <select id="nomDiscountType" onchange="nomRecalc()" style="padding:9px 8px;background:rgba(0,0,0,.5);border:1px solid rgba(212,175,55,.3);border-radius:8px;color:var(--gold);font-size:13px;font-weight:700">
+            <option value="pct">%</option>
+            <option value="fixed">$</option>
+          </select>
+        </div>
+        <div id="nomDiscountPreview" style="font-size:10px;color:rgba(212,175,55,.6);margin-top:3px;text-align:right"></div>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">PAGO</label>
+        <select id="nomMethod" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px">
+          <option value="card">Tarjeta</option><option value="paypal">PayPal</option>
+          <option value="cash">Efectivo</option><option value="transfer">Transferencia</option><option value="whatsapp">WhatsApp</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Totals display -->
+    <div style="background:rgba(212,175,55,.05);border:1px solid rgba(212,175,55,.15);border-radius:10px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:11px;color:var(--muted)">Subtotal: <span id="nomSubtotal" style="color:var(--text)">$0.00</span></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">TOTAL</div>
+        <div id="nomTotal" style="font-family:var(--fd);font-size:24px;color:var(--gold);font-weight:700">$0.00</div>
+      </div>
+    </div>
+
+    <!-- Status & Notes -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">ESTADO PEDIDO</label>
+        <select id="nomOrderStatus" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px">
+          <option value="pendiente">Pendiente</option><option value="procesando">Procesando</option>
+          <option value="enviado">Enviado</option><option value="entregado">Entregado</option><option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px">NOTAS</label>
+        <input id="nomNotes" placeholder="Notas internas..." style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box"/>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeNewOrderModal()" style="padding:11px 20px;background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--muted);cursor:pointer;font-size:13px">Cancelar</button>
+      <button onclick="saveNewOrderOnly()" style="padding:11px 20px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.3);border-radius:10px;color:var(--gold);cursor:pointer;font-size:13px;font-weight:600">💾 Guardar pedido</button>
+      <button onclick="invoiceNewOrder()" style="padding:11px 24px;background:linear-gradient(135deg,#c9963a,#e8c56e);border:none;border-radius:10px;color:#0d0900;cursor:pointer;font-size:13px;font-weight:700">🧾 Generar Factura</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     PRODUCT FORM — FULL SAVE / EDIT / IMAGE LOGIC
+══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  /* ── state ── */
+  let _pImages = [];   // base64 or URL strings currently staged
+  let _editingId = null;
+
+  /* ── helpers ── */
+  const $=id=>document.getElementById(id);
+  const readFileAsDataURL = f => new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result);
+    r.onerror=rej;
+    r.readAsDataURL(f);
+  });
+
+  function renderThumbs(){
+    const grid=$('pThumbGrid'); if(!grid) return;
+    if(!_pImages.length){
+      grid.innerHTML='<div class="pmeta" style="grid-column:1/-1;padding:6px 0">Sin imágenes.</div>';
+      return;
+    }
+    grid.innerHTML=_pImages.map((src,i)=>`
+      <div style="position:relative;width:72px;height:72px;flex-shrink:0">
+        <img src="${src}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(212,175,55,.3)"
+          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2272%22 height=%2272%22><rect fill=%22%230a0800%22 width=%2272%22 height=%2272%22/><text x=%2236%22 y=%2242%22 text-anchor=%22middle%22 font-size=%2228%22>💎</text></svg>'"/>
+        <button onclick="window._prodRemoveImg(${i})"
+          style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.75);border:none;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
+      </div>`).join('');
+  }
+  window._prodRemoveImg=function(i){ _pImages.splice(i,1); renderThumbs(); };
+
+  function resetForm(){
+    _editingId=null; _pImages=[];
+    ['pName','pPrice','pStock','pSizes','pColors','pDesc'].forEach(id=>{ const el=$(id); if(el) el.value=''; });
+    const cat=$('pCategory'); if(cat) cat.value='';
+    const cur=$('pCurrency'); if(cur) cur.value='USD';
+    const title=$('prodFormTitle'); if(title) title.textContent='Registrar prenda';
+    const btn=$('pSaveBtn'); if(btn){ btn.textContent='✓ Guardar prenda'; delete btn.dataset.editId; }
+    renderThumbs();
+  }
+
+  async function saveProduct(){
+    const name=($('pName')?.value||'').trim();
+    const price=parseFloat($('pPrice')?.value||0);
+    const stock=parseInt($('pStock')?.value||0,10);
+    const category=$('pCategory')?.value||'';
+    const currency=$('pCurrency')?.value||'USD';
+    const sizes=($('pSizes')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const colors=($('pColors')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const description=($('pDesc')?.value||'').trim();
+
+    if(!name){ if(window.toast) toast('El nombre es obligatorio.','warn'); else alert('El nombre es obligatorio.'); return; }
+    if(isNaN(price)||price<0){ if(window.toast) toast('Precio inválido.','warn'); else alert('Precio inválido.'); return; }
+
+    const editId=$('pSaveBtn')?.dataset?.editId||_editingId;
+
+    if(editId){
+      /* UPDATE existing */
+      const idx=(DB.products||[]).findIndex(p=>p.id===editId);
+      if(idx>-1){
+        const existing=DB.products[idx];
+        DB.products[idx]={
+          ...existing,
+          name,price,stock,category,currency,sizes,colors,
+          description,desc:description,
+          images:_pImages.length?_pImages:existing.images,
+          active:existing.active!==undefined?existing.active:true,
+          updated_at:new Date().toISOString()
+        };
+      }
+      if(window.toast) toast('Producto actualizado: '+name,'ok');
+    } else {
+      /* CREATE new */
+      const newProd={
+        id:'p_'+Math.random().toString(16).slice(2)+'_'+Date.now().toString(16),
+        name,price,stock,category,currency,sizes,colors,
+        description,desc:description,
+        images:_pImages,
+        active:true,
+        created_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      };
+      DB.products=[...( DB.products||[]),newProd];
+      if(window.toast) toast('Producto creado: '+name,'ok');
+    }
+
+    /* ── Persist: Supabase primary, localStorage as cache ── */
+    const _changedId = editId || DB.products[DB.products.length-1]?.id;
+    const _changedProd = (DB.products||[]).find(p=>p.id===_changedId);
+    try{
+      if(_changedProd && window.SB_URL && window.SB_H){
+        const row = window.toRow ? toRow('productos', _changedProd) : {
+          id:_changedProd.id,
+          record:{..._changedProd},
+          name:_changedProd.name||'',
+          category:_changedProd.category||'',
+          price:Number(_changedProd.price||0),
+          stock:Number(_changedProd.stock||0),
+          active:_changedProd.active!==false,
+          updated_at:_changedProd.updated_at||new Date().toISOString(),
+          created_at:_changedProd.created_at||new Date().toISOString()
+        };
+        await fetch(SB_URL+'/rest/v1/productos',{
+          method:'POST',
+          headers:{...SB_H,'Prefer':'resolution=merge-duplicates,return=minimal'},
+          body:JSON.stringify(row)
+        });
+      }
+    }catch(e){ console.warn('[SB] producto upsert:',e); }
+    /* Update localStorage cache */
+    if(window.save) save('pm_products_v1',DB.products);
+
+    if(window.renderProducts) renderProducts();
+    if(window.renderInventory) renderInventory();
+    if(window.updateCounts) updateCounts();
+    resetForm();
+  }
+
+  /* ── wire up after DOM ready ── */
+  function bindForm(){
+    /* save button */
+    const saveBtn=$('pSaveBtn');
+    if(saveBtn && !saveBtn._pmBound){
+      saveBtn._pmBound=true;
+      saveBtn.addEventListener('click',saveProduct);
+    }
+
+    /* reset button */
+    const resetBtn=$('pResetBtn');
+    if(resetBtn && !resetBtn._pmBound){
+      resetBtn._pmBound=true;
+      resetBtn.addEventListener('click',resetForm);
+    }
+
+    /* file input */
+    const fileInput=$('pImgInput');
+    if(fileInput && !fileInput._pmBound){
+      fileInput._pmBound=true;
+      fileInput.addEventListener('change',async function(){
+        const files=Array.from(this.files||[]);
+        for(const f of files){
+          try{ const b64=await readFileAsDataURL(f); _pImages.push(b64); }catch(e){}
+        }
+        this.value='';
+        renderThumbs();
+      });
+    }
+
+    /* clear images button */
+    const clearBtn=$('pClearImgs');
+    if(clearBtn && !clearBtn._pmBound){
+      clearBtn._pmBound=true;
+      clearBtn.addEventListener('click',()=>{ _pImages=[]; renderThumbs(); });
+    }
+
+    /* drag-and-drop */
+    const drop=$('pDrop');
+    if(drop && !drop._pmBound){
+      drop._pmBound=true;
+      drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.borderColor='var(--gold)';});
+      drop.addEventListener('dragleave',()=>{drop.style.borderColor='';});
+      drop.addEventListener('drop',async e=>{
+        e.preventDefault(); drop.style.borderColor='';
+        const files=Array.from(e.dataTransfer.files||[]).filter(f=>f.type.startsWith('image/'));
+        for(const f of files){
+          try{ const b64=await readFileAsDataURL(f); _pImages.push(b64); }catch(e){}
+        }
+        renderThumbs();
+      });
+    }
+  }
+
+  /* patch editProduct to also load images into _pImages */
+  const _origEdit=window.editProduct;
+  window.editProduct=function(id){
+    const p=(DB.products||[]).find(x=>x.id===id); if(!p) return;
+    _editingId=id;
+    _pImages=Array.isArray(p.images)?[...p.images]:(p.images?[p.images]:[]);
+    if(_origEdit) _origEdit(id);
+    /* set currency which original stub skips */
+    const cur=document.getElementById('pCurrency');
+    if(cur&&p.currency) cur.value=p.currency;
+    renderThumbs();
+    /* scroll to form */
+    setTimeout(()=>{ const f=document.getElementById('pName'); if(f) f.scrollIntoView({behavior:'smooth',block:'center'}); },150);
+  };
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',bindForm);
+  } else {
+    bindForm();
+  }
+  /* also try again after a short delay in case the shell renders late */
+  setTimeout(bindForm,800);
+  setTimeout(bindForm,2000);
+})();
+</script>
+
+<!-- Client Picker Modal -->
+<div class="modal-overlay" id="clientPickerModal" style="display:none;z-index:1000">
+  <div class="modal" style="max-width:480px;width:95%">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <b style="color:var(--gold)">👤 Seleccionar cliente</b>
+      <button onclick="closeClientPicker()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <input id="cpSearch" placeholder="Buscar por nombre o email..." oninput="renderClientPicker(this.value)"
+      style="width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;margin-bottom:10px"/>
+    <div id="cpList" style="max-height:320px;overflow-y:auto;border:1px solid rgba(255,255,255,.06);border-radius:8px"></div>
+  </div>
+</div>
+
+
+<script>
+
 // ══════════════════════════════════════════════════════════════
-//  FIXES
+//  FIXES: cancelOrder, refundOrder, factura filters, saveNewOrderOnly
 // ══════════════════════════════════════════════════════════════
+
+// Cancel order button
 const _cancelBtn = document.getElementById('cancelOrderBtn');
 if(_cancelBtn) _cancelBtn.addEventListener('click', ()=>{
   const o = DB.orders.find(x=>x.id===currentOrderId); if(!o) return;
@@ -4090,6 +4437,7 @@ if(_cancelBtn) _cancelBtn.addEventListener('click', ()=>{
   document.getElementById('orderModal').classList.remove('open');
 });
 
+// Refund order button
 const _refundBtn = document.getElementById('refundOrderBtn');
 if(_refundBtn) _refundBtn.addEventListener('click', ()=>{
   const o = DB.orders.find(x=>x.id===currentOrderId); if(!o) return;
@@ -4100,6 +4448,7 @@ if(_refundBtn) _refundBtn.addEventListener('click', ()=>{
   document.getElementById('orderModal').classList.remove('open');
 });
 
+// Factura filter listeners
 ['facQ','facStatus','facPeriod'].forEach(id=>{
   const el = document.getElementById(id);
   if(el && !el._ffBound){
@@ -4109,9 +4458,11 @@ if(_refundBtn) _refundBtn.addEventListener('click', ()=>{
   }
 });
 
+// Override renderFacturas to support facPeriod filter
 const _origRenderFacturas = renderFacturas;
 renderFacturas = function(){
   _origRenderFacturas();
+  // apply period filter on top
   const period = (document.getElementById('facPeriod')?.value||'');
   if(!period) return;
   const now = new Date();
@@ -4137,6 +4488,7 @@ renderFacturas = function(){
   });
 };
 
+// ── Auto-upsert client into DB.clients + Supabase ──────────────
 function _autoUpsertClient(clientName, clientEmail, clientPhone, address){
   if(!clientName) return;
   const existing = (DB.clients||[]).find(c=>
@@ -4144,6 +4496,7 @@ function _autoUpsertClient(clientName, clientEmail, clientPhone, address){
     (c.name && c.name.toLowerCase()===clientName.toLowerCase())
   );
   if(existing){
+    // update fields if richer data provided
     if(clientEmail && !existing.email) existing.email = clientEmail;
     if(clientPhone && !existing.phone) existing.phone = clientPhone;
     existing.orders_count = (Number(existing.orders_count)||0)+1;
@@ -4152,9 +4505,14 @@ function _autoUpsertClient(clientName, clientEmail, clientPhone, address){
   } else {
     const nc = {
       id: 'CLI-'+String(Date.now()).slice(-8),
-      name: clientName, email: clientEmail||'', phone: clientPhone||'',
-      shipping_address: address||'', preferred_payment: 'card',
-      orders_count: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+      name: clientName,
+      email: clientEmail||'',
+      phone: clientPhone||'',
+      shipping_address: address||'',
+      preferred_payment: 'card',
+      orders_count: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
     DB.clients = DB.clients||[];
     DB.clients.unshift(nc);
@@ -4163,6 +4521,7 @@ function _autoUpsertClient(clientName, clientEmail, clientPhone, address){
   }
 }
 
+// ── Auto-upsert products that don't exist ───────────────────────
 function _autoUpsertProducts(items){
   if(!items||!items.length) return;
   items.forEach(item=>{
@@ -4174,10 +4533,14 @@ function _autoUpsertProducts(items){
     if(!exists){
       const np = {
         id: item.prodId||('PROD-'+String(Date.now()+Math.random()).replace('.','').slice(-8)),
-        name: item.name, price: Number(item.price||0), stock: 0,
-        category: 'General', active: true,
+        name: item.name,
+        price: Number(item.price||0),
+        stock: 0,
+        category: 'General',
+        active: true,
         images: item.image?[item.image]:[],
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
       DB.products = DB.products||[];
       DB.products.unshift(np);
@@ -4186,6 +4549,7 @@ function _autoUpsertProducts(items){
   });
 }
 
+// saveNewOrderOnly — save order without generating invoice
 function saveNewOrderOnly(){
   const g = id => document.getElementById(id);
   const clientName = (g('nomClientName')?.value||'').trim();
@@ -4208,10 +4572,12 @@ function saveNewOrderOnly(){
     name: i.name, size: i.size||'—', color: i.color||'—',
     qty: i.qty, price: i.price, image: i.image||''
   }));
+  // Auto-add client and products if missing
   _autoUpsertClient(clientName, clientEmail, clientPhone, address);
   _autoUpsertProducts(items);
   const o = {
-    id: ordNum, invoice_num: invNum,
+    id: ordNum,
+    invoice_num: invNum,
     clientName, clientEmail, clientPhone,
     items, total, subtotal, shipping: ship,
     discountValue: disc, discountAmount: disc,
@@ -4219,7 +4585,8 @@ function saveNewOrderOnly(){
     status: g('nomOrderStatus')?.value||'pendiente',
     invoice_status: 'pendiente',
     notes: g('nomNotes')?.value||'',
-    address, created_at: now, updated_at: now
+    address,
+    created_at: now, updated_at: now
   };
   DB.orders.unshift(o);
   persist();
@@ -4230,6 +4597,8 @@ function saveNewOrderOnly(){
 }
 window.saveNewOrderOnly = saveNewOrderOnly;
 
+// Also fix invoiceNewOrder to use same robust builder
+const _origInvoiceNewOrder = window.invoiceNewOrder;
 window.invoiceNewOrder = function(){
   const g = id => document.getElementById(id);
   const clientName = (g('nomClientName')?.value||'').trim();
@@ -4252,6 +4621,7 @@ window.invoiceNewOrder = function(){
     name: i.name, size: i.size||'—', color: i.color||'—',
     qty: i.qty, price: i.price, image: i.image||''
   }));
+  // Auto-add client and products if missing
   _autoUpsertClient(clientName, clientEmail, clientPhone, address);
   _autoUpsertProducts(items);
   const o = {
@@ -4263,7 +4633,8 @@ window.invoiceNewOrder = function(){
     status: g('nomOrderStatus')?.value||'pendiente',
     invoice_status: 'pendiente',
     notes: g('nomNotes')?.value||'',
-    address, created_at: now, updated_at: now
+    address,
+    created_at: now, updated_at: now
   };
   DB.orders.unshift(o);
   persist();
@@ -4274,26 +4645,107 @@ window.invoiceNewOrder = function(){
   setTimeout(()=>quickInvoice(ordNum), 500);
 };
 
+
+
 // ══════════════════════════════════════════════════════════════
-//  PDF MEJORADO
+//  CLIENTE MODAL — funciones globales directas (sin IIFE)
 // ══════════════════════════════════════════════════════════════
-window.buildInvoicePDF = async function(o){
+function openAddClientModal(){
+  const m = document.getElementById('addClientModal');
+  if(!m) return;
+  ['acName','acEmail','acPhone','acCity','acAddress'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  const p=document.getElementById('acPayment'); if(p) p.value='card';
+  m.style.display='flex';
+  setTimeout(()=>{ document.getElementById('acName')?.focus(); },80);
+}
+window.openAddClientModal = openAddClientModal;
+
+function closeAddClientModal(){
+  const m=document.getElementById('addClientModal');
+  if(m) m.style.display='none';
+}
+window.closeAddClientModal = closeAddClientModal;
+
+function doSaveClient(){
+  const name=(document.getElementById('acName')?.value||'').trim();
+  if(!name){
+    const el=document.getElementById('acName');
+    if(el){ el.style.borderColor='#ff6060'; setTimeout(()=>el.style.borderColor='rgba(212,175,55,.25)',1500); el.focus(); }
+    toast('El nombre del cliente es requerido.','warn'); return;
+  }
+  const email=(document.getElementById('acEmail')?.value||'').trim();
+  const phone=(document.getElementById('acPhone')?.value||'').trim();
+  const city =(document.getElementById('acCity')?.value||'').trim();
+  const addr =(document.getElementById('acAddress')?.value||'').trim();
+  const pay  =document.getElementById('acPayment')?.value||'card';
+
+  const dup=(DB.clients||[]).find(c=>
+    (email&&c.email&&c.email.toLowerCase()===email.toLowerCase())||
+    (c.name&&c.name.toLowerCase()===name.toLowerCase())
+  );
+  if(dup){ toast('⚠️ Ya existe un cliente con ese nombre o email.','warn'); return; }
+
+  const nc={
+    id:'CLI-'+String(Date.now()).slice(-8),
+    name, email, phone, city,
+    shipping_address:addr,
+    preferred_payment:pay,
+    orders_count:0, active:true,
+    created_at:new Date().toISOString(),
+    updated_at:new Date().toISOString()
+  };
+  DB.clients=DB.clients||[];
+  DB.clients.unshift(nc);
+  persist();
+  sbUpsert('clientes',[nc]).catch(()=>{});
+  if(typeof renderClients==='function') renderClients();
+  if(typeof updateCounts==='function') updateCounts();
+  closeAddClientModal();
+  toast('✅ Cliente "'+name+'" guardado','ok');
+}
+window.doSaveClient = doSaveClient;
+
+// Cerrar al hacer click en overlay
+document.getElementById('addClientModal')?.addEventListener('click',function(e){
+  if(e.target===this) closeAddClientModal();
+});
+
+// Conectar botón "Agregar cliente"
+(function(){
+  function bind(){
+    const btn=document.getElementById('addClientBtn');
+    if(btn&&!btn._bound2){ btn._bound2=true; btn.onclick=openAddClientModal; }
+  }
+  bind(); setTimeout(bind,400); setTimeout(bind,1500);
+})();
+
+// ══════════════════════════════════════════════════════════════
+//  PDF MEJORADO — header profesional, logo en círculo, totales completos
+// ══════════════════════════════════════════════════════════════
+window.buildInvoicePDF = function(o){
   const {jsPDF} = window.jspdf;
   if(!jsPDF){ toast('Error: jsPDF no disponible','err'); return null; }
   const doc = new jsPDF({unit:'mm', format:'letter'});
   const co  = getCompanyInfo();
   const W=215.9, H=279.4, M=14;
-  const FOOTER_H = 18;
+  const FOOTER_H = 18; // espacio reservado para footer
   const PAGE_BOTTOM = H - FOOTER_H;
+
+  // ── Paleta ────────────────────────────────────────────────
   const GOLD=[175,128,38], GOLD2=[208,162,58], GOLDF=[235,200,115];
   const DARK=[18,14,6];
   const GRAY=[108,108,108], LGRAY=[170,170,170];
   const LINE=[215,210,198], BG=[249,246,240];
   const WHITE=[255,255,255], GREEN=[35,145,70];
+
   const cur=o.currency||'USD';
   const sym={USD:'$',MXN:'$',DOP:'RD$',COP:'$',EUR:'€'}[cur]||'$';
   const fmt=n=>sym+Number(n||0).toFixed(2)+(cur!=='USD'?' '+cur:'');
   const invNum=o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
+
+  // ── Helpers paginación ────────────────────────────────────
   let pageNum=1;
   const drawFooter=()=>{
     doc.setFillColor(...DARK); doc.rect(0,H-FOOTER_H,W,FOOTER_H,'F');
@@ -4305,9 +4757,13 @@ window.buildInvoicePDF = async function(o){
     doc.text('Generado el '+new Date().toLocaleDateString('es')+' · '+invNum+'  |  Página '+pageNum, W/2, H-4.5, {align:'center'});
     doc.setFillColor(...GOLD); doc.rect(0,H-2,W,2,'F');
   };
+
   const newPage=()=>{
-    drawFooter(); doc.addPage(); pageNum++;
+    drawFooter();
+    doc.addPage();
+    pageNum++;
     doc.setFillColor(...WHITE); doc.rect(0,0,W,H,'F');
+    // Mini header en páginas siguientes
     doc.setFillColor(...DARK); doc.rect(0,0,W,10,'F');
     doc.setFillColor(...GOLD); doc.rect(0,0,W,2,'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
@@ -4315,72 +4771,136 @@ window.buildInvoicePDF = async function(o){
     doc.text((co.name||'Pleaseme')+' — '+invNum, M, 7);
     doc.setTextColor(160,148,120);
     doc.text('Página '+pageNum, W-M, 7, {align:'right'});
-    return 15;
+    return 15; // y inicial en nueva página
   };
-  const checkY=(y, needed=12)=>{ if(y+needed > PAGE_BOTTOM){ return newPage(); } return y; };
+
+  const checkY=(y, needed=12)=>{
+    if(y+needed > PAGE_BOTTOM){
+      return newPage();
+    }
+    return y;
+  };
+
+  // ════════════════════════════════════════════════════════
+  // PÁGINA 1 — HEADER COMPACTO
+  // ════════════════════════════════════════════════════════
   doc.setFillColor(...WHITE); doc.rect(0,0,W,H,'F');
+
+  // Franja header oscura — solo 36mm
   const HDR=36;
   doc.setFillColor(...DARK); doc.rect(0,0,W,HDR,'F');
-  doc.setFillColor(...GOLD); doc.rect(0,0,W,2.5,'F');
-  doc.setFillColor(...GOLD); doc.rect(W-2,0,2,HDR,'F');
-  const CR=13;
+  doc.setFillColor(...GOLD); doc.rect(0,0,W,2.5,'F');       // barra top
+  doc.setFillColor(...GOLD); doc.rect(W-2,0,2,HDR,'F');      // borde derecho
+
+  // ── Logo en círculo ───────────────────────────────────────
+  const CR=13; // radio círculo
   const CX=M+CR+2, CY=HDR/2+1;
-  doc.setFillColor(...GOLD2); doc.circle(CX,CY,CR,'F');
-  const normalizeLogoForPdf = (src) => new Promise((resolve) => {
-    if(!src) return resolve(null);
-    if(!src.startsWith('data:') && !src.startsWith('http') && !src.startsWith('/'))
-      src = 'data:image/png;base64,' + src;
-    if(src.startsWith('data:image/png;base64,')||src.startsWith('data:image/jpeg;base64,')||src.startsWith('data:image/jpg;base64,'))
-      return resolve(src);
-    const img = new Image(); img.crossOrigin = 'anonymous';
-    img.onload = function(){
-      try{
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth||300; canvas.height = img.naturalHeight||150;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(img,0,0,canvas.width,canvas.height);
-        resolve(canvas.toDataURL('image/png'));
-      }catch(e){ resolve(null); }
-    };
-    img.onerror = ()=>resolve(null);
-    img.src = src.startsWith('http') ? src+'?cb='+Date.now() : src;
-  });
-  const logoSrc = (co._logoB64||co.logo_data||co.logoUrl||co.logo_url||'').trim();
-  const pdfLogo = await normalizeLogoForPdf(logoSrc);
-  if(pdfLogo){
+  doc.setFillColor(...GOLD2); doc.circle(CX,CY,CR,'F');       // fondo dorado
+
+const logoSrc=(co._logoB64||co.logoUrl||co.logo_data||co.logo_url||'').trim();
+let logoOk=false;
+
+function normalizeLogoForPdfSync(src, callback){
+  if(!src) return callback(new Error('Logo vacío'));
+
+  if(
+    src.startsWith('data:image/png') ||
+    src.startsWith('data:image/jpeg') ||
+    src.startsWith('data:image/jpg')
+  ){
+    return callback(null, src);
+  }
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+
+  img.onload = function(){
     try{
-      const isJpeg = pdfLogo.startsWith('data:image/jpeg')||pdfLogo.startsWith('data:image/jpg');
-      doc.addImage(pdfLogo, isJpeg?'JPEG':'PNG', CX-CR, CY-CR, CR*2, CR*2, '', 'NONE');
-    }catch(e){
-      doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...DARK);
+      const canvas = document.createElement('canvas');
+      const w = img.naturalWidth || img.width || 300;
+      const h = img.naturalHeight || img.height || 150;
+      canvas.width = w;
+      canvas.height = h;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+
+      const pngData = canvas.toDataURL('image/png');
+      callback(null, pngData);
+    }catch(err){
+      callback(err);
+    }
+  };
+
+  img.onerror = function(){
+    callback(new Error('No se pudo cargar el logo'));
+  };
+
+  img.src = src;
+}
+
+if(logoSrc){
+  normalizeLogoForPdfSync(logoSrc, function(err, pdfLogo){
+    if(!err && pdfLogo){
+      try{
+        const isJpeg = pdfLogo.startsWith('data:image/jpeg') || pdfLogo.startsWith('data:image/jpg');
+        const fmt2 = isJpeg ? 'JPEG' : 'PNG';
+        doc.addImage(pdfLogo, fmt2, CX-CR, CY-CR, CR*2, CR*2, '', 'NONE');
+        logoOk = true;
+      }catch(e){
+        console.error('Error cargando logo en PDF:', e, logoSrc);
+        logoOk = false;
+      }
+    }
+
+    if(!logoOk){
+      doc.setFont('helvetica','bold'); doc.setFontSize(14);
+      doc.setTextColor(...DARK);
       doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
     }
-  } else {
-    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...DARK);
-    doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
-  }
+  });
+} else {
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.setTextColor(...DARK);
+  doc.text((co.name||'P')[0].toUpperCase(), CX, CY+4.5, {align:'center'});
+}
+
+  // ── Info empresa (junto al logo) ──────────────────────────
   const EX=CX+CR+7;
-  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(...GOLDF);
+  doc.setFont('helvetica','bold'); doc.setFontSize(12);
+  doc.setTextColor(...GOLDF);
   doc.text(co.name||'Pleaseme', EX, CY-3);
-  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(185,170,140);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+  doc.setTextColor(185,170,140);
   let ey=CY+3;
-  if(co.email)   { doc.text(co.email, EX, ey); ey+=4.5; }
+  if(co.email)  { doc.text(co.email, EX, ey); ey+=4.5; }
   if(co.whatsapp){ doc.text('Tel: '+co.whatsapp, EX, ey); }
+
+  // ── FACTURA derecha ───────────────────────────────────────
   const RX=W-M-2;
-  doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(...GOLDF);
+  doc.setFont('helvetica','bold'); doc.setFontSize(18);
+  doc.setTextColor(...GOLDF);
   doc.text('FACTURA', RX, CY-3, {align:'right'});
-  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(185,170,140);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+  doc.setTextColor(185,170,140);
   doc.text('No. '+invNum, RX, CY+4, {align:'right'});
   doc.text('Fecha: '+new Date(o.created_at||Date.now()).toLocaleDateString('es'), RX, CY+9, {align:'right'});
+
   let y = HDR+7;
+
+  // ── Info cliente en 1 línea compacta ─────────────────────
   const cName=o.clientName||o.client_name||o.name||'—';
   const cEmail=o.clientEmail||o.client_email||o.email||'';
   const cPhone=o.clientPhone||o.client_phone||o.phone||'';
   const cAddr=o.shipping_address||o.shippingAddress||o.address||'';
+
+  // Caja única horizontal con 2 secciones
   const INFO_H=20;
   doc.setFillColor(...BG); doc.roundedRect(M,y,W-M*2,INFO_H,2,2,'F');
   doc.setFillColor(...GOLD); doc.rect(M,y,2.5,INFO_H,'F');
+
+  // Sección izquierda: cliente
   doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...GOLD2);
   doc.text('CLIENTE', M+6, y+5);
   doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...DARK);
@@ -4388,23 +4908,37 @@ window.buildInvoicePDF = async function(o){
   doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
   const cInfo=[cPhone,cEmail].filter(Boolean).join('  ·  ');
   if(cInfo) doc.text(String(cInfo).slice(0,50), M+6, y+16.5);
+
+  // Divisor vertical
   const midX=M+(W-M*2)/2;
   doc.setDrawColor(...LINE); doc.setLineWidth(0.3);
   doc.line(midX, y+4, midX, y+INFO_H-4);
+
+  // Sección derecha: envío
   doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...GOLD2);
   doc.text('ENVÍO', midX+6, y+5);
   doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
   if(cAddr){
     const aLines=doc.splitTextToSize(cAddr, (W-M*2)/2-14);
     aLines.slice(0,2).forEach((l,i)=>doc.text(l, midX+6, y+11+i*5));
-  } else { doc.text('Sin dirección', midX+6, y+11); }
+  } else {
+    doc.text('Sin dirección', midX+6, y+11);
+  }
   if(o.tracking_num||o.trackingNum){
     doc.setTextColor(...GOLD2);
     doc.text('Track: '+(o.tracking_num||o.trackingNum), midX+6, y+17);
   }
-  doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...LGRAY);
+
+  // No. pedido (extremo derecho)
+  doc.setFont('helvetica','normal'); doc.setFontSize(7);
+  doc.setTextColor(...LGRAY);
   doc.text('Pedido: '+(o.id||'—'), W-M-3, y+5, {align:'right'});
+
   y += INFO_H+7;
+
+  // ════════════════════════════════════════════════════════
+  // TABLA DE ARTÍCULOS — con paginación automática
+  // ════════════════════════════════════════════════════════
   const C={desc:M+3, qty:W-M-72, price:W-M-44, tot:W-M-2};
   const drawTableHeader=(yy)=>{
     doc.setFillColor(...DARK); doc.rect(M,yy,W-M*2,8,'F');
@@ -4415,19 +4949,30 @@ window.buildInvoicePDF = async function(o){
     doc.text('TOTAL',  C.tot,   yy+5.5, {align:'right'});
     return yy+9;
   };
+
   y=drawTableHeader(y);
+
   const items=Array.isArray(o.items)?o.items:(o.record?.items||[]);
   let totalQty=0;
+
   items.forEach((item,i)=>{
     const hasMeta=(item.size&&item.size!=='—')||(item.color&&item.color!=='—');
     const rowH=hasMeta?11:9;
-    if(y+rowH > PAGE_BOTTOM-5){ y=newPage(); y=drawTableHeader(y); }
+
+    // Verificar si cabe en la página actual
+    if(y+rowH > PAGE_BOTTOM-5){
+      y=newPage();
+      y=drawTableHeader(y); // repetir header en nueva página
+      i=i; // reset stripe (visual only)
+    }
+
     if(i%2===0){doc.setFillColor(247,245,241);doc.rect(M,y-0.5,W-M*2,rowH,'F');}
     const name=String(item.name||'Artículo');
     const qty=Number(item.qty||1);
     const price=Number(item.price||0);
     const sub=qty*price;
     totalQty+=qty;
+
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
     doc.text(doc.splitTextToSize(name,W-M*2-80)[0], C.desc, y+5.5);
     if(hasMeta){
@@ -4441,20 +4986,29 @@ window.buildInvoicePDF = async function(o){
     doc.text(fmt(sub),    C.tot,  y+5.5, {align:'right'});
     y+=rowH;
   });
+
+  // Línea cierre + conteo
   doc.setDrawColor(...LINE); doc.setLineWidth(0.3);
   doc.line(M,y+1,W-M,y+1);
   doc.setFont('helvetica','italic'); doc.setFontSize(7); doc.setTextColor(...LGRAY);
   doc.text(totalQty+' artículo'+(totalQty!==1?'s':'')+' en total', M+2, y+5.5);
   y+=10;
-  const TOTS_H=45;
+
+  // ════════════════════════════════════════════════════════
+  // TOTALES — asegurar que caben en la página
+  // ════════════════════════════════════════════════════════
+  const TOTS_H=45; // altura estimada del bloque de totales
   y=checkY(y, TOTS_H);
+
   const subtotal=Number(o.subtotal)||items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
   const discount=Number(o.discountAmount||o.discount_amount||o.discountValue||0);
   const shipping=Number(o.shipping||o.shipping_cost||0);
   const total   =Number(o.total)||Math.max(0,subtotal+shipping-discount);
+
   const TX=W-M-80, TVX=W-M, rT=7.5;
   doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
   doc.line(TX-4,y,W-M,y); y+=5;
+
   const dTot=(label,val,bold,green,muted)=>{
     if(bold){
       doc.setFillColor(...DARK);
@@ -4473,14 +5027,18 @@ window.buildInvoicePDF = async function(o){
     doc.text(val,TVX,y+1,{align:'right'});
     y+=rT;
   };
+
   dTot('Subtotal:',   fmt(subtotal));
   dTot('Envío:',      shipping>0?fmt(shipping):'Gratis',         false,false,shipping===0);
   dTot('Descuento:',  discount>0?'− '+fmt(discount):'Sin desc.', false,discount>0,discount===0);
   y+=2;
   dTot('TOTAL A PAGAR:', fmt(total), true);
+
   const ptMap={contado:'Pago de contado',credito:'Crédito',anticipo:'Anticipo',card:'Tarjeta',cash:'Efectivo',transfer:'Transferencia'};
   const pm=ptMap[o.payment_type]||ptMap[o.method]||o.method||o.payment_type||'';
   if(pm){ y+=4; doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY); doc.text('Forma de pago: '+pm,TX,y); }
+
+  // Notas
   if(o.notes){
     y=checkY(y+8,20);
     doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.line(M,y,W-M,y); y+=4;
@@ -4492,14 +5050,18 @@ window.buildInvoicePDF = async function(o){
       doc.text(l,M,y); y+=4.5;
     });
   }
+
   drawFooter();
   return doc;
 };
 
+
+
 // ══════════════════════════════════════════════════════════════
-//  EDITAR FACTURA
+//  EDITAR FACTURA — modal completo
 // ══════════════════════════════════════════════════════════════
 (function(){
+  // Crear modal en DOM
   const el = document.createElement('div');
   el.id = 'editInvoiceModal';
   el.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9000;overflow-y:auto;padding:24px 12px';
@@ -4509,6 +5071,8 @@ window.buildInvoicePDF = async function(o){
       <div style="font-size:17px;font-weight:700;color:#d4af37">✏️ Editar Factura</div>
       <button onclick="closeEditInvoice()" style="background:none;border:none;color:#888;font-size:22px;cursor:pointer;line-height:1">×</button>
     </div>
+
+    <!-- Info cliente -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
       <div style="grid-column:1/-1">
         <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">CLIENTE</label>
@@ -4527,11 +5091,15 @@ window.buildInvoicePDF = async function(o){
         <input id="ei_address" placeholder="Dirección" style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box"/>
       </div>
     </div>
+
+    <!-- Items -->
     <div style="margin-bottom:14px">
       <div style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;margin-bottom:8px">ARTÍCULOS</div>
       <div id="ei_itemsList" style="border:1px solid rgba(212,175,55,.15);border-radius:8px;overflow:hidden;margin-bottom:8px"></div>
       <button onclick="eiAddItem()" style="width:100%;padding:8px;background:rgba(212,175,55,.08);border:1px dashed rgba(212,175,55,.3);border-radius:8px;color:#d4af37;font-size:12px;cursor:pointer">+ Agregar artículo</button>
     </div>
+
+    <!-- Montos -->
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
       <div>
         <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">ENVÍO ($)</label>
@@ -4542,7 +5110,8 @@ window.buildInvoicePDF = async function(o){
         <div style="display:flex;gap:5px">
           <input id="ei_discountVal" type="number" step="0.01" min="0" value="0" oninput="eiRecalc()" style="flex:1;padding:9px 10px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box"/>
           <select id="ei_discountType" onchange="eiRecalc()" style="padding:9px 6px;background:rgba(0,0,0,.6);border:1px solid rgba(212,175,55,.3);border-radius:8px;color:#d4af37;font-size:13px;font-weight:700">
-            <option value="pct">%</option><option value="fixed">$</option>
+            <option value="pct">%</option>
+            <option value="fixed">$</option>
           </select>
         </div>
       </div>
@@ -4557,15 +5126,21 @@ window.buildInvoicePDF = async function(o){
         </select>
       </div>
     </div>
+
+    <!-- Notas -->
     <div style="margin-bottom:16px">
       <label style="font-size:9px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;display:block;margin-bottom:4px">NOTAS</label>
       <textarea id="ei_notes" rows="2" placeholder="Notas de la factura..." style="width:100%;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(212,175,55,.2);border-radius:8px;color:#e8e0cc;font-size:13px;box-sizing:border-box;resize:vertical"></textarea>
     </div>
+
+    <!-- Total preview -->
     <div style="background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.15);border-radius:10px;padding:14px;margin-bottom:18px;text-align:right">
       <div style="font-size:11px;color:#888;margin-bottom:3px">Subtotal: <span id="ei_subtotalPreview" style="color:#e8e0cc">$0.00</span> &nbsp;|&nbsp; Descuento: <span id="ei_discPreview" style="color:#d4af37">$0.00</span></div>
       <div style="font-size:11px;color:#888;margin-bottom:2px">TOTAL A PAGAR</div>
       <div id="ei_totalPreview" style="font-size:26px;color:#d4af37;font-weight:800">$0.00 USD</div>
     </div>
+
+    <!-- Botones -->
     <div style="display:flex;gap:10px">
       <button onclick="closeEditInvoice()" style="flex:1;padding:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#888;font-size:14px;cursor:pointer">Cancelar</button>
       <button onclick="saveEditInvoice()" style="flex:2;padding:12px;background:linear-gradient(135deg,#b48226,#d4af37);border:none;border-radius:10px;color:#13100a;font-size:14px;font-weight:700;cursor:pointer">💾 Guardar cambios</button>
@@ -4573,6 +5148,8 @@ window.buildInvoicePDF = async function(o){
     </div>
   </div>`;
   document.body.appendChild(el);
+
+  // Cerrar con click en overlay
   el.addEventListener('click', e=>{ if(e.target===el) closeEditInvoice(); });
 })();
 
@@ -4584,6 +5161,7 @@ function openEditInvoice(id){
   if(!o){ toast('Pedido no encontrado','err'); return; }
   _eiOrderId = id;
   _eiItems = (o.items||[]).map(i=>({...i}));
+
   const g = k=>document.getElementById(k);
   g('ei_clientName').value  = o.clientName||'';
   g('ei_clientPhone').value = o.clientPhone||'';
@@ -4592,24 +5170,36 @@ function openEditInvoice(id){
   g('ei_shipping').value    = Number(o.shipping||o.shipping_cost||0);
   g('ei_notes').value       = o.notes||'';
   g('ei_status').value      = o.status||'pendiente';
+
+  // Descuento: si es >= 1 y total hace sentido como %, mostrar como %
   const rawDisc = Number(o.discountAmount||o.discount_amount||o.discountValue||0);
   const sub = _eiItems.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
-  if(rawDisc>0 && rawDisc<100 && rawDisc===Math.round(rawDisc) && (sub*(rawDisc/100))>0.5){
-    g('ei_discountVal').value = rawDisc; g('ei_discountType').value = 'pct';
+  if(rawDisc>0 && rawDisc<100 && rawDisc === Math.round(rawDisc) && (sub*(rawDisc/100)) > 0.5){
+    g('ei_discountVal').value = rawDisc;
+    g('ei_discountType').value = 'pct';
   } else {
-    g('ei_discountVal').value = rawDisc; g('ei_discountType').value = 'fixed';
+    g('ei_discountVal').value = rawDisc;
+    g('ei_discountType').value = 'fixed';
   }
-  eiRenderItems(); eiRecalc();
+
+  eiRenderItems();
+  eiRecalc();
   document.getElementById('editInvoiceModal').style.display='block';
 }
 window.openEditInvoice = openEditInvoice;
 
-function closeEditInvoice(){ document.getElementById('editInvoiceModal').style.display='none'; }
+function closeEditInvoice(){
+  document.getElementById('editInvoiceModal').style.display='none';
+}
 window.closeEditInvoice = closeEditInvoice;
 
 function eiRenderItems(){
-  const el=document.getElementById('ei_itemsList'); if(!el) return;
-  if(!_eiItems.length){ el.innerHTML='<div style="padding:12px;text-align:center;color:#666;font-size:12px">Sin artículos</div>'; return; }
+  const el=document.getElementById('ei_itemsList');
+  if(!el) return;
+  if(!_eiItems.length){
+    el.innerHTML='<div style="padding:12px;text-align:center;color:#666;font-size:12px">Sin artículos</div>';
+    return;
+  }
   el.innerHTML=_eiItems.map((item,i)=>`
     <div style="display:grid;grid-template-columns:1fr 60px 80px 70px auto;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);background:${i%2===0?'rgba(0,0,0,.2)':'transparent'}">
       <input value="${(item.name||'').replace(/"/g,'&quot;')}" oninput="_eiItems[${i}].name=this.value;eiRecalc()" style="background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);border-radius:6px;padding:5px 8px;color:#e8e0cc;font-size:12px;width:100%;box-sizing:border-box" placeholder="Nombre"/>
@@ -4617,11 +5207,16 @@ function eiRenderItems(){
       <input type="number" step="0.01" value="${Number(item.price||0).toFixed(2)}" oninput="_eiItems[${i}].price=Number(this.value)||0;eiRecalc()" style="background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);border-radius:6px;padding:5px 8px;color:#d4af37;font-size:12px;width:100%;box-sizing:border-box" placeholder="Precio"/>
       <div style="font-size:12px;color:#e8e0cc;text-align:right">$${(Number(item.price||0)*Number(item.qty||1)).toFixed(2)}</div>
       <button onclick="_eiItems.splice(${i},1);eiRenderItems();eiRecalc()" style="background:none;border:none;color:rgba(255,80,80,.6);cursor:pointer;font-size:16px;padding:0 4px">✕</button>
-    </div>`).join('');
+    </div>
+  `).join('');
 }
 window.eiRenderItems = eiRenderItems;
 
-function eiAddItem(){ _eiItems.push({name:'',qty:1,price:0,size:'—',color:'—'}); eiRenderItems(); eiRecalc(); }
+function eiAddItem(){
+  _eiItems.push({name:'',qty:1,price:0,size:'—',color:'—'});
+  eiRenderItems();
+  eiRecalc();
+}
 window.eiAddItem = eiAddItem;
 
 function eiRecalc(){
@@ -4644,12 +5239,14 @@ function saveEditInvoice(){
   const g=k=>document.getElementById(k);
   const o=DB.orders.find(x=>x.id===_eiOrderId);
   if(!o){ toast('Pedido no encontrado','err'); return; }
+
   const sub=_eiItems.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
   const ship=Number(g('ei_shipping')?.value||0);
   const dv=Number(g('ei_discountVal')?.value||0);
   const dt=g('ei_discountType')?.value||'pct';
   const discAmt=dt==='pct'?sub*(dv/100):dv;
   const total=Math.max(0,sub+ship-discAmt);
+
   o.clientName   = g('ei_clientName').value.trim()||o.clientName;
   o.clientPhone  = g('ei_clientPhone').value.trim();
   o.clientEmail  = g('ei_clientEmail').value.trim();
@@ -4663,6 +5260,7 @@ function saveEditInvoice(){
   o.discountAmount = discAmt;
   o.total        = total;
   o.updated_at   = new Date().toISOString();
+
   persist();
   sbSaveOrder(o).catch(()=>{});
   renderOrders(); renderFacturas(); updateCounts();
@@ -4675,14 +5273,42 @@ async function saveAndPrintInvoice(){
   saveEditInvoice();
   const o=DB.orders.find(x=>x.id===_eiOrderId);
   if(!o) return;
+  const logoB64 = await _loadLogoBase64();
+  if(logoB64){ const co=getCompanyInfo(); co._logoB64=logoB64; }
   try{
-    const logoB64 = await _loadLogoBase64();
-    if(logoB64){ const co=getCompanyInfo(); co._logoB64=logoB64; DB.company=co; }
-    const doc = await window.buildInvoicePDF(o);
+    const doc=(window.buildInvoicePDF||buildInvoicePDF)(o);
     if(doc) doc.save('Factura-'+(o.invoice_num||o.id)+'.pdf');
   }catch(e){ toast('Error PDF: '+e.message,'err'); }
 }
+
+// ══════════════════════════════════════════════════════════════
+//  VENTANA EXTERNA DE FACTURACIÓN
+// ══════════════════════════════════════════════════════════════
+let _ventanaFacturacion = null;
+
+function abrirVentanaFacturacion(orderId){
+  const url = 'facturacion.html' + (orderId ? '?edit='+encodeURIComponent(orderId) : '');
+  if(_ventanaFacturacion && !_ventanaFacturacion.closed){
+    _ventanaFacturacion.focus();
+    if(orderId){
+      try{ _ventanaFacturacion.loadForEdit(orderId); }catch(e){}
+    }
+  } else {
+    _ventanaFacturacion = window.open(url, 'FacturacionPM',
+      'width=1200,height=820,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no');
+  }
+}
+window.abrirVentanaFacturacion = abrirVentanaFacturacion;
+
+function abrirVentanaFacturacionDesdeModal(){
+  // Obtener el ID del pedido abierto en el modal
+  const id = window._currentOrderId || (document.getElementById('modalOrderId')?.textContent||'').replace('Pedido #','').trim();
+  abrirVentanaFacturacion(id||undefined);
+}
+window.abrirVentanaFacturacionDesdeModal = abrirVentanaFacturacionDesdeModal;
+
 window.saveAndPrintInvoice = saveAndPrintInvoice;
+
 
 </script>
 </body></html>
