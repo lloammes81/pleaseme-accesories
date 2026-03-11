@@ -424,9 +424,11 @@ function load(){
 }
 
 function persist(){
-  localStorage.setItem(LS_ORDERS, JSON.stringify(DB.orders));
+  localStorage.setItem(LS_ORDERS,   JSON.stringify(DB.orders));
+  localStorage.setItem(LS_CLIENTS,  JSON.stringify(DB.clients));
   // Notificar al admin (y otras pestañas) del cambio
   window.dispatchEvent(new StorageEvent('storage', { key: LS_ORDERS }));
+  window.dispatchEvent(new StorageEvent('storage', { key: LS_CLIENTS }));
 }
 
 function getCompanyInfo(){
@@ -512,32 +514,43 @@ function addItem(){
   const price = Number(g('newItemPrice').value)||0;
   const size  = g('newItemSize').value.trim()||'—';
   if(!name){ toast('Escribe el nombre del producto','warn'); g('newItemName').focus(); return; }
-  items.push({name,qty,price,size,color:'—'});
+  // ⚠️ Solo se agrega al arreglo temporal de la factura — NO se guarda en DB.products
+  items.push({name, qty, price, size, color:'—'});
   renderItems();
   g('newItemName').value=''; g('newItemQty').value=1; g('newItemPrice').value=''; g('newItemSize').value='';
+  g('newItemSize').placeholder='Talla/Color';
   g('prodDropdown').style.display='none';
   g('newItemName').focus();
 }
 
 // ── Product Search Dropdown ──
+// Solo LECTURA — muestra productos del inventario para autollenar,
+// pero al agregar el artículo a la factura NO se modifica DB.products
 function prodSearch(q){
   const dd = g('prodDropdown');
   if(!q){ dd.style.display='none'; return; }
-  const results = DB.products.filter(p=>(p.name||'').toLowerCase().includes(q.toLowerCase())).slice(0,8);
-  if(!results.length){ dd.style.display='none'; return; }
-  dd.innerHTML = results.map(p=>`
-    <div class="prod-option" onclick="selectProd('${esc(p.name)}',${Number(p.price||0)})">
-      <span class="pname">${esc(p.name)}</span>
-      <span class="pprice">$${Number(p.price||0).toFixed(2)}</span>
-    </div>
-  `).join('');
+  const results = DB.products
+    .filter(p=>(p.name||'').toLowerCase().includes(q.toLowerCase()))
+    .slice(0,10);
+  if(!results.length){
+    dd.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:var(--muted);text-align:center">Sin coincidencias — escribe el nombre y agrégalo manualmente</div>';
+    dd.style.display='block';
+    return;
+  }
+  dd.innerHTML = results.map(p=>{
+    const stock = p.stock!=null ? '<span style="font-size:10px;color:'+(Number(p.stock)>0?'#2fe3b5':'#ff5555')+'">Stock: '+p.stock+'</span>' : '';
+    const sku   = p.sku ? '<span style="font-size:10px;color:var(--muted);font-family:monospace">'+p.sku+'</span>' : '';
+    return '<div class="prod-option" onclick="selectProd(this.dataset.name,this.dataset.price,this.dataset.sku)" data-name="'+p.name.replace(/"/g,"&quot;")+'" data-price="'+Number(p.price||0)+'" data-sku="'+(p.sku||'').replace(/"/g,"&quot;")+'"><div><div class="pname">'+esc(p.name)+'</div><div style="display:flex;gap:8px;margin-top:2px">'+sku+stock+'</div></div><span class="pprice">$'+Number(p.price||0).toFixed(2)+'</span></div>';
+  }).join('');
   dd.style.display='block';
 }
 
-function selectProd(name, price){
-  g('newItemName').value = name;
-  g('newItemPrice').value = price.toFixed(2);
+// selectProd: solo rellena campos de entrada — NO toca DB.products
+function selectProd(name, price, sku){
+  g('newItemName').value  = name;
+  g('newItemPrice').value = Number(price).toFixed(2);
   g('prodDropdown').style.display='none';
+  g('newItemQty').focus();
 }
 
 document.addEventListener('click', e=>{
@@ -573,21 +586,36 @@ function clientSearch(q){
   const dd = g('clientDropdown');
   if(!q){ dd.style.display='none'; return; }
   const results = DB.clients.filter(c=>(c.name||'').toLowerCase().includes(q.toLowerCase())).slice(0,6);
-  if(!results.length){ dd.style.display='none'; return; }
-  dd.innerHTML = results.map(c=>`
+  // Mostrar clientes existentes + opción de cliente nuevo si no hay match exacto
+  const exactMatch = DB.clients.some(c=>(c.name||'').toLowerCase()===q.toLowerCase());
+  let html = results.map(c=>`
     <div class="prod-option" onclick="fillClient('${esc(c.name)}','${esc(c.email||'')}','${esc(c.phone||'')}','${esc(c.address||'')}')">
-      <span class="pname">${esc(c.name)}</span>
-      <span class="pprice" style="color:var(--muted)">${c.email||c.phone||''}</span>
+      <div>
+        <div class="pname">${esc(c.name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${c.email||''} ${c.phone?'· '+c.phone:''}</div>
+      </div>
+      <span style="font-size:10px;color:var(--green)">✓ Registrado</span>
     </div>
   `).join('');
+  if(!exactMatch && q.length>1){
+    html += `<div class="prod-option" onclick="fillClient('${q}','','','')" style="border-top:1px solid rgba(212,175,55,.15)">
+      <div>
+        <div class="pname" style="color:var(--gold)">+ "${q}"</div>
+        <div style="font-size:10px;color:var(--muted)">Cliente nuevo — se guardará al crear la factura</div>
+      </div>
+      <span style="font-size:18px">›</span>
+    </div>`;
+  }
+  if(!html){ dd.style.display='none'; return; }
+  dd.innerHTML = html;
   dd.style.display='block';
 }
 
 function fillClient(name,email,phone,address){
   g('f_clientName').value=name;
-  g('f_email').value=email;
-  g('f_phone').value=phone;
-  g('f_address').value=address;
+  g('f_email').value=email||'';
+  g('f_phone').value=phone||'';
+  g('f_address').value=address||'';
   g('clientDropdown').style.display='none';
 }
 
@@ -602,8 +630,7 @@ function closeClientPicker(){ g('clientPicker').classList.remove('open'); }
 function renderPicker(q=''){
   const list = q ? DB.clients.filter(c=>(c.name||'').toLowerCase().includes(q.toLowerCase())) : DB.clients;
   const el = g('pickerList');
-  if(!list.length){ el.innerHTML='<div class="items-empty">Sin clientes</div>'; return; }
-  el.innerHTML = list.map(c=>`
+  let html = list.map(c=>`
     <div class="picker-item" onclick="fillClient('${esc(c.name)}','${esc(c.email||'')}','${esc(c.phone||'')}','${esc(c.address||'')}');closeClientPicker()">
       <div>
         <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
@@ -612,6 +639,19 @@ function renderPicker(q=''){
       <span style="color:var(--muted);font-size:18px">›</span>
     </div>
   `).join('');
+  // Si hay búsqueda y no hay coincidencia exacta, ofrecer crear cliente nuevo
+  const exactMatch = list.some(c=>(c.name||'').toLowerCase()===q.toLowerCase());
+  if(q && !exactMatch){
+    html += `<div class="picker-item" style="border-top:1px solid rgba(212,175,55,.15);margin-top:4px" onclick="fillClient('${q}','','','');closeClientPicker()">
+      <div>
+        <div style="font-weight:700;font-size:13px;color:var(--gold)">+ Crear cliente "${q}"</div>
+        <div style="font-size:11px;color:var(--muted)">Se guardará automáticamente al crear la factura</div>
+      </div>
+      <span style="color:var(--gold);font-size:18px">›</span>
+    </div>`;
+  }
+  if(!html){ el.innerHTML='<div class="items-empty">Sin clientes registrados</div>'; return; }
+  el.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════════
@@ -657,6 +697,22 @@ function validate(data){
 function saveOnly(){
   const data = collectData();
   if(!validate(data)) return;
+
+  // ── Auto-registrar cliente nuevo si no existe en la base de datos ──
+  const clientNameLower = (data.clientName||'').toLowerCase().trim();
+  const clienteExiste = DB.clients.some(c=>(c.name||'').toLowerCase().trim()===clientNameLower);
+  if(!clienteExiste && data.clientName){
+    const nuevoCliente = {
+      id:      'cli-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+      name:    data.clientName,
+      email:   data.clientEmail||'',
+      phone:   data.clientPhone||'',
+      address: data.address||'',
+      created_at: new Date().toISOString(),
+    };
+    DB.clients.push(nuevoCliente);
+    toast('👤 Cliente nuevo guardado: '+data.clientName,'ok');
+  }
 
   if(editingId){
     const idx = DB.orders.findIndex(o=>o.id===editingId);
