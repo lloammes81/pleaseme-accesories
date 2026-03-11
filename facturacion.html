@@ -467,8 +467,8 @@
 // ══════════════════════════════════════════════════════
 //  SUPABASE CONFIG — reemplaza con tus credenciales
 // ══════════════════════════════════════════════════════
-const SUPABASE_URL  = 'TU_SUPABASE_URL';   // ej: https://abcdef.supabase.co
-const SUPABASE_KEY  = 'TU_ANON_KEY';       // ej: eyJhbGci...
+const SUPABASE_URL  = 'https://sqcggascnbcnfkymqcql.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY2dnYXNjbmJjbmZreW1xY3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODQ2NzIsImV4cCI6MjA4NzI2MDY3Mn0.q0C_q3gOZZzcr6dWPrIhWS63gst5OBYIg9FDxThaKt4';
 
 // ── Inicializar cliente Supabase ──
 let SB = null;
@@ -507,7 +507,23 @@ let items = [];
   renderList();
   updateKPIs();
   loadCompanyFromSupabase();
-  if(!SB){ const sb=g('sbStatusBar'); if(sb) sb.style.display='flex'; }
+  if(!SB){
+    const sb=g('sbStatusBar');
+    if(sb){ sb.style.display='flex'; }
+  } else {
+    SB.from('company').select('id').limit(1).then(({error})=>{
+      const sb=g('sbStatusBar');
+      if(!sb) return;
+      if(error){
+        sb.style.cssText='display:flex;background:rgba(255,85,85,.1);border-bottom:1px solid rgba(255,85,85,.3);padding:8px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
+        sb.innerHTML='<span>❌</span><span>Error Supabase: '+error.message+'</span>';
+      } else {
+        sb.style.cssText='display:flex;background:rgba(47,227,181,.08);border-bottom:1px solid rgba(47,227,181,.2);padding:8px 24px;font-size:12px;color:#2fe3b5;align-items:center;gap:10px';
+        sb.innerHTML='<span>✅</span><span>Supabase conectado — pleaseme-store</span>';
+        setTimeout(()=>{ sb.style.display='none'; }, 3500);
+      }
+    });
+  }
   window.addEventListener('storage', e=>{
     if([LS_ORDERS,LS_PRODS,LS_CLIENTS].includes(e.key)){
       loadAll().then(()=>{ renderList(); updateKPIs(); });
@@ -536,29 +552,62 @@ function loadLocal(){
 
 async function loadOrders(){
   try{
-    const {data,error} = await SB.from('orders').select('*').order('created_at',{ascending:false});
+    const {data,error} = await SB.from('pedidos').select('*').order('created_at',{ascending:false});
     if(error) throw error;
-    DB.orders = data||[];
+    // Normalizar columnas de pedidos al formato interno del app
+    DB.orders = (data||[]).map(o=>({
+      ...o,
+      clientName:    o.client_name    || o.clientName    || '',
+      clientEmail:   o.client_email   || o.clientEmail   || '',
+      clientPhone:   o.client_phone   || o.clientPhone   || '',
+      invoice_num:   o.invoice_num    || o.invoiceNum    || '',
+      status:        o.status         || o.invoice_status|| 'pendiente',
+      invoice_status:o.invoice_status || o.status        || 'pendiente',
+      payment_method:o.payment_method || o.method        || '',
+      shipping:      o.shipping       || o.shipping_cost || 0,
+      shipping_cost: o.shipping       || o.shipping_cost || 0,
+      discountAmount:o.discount       || o.discountAmount|| 0,
+      items:         Array.isArray(o.items) ? o.items : (o.items ? JSON.parse(o.items) : []),
+    }));
     localStorage.setItem(LS_ORDERS, JSON.stringify(DB.orders));
-  }catch(e){ console.error('[SB] loadOrders:', e.message); try{DB.orders=JSON.parse(localStorage.getItem(LS_ORDERS)||'[]');}catch{} }
+    console.log('[SB] Pedidos cargados:', DB.orders.length);
+  }catch(e){
+    console.error('[SB] loadOrders:', e.message);
+    try{ DB.orders=JSON.parse(localStorage.getItem(LS_ORDERS)||'[]'); }catch{}
+  }
 }
 
 async function loadProducts(){
   try{
-    const {data,error} = await SB.from('products').select('*').order('name');
+    const {data,error} = await SB.from('productos').select('*').order('name');
     if(error) throw error;
     DB.products = data||[];
     localStorage.setItem(LS_PRODS, JSON.stringify(DB.products));
-  }catch(e){ console.error('[SB] loadProducts:', e.message); try{DB.products=JSON.parse(localStorage.getItem(LS_PRODS)||'[]');}catch{} }
+    console.log('[SB] Productos cargados:', DB.products.length);
+  }catch(e){
+    console.error('[SB] loadProducts:', e.message);
+    try{ DB.products=JSON.parse(localStorage.getItem(LS_PRODS)||'[]'); }catch{}
+  }
 }
 
 async function loadClients(){
   try{
-    const {data,error} = await SB.from('clients').select('*').order('name');
+    const {data,error} = await SB.from('clientes').select('*').order('name');
     if(error) throw error;
-    DB.clients = data||[];
+    // Normalizar columnas de clientes
+    DB.clients = (data||[]).map(cl=>({
+      ...cl,
+      name:    cl.name    || cl.nombre  || '',
+      email:   cl.email   || cl.correo  || '',
+      phone:   cl.phone   || cl.telefono|| '',
+      address: cl.address || cl.direccion|| '',
+    }));
     localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
-  }catch(e){ console.error('[SB] loadClients:', e.message); try{DB.clients=JSON.parse(localStorage.getItem(LS_CLIENTS)||'[]');}catch{} }
+    console.log('[SB] Clientes cargados:', DB.clients.length);
+  }catch(e){
+    console.error('[SB] loadClients:', e.message);
+    try{ DB.clients=JSON.parse(localStorage.getItem(LS_CLIENTS)||'[]'); }catch{}
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -582,36 +631,25 @@ async function loadCompanyFromSupabase(){
   if(!SB) return;
   try{
     const {data,error} = await SB.from('company').select('*').limit(1).single();
-    if(error && error.code !== 'PGRST116') throw error; // PGRST116 = sin filas
+    if(error && error.code !== 'PGRST116') throw error;
     if(data){
-      // Guardar en localStorage (logo puede estar en Storage o en tabla)
       const co = getCompanyInfo();
-      co.name      = data.name||co.name||'';
-      co.email     = data.email||co.email||'';
-      co.whatsapp  = data.whatsapp||co.whatsapp||'';
       co.id        = data.id;
-      // Logo: si hay logo_url en Supabase Storage, descargarlo como base64
-      if(data.logo_url){
-        co.logo_url = data.logo_url;
-        // Intentar convertir la URL pública a base64 para el PDF
-        fetchLogoBase64(data.logo_url).then(b64=>{ if(b64){ co._logoB64=b64; localStorage.setItem(LS_COMPANY,JSON.stringify(co)); } });
+      co.name      = data.name     || co.name     || '';
+      co.email     = data.email    || co.email    || '';
+      co.whatsapp  = data.whatsapp || co.whatsapp || '';
+      co.instagram = data.instagram|| co.instagram|| '';
+      co.address   = data.address  || co.address  || '';
+      co.logo_url  = data.logo_url || co.logo_url || '';
+      // logo_data tiene el base64 guardado directamente — usarlo para el PDF
+      if(data.logo_data && data.logo_data.startsWith('data:image')){
+        co._logoB64 = data.logo_data;
+        console.log('[SB] Logo cargado desde Supabase ✓', Math.round(data.logo_data.length*0.75/1024)+'KB');
       }
       localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+      console.log('[SB] Company cargada:', co.name);
     }
   }catch(e){ console.error('[SB] loadCompany:', e.message); }
-}
-
-async function fetchLogoBase64(url){
-  try{
-    const res = await fetch(url);
-    const blob = await res.blob();
-    return await new Promise(resolve=>{
-      const r = new FileReader();
-      r.onload = e => resolve(e.target.result);
-      r.onerror = () => resolve(null);
-      r.readAsDataURL(blob);
-    });
-  }catch(e){ console.warn('fetchLogoBase64 error:', e.message); return null; }
 }
 
 // ══════════════════════════════════════════════════════
@@ -738,70 +776,43 @@ async function saveCompany(){
   co.email    = g('co_email').value.trim();
   co.whatsapp = g('co_whatsapp').value.trim();
 
-  // Guardar en localStorage siempre
+  // Guardar siempre en localStorage
   try{ localStorage.setItem(LS_COMPANY, JSON.stringify(co)); }catch(e){ console.warn(e); }
 
-  // Guardar en Supabase si está conectado
   if(SB){
     try{
-      const sbData = { name: co.name, email: co.email, whatsapp: co.whatsapp };
-
-      // Subir logo a Supabase Storage si hay uno nuevo
+      // logo_data guarda el base64 directamente en la tabla (columna text)
+      const sbData = {
+        name:      co.name,
+        email:     co.email,
+        whatsapp:  co.whatsapp,
+        updated_at: new Date().toISOString(),
+      };
       if(co._logoB64 && co._logoB64.startsWith('data:image')){
-        const logoUrl = await uploadLogoToStorage(co._logoB64);
-        if(logoUrl){
-          sbData.logo_url = logoUrl;
-          co.logo_url = logoUrl;
-          localStorage.setItem(LS_COMPANY, JSON.stringify(co));
-        }
+        sbData.logo_data = co._logoB64;   // columna logo_data en tabla company
       }
 
-      // Upsert en tabla company (actualiza si existe, crea si no)
-      if(co.id){
-        const {error} = await SB.from('company').update(sbData).eq('id', co.id);
+      // Siempre hay una sola fila en company (id=1)
+      const {data:existing} = await SB.from('company').select('id').limit(1).single();
+      if(existing){
+        const {error} = await SB.from('company').update(sbData).eq('id', existing.id);
         if(error) throw error;
+        co.id = existing.id;
       } else {
         const {data:ins,error} = await SB.from('company').insert([sbData]).select().single();
         if(error) throw error;
         co.id = ins.id;
-        localStorage.setItem(LS_COMPANY, JSON.stringify(co));
       }
+      localStorage.setItem(LS_COMPANY, JSON.stringify(co));
       toast('✅ Configuración guardada en Supabase','ok');
     }catch(e){
       console.error('[SB] saveCompany:', e.message);
-      toast('✅ Guardado localmente (sin conexión Supabase)','ok');
+      toast('⚠ Guardado solo localmente: '+e.message,'warn');
     }
   } else {
     toast('✅ Configuración guardada','ok');
   }
-
   setTimeout(()=>{ g('companyPanel').style.display='none'; }, 800);
-}
-
-async function uploadLogoToStorage(base64jpeg){
-  if(!SB) return null;
-  try{
-    // Convertir base64 a Blob
-    const parts  = base64jpeg.split(',');
-    const mime   = parts[0].match(/:(.*?);/)[1];
-    const binary = atob(parts[1]);
-    const arr    = new Uint8Array(binary.length);
-    for(let i=0;i<binary.length;i++) arr[i]=binary.charCodeAt(i);
-    const blob   = new Blob([arr], {type:mime});
-    const path   = 'company/logo.jpg';
-
-    // Subir (upsert) al bucket "assets"
-    const {error:upErr} = await SB.storage.from('assets').upload(path, blob, {upsert:true, contentType:'image/jpeg'});
-    if(upErr) throw upErr;
-
-    // Obtener URL pública
-    const {data} = SB.storage.from('assets').getPublicUrl(path);
-    console.log('[SB Storage] Logo subido:', data.publicUrl);
-    return data.publicUrl || null;
-  }catch(e){
-    console.error('[SB Storage] uploadLogo:', e.message);
-    return null;
-  }
 }
 
 function testLogoInPDF(){
@@ -1171,16 +1182,25 @@ async function saveOnly(){
     };
     if(SB){
       try{
-        const {data:ins,error} = await SB.from('clients').insert([nuevoCliente]).select().single();
+        // Insertar en tabla clientes con columnas reales
+        const clienteSB = {
+          name:       nuevoCliente.name,
+          email:      nuevoCliente.email,
+          phone:      nuevoCliente.phone,
+          address:    nuevoCliente.address,
+          created_at: nuevoCliente.created_at,
+        };
+        const {data:ins,error} = await SB.from('clientes').insert([clienteSB]).select().single();
         if(error) throw error;
         nuevoCliente.id = ins.id;
         DB.clients.push(nuevoCliente);
         localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
-        toast('👤 Cliente guardado en Supabase: '+data.clientName,'ok');
+        toast('👤 Cliente guardado: '+data.clientName,'ok');
       }catch(e){
-        console.error('[SB] insert client:', e.message);
+        console.error('[SB] insert cliente:', e.message);
         nuevoCliente.id = 'cli-'+Date.now();
         DB.clients.push(nuevoCliente);
+        localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
         toast('👤 Cliente guardado localmente: '+data.clientName,'ok');
       }
     } else {
@@ -1195,19 +1215,20 @@ async function saveOnly(){
   if(editingId){
     if(SB){
       try{
-        const {error} = await SB.from('orders').update({
+        const {error} = await SB.from('pedidos').update({
+          invoice_num:    data.invoice_num,
           client_name:    data.clientName,
           client_email:   data.clientEmail,
           client_phone:   data.clientPhone,
           address:        data.address,
-          invoice_num:    data.invoice_num,
           status:         data.status,
+          invoice_status: data.status,
           payment_method: data.payment_method,
           notes:          data.notes,
-          items:          data.items,   // artículos guardados como JSON en la factura
+          items:          data.items,
           subtotal:       data.subtotal,
-          shipping:       data.shipping,
-          discount:       data.discountAmount,
+          shipping:       data.shipping_cost||data.shipping||0,
+          discount:       data.discountAmount||0,
           total:          data.total,
           updated_at:     new Date().toISOString(),
         }).eq('id', editingId);
@@ -1221,32 +1242,34 @@ async function saveOnly(){
     const idx = DB.orders.findIndex(o=>o.id===editingId);
     if(idx>=0) DB.orders[idx] = {...DB.orders[idx], ...data, id:editingId};
   } else {
+    // Columnas reales de la tabla pedidos en Supabase
     const orderData = {
+      invoice_num:    data.invoice_num,
       client_name:    data.clientName,
       client_email:   data.clientEmail,
       client_phone:   data.clientPhone,
       address:        data.address,
-      invoice_num:    data.invoice_num,
       status:         data.status,
+      invoice_status: data.status,
       payment_method: data.payment_method,
       notes:          data.notes,
-      items:          data.items,   // artículos como JSON — NO se guardan en tabla products
+      items:          data.items,       // artículos como JSON — NO modifica tabla productos
       subtotal:       data.subtotal,
-      shipping:       data.shipping,
-      discount:       data.discountAmount,
+      shipping:       data.shipping_cost||data.shipping||0,
+      discount:       data.discountAmount||0,
       total:          data.total,
       created_at:     data.created_at,
       updated_at:     new Date().toISOString(),
     };
     if(SB){
       try{
-        const {data:ins,error} = await SB.from('orders').insert([orderData]).select().single();
+        const {data:ins,error} = await SB.from('pedidos').insert([orderData]).select().single();
         if(error) throw error;
         editingId = ins.id;
         DB.orders.unshift({...data, id:ins.id});
         toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
       }catch(e){
-        console.error('[SB] insert order:', e.message);
+        console.error('[SB] insert pedido:', e.message);
         const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
         editingId = localId;
         DB.orders.unshift({...data, id:localId});
@@ -1467,7 +1490,7 @@ async function confirmVoid(){
 
   if(SB){
     try{
-      const {error} = await SB.from('orders').update(voidData).eq('id', id);
+      const {error} = await SB.from('pedidos').update(voidData).eq('id', id);
       if(error) throw error;
     }catch(e){ console.error('[SB] voidInvoice:', e.message); }
   }
