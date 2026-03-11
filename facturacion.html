@@ -221,6 +221,7 @@
             <button class="btn btn-outline btn-sm" onclick="g('logoFileInput').click()">📁 Subir Logo</button>
             <button class="btn btn-sm btn-red" onclick="removeLogo()" style="margin-left:4px;padding:5px 8px">✕</button>
             <div style="font-size:10px;color:var(--muted);margin-top:3px">PNG, JPG — aparece en el PDF</div>
+            <div id="logoStatus" style="font-size:10px;margin-top:3px;font-weight:600"></div>
           </div>
         </div>
       </div>
@@ -237,9 +238,10 @@
         <input id="co_whatsapp" placeholder="+1 (000) 000-0000" />
       </div>
     </div>
-    <div style="display:flex;gap:8px;margin-top:10px">
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn btn-gold btn-sm" onclick="saveCompany()">💾 Guardar configuración</button>
       <button class="btn btn-outline btn-sm" onclick="toggleCompanyPanel()">Cerrar</button>
+      <button class="btn btn-outline btn-sm" onclick="testLogoInPDF()" title="Ver cómo quedará el logo en el PDF">🧪 Probar logo</button>
     </div>
   </div>
 </div>
@@ -533,7 +535,20 @@ function loadCompanyPanel(){
   g('co_name').value    = co.name||'';
   g('co_email').value   = co.email||'';
   g('co_whatsapp').value= co.whatsapp||'';
-  updateLogoPreview(co._logoB64||co.logoB64||co.logo_b64||co.logoUrl||co.logo_url||co.logo_data||co.logo||'');
+  const logoSrc = co._logoB64||co.logoB64||co.logo_b64||co.logo||'';
+  updateLogoPreview(logoSrc);
+  // Mostrar estado del logo
+  const statusEl = g('logoStatus');
+  if(statusEl){
+    if(logoSrc && logoSrc.length > 100){
+      const kb = Math.round(logoSrc.length*0.75/1024);
+      statusEl.textContent = '✅ Logo guardado ('+kb+'KB)';
+      statusEl.style.color = '#2fe3b5';
+    } else {
+      statusEl.textContent = '⚠ Sin logo — sube una imagen';
+      statusEl.style.color = '#ffc800';
+    }
+  }
 }
 
 function updateLogoPreview(src){
@@ -549,19 +564,67 @@ function updateLogoPreview(src){
 function handleLogoUpload(input){
   const file = input.files[0];
   if(!file) return;
-  if(file.size > 2*1024*1024){ toast('Logo muy grande (máx 2MB)','warn'); return; }
+
+  const statusEl = g('logoStatus');
+  if(statusEl){ statusEl.textContent = '⏳ Procesando...'; statusEl.style.color='#ffc800'; }
+
   const reader = new FileReader();
-  reader.onload = e => {
-    const b64 = e.target.result;
-    updateLogoPreview(b64);
-    // Guardar temporalmente
-    const co = getCompanyInfo();
-    co._logoB64 = b64;
-    localStorage.setItem(LS_COMPANY, JSON.stringify(co));
-    toast('✅ Logo cargado — guarda la configuración','ok');
+  reader.onerror = () => { toast('Error leyendo el archivo','err'); };
+  reader.onload = function(e){
+    const original = e.target.result;
+    const img = new Image();
+    img.onerror = function(){
+      toast('No se pudo cargar la imagen','err');
+      if(statusEl){ statusEl.textContent = '❌ Error al cargar'; statusEl.style.color='#ff5555'; }
+    };
+    img.onload = function(){
+      try{
+        // Canvas para redimensionar y convertir a JPEG
+        const canvas = document.createElement('canvas');
+        const MAX = 300;
+        let w = img.naturalWidth  || img.width  || 100;
+        let h = img.naturalHeight || img.height || 100;
+        if(w > MAX || h > MAX){
+          if(w >= h){ h = Math.round(h * MAX / w); w = MAX; }
+          else       { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        if(w < 1) w = 1;
+        if(h < 1) h = 1;
+        canvas.width  = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const jpeg = canvas.toDataURL('image/jpeg', 0.90);
+        const kb   = Math.round(jpeg.length * 0.75 / 1024);
+
+        // Mostrar preview
+        updateLogoPreview(jpeg);
+
+        // Guardar en localStorage
+        try{
+          const co = getCompanyInfo();
+          co._logoB64 = jpeg;
+          localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+          if(statusEl){ statusEl.textContent = '✅ Logo guardado ('+w+'×'+h+'px, ~'+kb+'KB)'; statusEl.style.color='#2fe3b5'; }
+          toast('✅ Logo listo para el PDF ('+w+'×'+h+'px)','ok');
+        }catch(storErr){
+          if(statusEl){ statusEl.textContent = '⚠ No se pudo guardar (muy grande)'; statusEl.style.color='#ff5555'; }
+          toast('Error guardando logo: prueba con imagen más pequeña','err');
+          console.error('localStorage error:', storErr);
+        }
+      }catch(canvasErr){
+        toast('Error procesando imagen: '+canvasErr.message,'err');
+        console.error('canvas error:', canvasErr);
+      }
+    };
+    img.src = original;
   };
   reader.readAsDataURL(file);
 }
+
 
 function removeLogo(){
   const co = getCompanyInfo();
@@ -577,9 +640,41 @@ function saveCompany(){
   co.name     = g('co_name').value.trim();
   co.email    = g('co_email').value.trim();
   co.whatsapp = g('co_whatsapp').value.trim();
-  localStorage.setItem(LS_COMPANY, JSON.stringify(co));
-  toast('✅ Configuración guardada','ok');
-  setTimeout(()=>{ g('companyPanel').style.display='none'; }, 800);
+  try{
+    localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+    toast('✅ Configuración guardada','ok');
+    setTimeout(()=>{ g('companyPanel').style.display='none'; }, 800);
+  }catch(e){
+    toast('Error al guardar: '+e.message,'err');
+  }
+}
+
+function testLogoInPDF(){
+  const co = getCompanyInfo();
+  const logo = co._logoB64||co.logoB64||co.logo||'';
+  if(!logo){
+    toast('No hay logo guardado — sube una imagen primero','warn');
+    return;
+  }
+  // Crear mini PDF de prueba con solo el logo
+  try{
+    const {jsPDF} = window.jspdf;
+    const doc = new jsPDF({unit:'mm',format:'a6'});
+    doc.setFillColor(18,14,6); doc.rect(0,0,105,60,'F');
+    doc.setFillColor(208,162,58); doc.roundedRect(8,8,44,44,3,3,'F');
+    const fmt2 = logo.substring(0,25).toLowerCase().indexOf('jpeg')>-1 ? 'JPEG' : 'PNG';
+    doc.addImage(logo, fmt2, 10, 10, 40, 40);
+    doc.setFont('helvetica','bold'); doc.setFontSize(12);
+    doc.setTextColor(235,200,115);
+    doc.text('Logo OK ✓', 58, 28);
+    doc.setFontSize(8); doc.setTextColor(185,170,140);
+    doc.text(co.name||'Pleaseme', 58, 36);
+    doc.save('test-logo.pdf');
+    toast('✅ PDF de prueba generado — verifica el logo','ok');
+  }catch(e){
+    toast('Error en prueba: '+e.message,'err');
+    console.error(e);
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -946,7 +1041,7 @@ async function saveAndPDF(){
   if(!o) return;
   try{
     const doc = buildInvoicePDF(o);
-    if(doc) doc.save('Factura-'+(o.invoice_num||o.id)+'.pdf');
+    if(doc) showPDFInTab(doc, 'Factura-'+(o.invoice_num||o.id));
   }catch(e){ toast('Error generando PDF: '+e.message,'err'); console.error(e); }
 }
 
@@ -1170,7 +1265,7 @@ function printCurrentInvoice(){
 function openPrintWindow(o){
   const co = getCompanyInfo();
   const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
-  const logoSrc = co._logoB64||co.logoB64||co.logo_b64||co.logoUrl||co.logo_url||co.logo_data||co.logo||'';
+  const logoSrc = (co._logoB64||co.logoB64||co.logo_b64||co.logo||'').trim();
   const sub = (o.items||[]).reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
   const ship = Number(o.shipping||o.shipping_cost||0);
   const disc = Number(o.discountAmount||o.discountValue||o.discount_amount||0);
@@ -1283,8 +1378,7 @@ async function quickPDF(id){
   if(!o){ toast('Factura no encontrada','err'); return; }
   try{
     const doc = buildInvoicePDF(o);
-    if(doc) doc.save('Factura-'+(o.invoice_num||o.id)+'.pdf');
-    toast('📄 PDF generado','ok');
+    if(doc) showPDFInTab(doc, 'Factura-'+(o.invoice_num||o.id));
   }catch(e){ toast('Error PDF: '+e.message,'err'); console.error(e); }
 }
 
@@ -1315,6 +1409,39 @@ function exportCSV(){
 //  HELPER
 // ══════════════════════════════════════════════════════
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ══════════════════════════════════════════════════════
+//  MOSTRAR PDF EN PESTAÑA (sin descargar)
+// ══════════════════════════════════════════════════════
+function showPDFInTab(doc, filename){
+  try{
+    // output('bloburl') genera una URL blob que el navegador abre como visor de PDF
+    const blobUrl = doc.output('bloburl');
+    const win = window.open(blobUrl, '_blank');
+    if(!win){
+      // Si el navegador bloqueó la ventana emergente, fallback a descarga
+      toast('Activa las ventanas emergentes para ver el PDF, o se descargará','warn');
+      doc.save((filename||'Factura')+'.pdf');
+    } else {
+      toast('📄 PDF abierto en nueva pestaña','ok');
+    }
+  }catch(e){
+    console.error('showPDFInTab error:', e);
+    // Fallback: intentar con datauristring
+    try{
+      const uri = doc.output('datauristring');
+      const win2 = window.open('','_blank');
+      if(win2){
+        win2.document.write('<iframe src="'+uri+'" width="100%" height="100%" style="border:none;position:fixed;inset:0"></iframe>');
+        win2.document.close();
+      } else {
+        doc.save((filename||'Factura')+'.pdf');
+      }
+    }catch(e2){
+      doc.save((filename||'Factura')+'.pdf');
+    }
+  }
+}
 
 // ══════════════════════════════════════════════════════
 //  BUILD INVOICE PDF
@@ -1375,21 +1502,29 @@ function buildInvoicePDF(o){
     var LX=M, LY=4, LS=HDR-8;
     fr.apply(null,GOLD2); doc.roundedRect(LX,LY,LS,LS,3,3,'F');
 
-    var logoSrc=(co._logoB64||co.logoB64||co.logo_b64||co.logo||'').trim();
-    if(logoSrc && logoSrc.length>100){
+    // ── Logo en PDF ──
+    var logoSrc = (co._logoB64||co.logoB64||co.logo_b64||co.logo||'').trim();
+    console.log('[PDF] Logo disponible:', logoSrc.length > 50 ? 'SÍ ('+Math.round(logoSrc.length*0.75/1024)+'KB)' : 'NO');
+    var logoLoaded = false;
+    if(logoSrc && logoSrc.length > 100){
       try{
-        var imgFmt='PNG';
-        var hdr=logoSrc.substring(0,30).toLowerCase();
-        if(hdr.indexOf('jpeg')>-1||hdr.indexOf('jpg')>-1) imgFmt='JPEG';
-        doc.addImage(logoSrc,imgFmt,LX,LY,LS,LS);
-      }catch(e2){
-        console.warn('Logo err:',e2.message);
-        doc.setFont('helvetica','bold'); doc.setFontSize(15); tr.apply(null,DARK);
-        doc.text((co.name||'P')[0].toUpperCase(),LX+LS/2,LY+LS/2+4,{align:'center'});
+        // handleLogoUpload siempre guarda como JPEG
+        var imgFmt = 'JPEG';
+        var prefix = logoSrc.substring(0,40).toLowerCase();
+        if(prefix.indexOf('data:image/png') > -1)  imgFmt = 'PNG';
+        if(prefix.indexOf('data:image/jpeg') > -1 || prefix.indexOf('data:image/jpg') > -1) imgFmt = 'JPEG';
+        console.log('[PDF] Formato imagen:', imgFmt, '| Primeros chars:', logoSrc.substring(0,50));
+        doc.addImage(logoSrc, imgFmt, LX, LY, LS, LS);
+        logoLoaded = true;
+        console.log('[PDF] Logo insertado OK');
+      }catch(logoErr){
+        console.error('[PDF] Error insertando logo:', logoErr.message);
       }
-    } else {
+    }
+    if(!logoLoaded){
+      // Fallback: inicial de la empresa
       doc.setFont('helvetica','bold'); doc.setFontSize(15); tr.apply(null,DARK);
-      doc.text((co.name||'P')[0].toUpperCase(),LX+LS/2,LY+LS/2+4,{align:'center'});
+      doc.text((co.name||'P')[0].toUpperCase(), LX+LS/2, LY+LS/2+4, {align:'center'});
     }
 
     var EX=LX+LS+6, CY=HDR/2+1;
