@@ -895,7 +895,7 @@ async function initStore(){
       const json = await jsonRes.json();
       // Productos del JSON
       if(json.productos && json.productos.length){
-        PRODS = json.productos.filter(p=>p.active!==false).map(p=>({...p,imgs:p.imgs||p.images||[],sizes:p.sizes||[],colors:p.colors||[]}));
+        PRODS = json.productos.filter(p=>p.active!==false).map(p=>({...p,cat:p.cat||p.category||'',imgs:p.imgs||p.images||[],sizes:p.sizes||[],colors:p.colors||[]}));
         localStorage.setItem('pm_products_v1', JSON.stringify(PRODS));
       }
       // Config del JSON
@@ -912,7 +912,7 @@ async function initStore(){
     // 2. Además sincronizar con Supabase en segundo plano
     const [sbProds, sbCfg] = await Promise.all([sbLoadProducts(), sbLoadConfig()]);
     if(sbProds && sbProds.length){
-      PRODS = sbProds.map(p=>({...p,imgs:p.imgs||p.images||[],sizes:p.sizes||[],colors:p.colors||[]}));
+      PRODS = sbProds.map(p=>({...p,cat:p.cat||p.category||'',imgs:p.imgs||p.images||[],sizes:p.sizes||[],colors:p.colors||[]}));
       localStorage.setItem('pm_products_v1', JSON.stringify(PRODS));
     }
     if(sbCfg && Object.keys(sbCfg).length){
@@ -1022,7 +1022,7 @@ let PRODS=[
   {id:'j7',name:'Set Charms Estrella & Luna',cat:'Charms',price:22,old:32,desc:'Set de 5 charms celestiales — luna, estrella, sol, creciente, cometa. Compatible con todas nuestras cadenas.',sizes:['Universal'],colors:['Oro Laminado','Plata'],stock:20,isNew:false,imgs:['https://images.unsplash.com/photo-1588444650736-5f8ba5f1fda0?auto=format&fit=crop&w=800&q=80','https://images.unsplash.com/photo-1602751584552-8ba73aad10e1?auto=format&fit=crop&w=800&q=80']},
   {id:'j8',name:'Aretes Argolla Dorada',cat:'Aretes',price:25,old:null,desc:'Aretes argolla clásicos en oro laminado. Disponibles en pequeño (20mm), mediano (30mm) y grande (40mm).',sizes:['20mm','30mm','40mm'],colors:['Oro Laminado','Plata','Oro Rosa'],stock:3,isNew:true,imgs:['https://images.unsplash.com/photo-1588444650736-5f8ba5f1fda0?auto=format&fit=crop&w=800&q=80','https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=800&q=80']},
 ];
-try{const ap=JSON.parse(localStorage.getItem('pm_products_v1')||'null'); if(ap&&ap.length) PRODS=ap.filter(p=>p.active!==false).map(p=>({...p,imgs:p.imgs||p.images||[],sizes:p.sizes||[],colors:p.colors||[]}));}catch(e){}
+try{const ap=JSON.parse(localStorage.getItem('pm_products_v1')||'null'); if(ap&&ap.length) PRODS=ap.filter(p=>p.active!==false).map(p=>({...p,cat:p.cat||p.category||'',imgs:p.imgs||p.images||[],sizes:p.sizes||[],colors:p.colors||[]}));}catch(e){}
 
 let cart=loadCart(), payM='card', pmP=null, pmQ=1, pmSz='', pmCo='';
 
@@ -1399,7 +1399,7 @@ function renderHome(){ renderToGrid(G('homeGrid'),PRODS.slice(0,4)); }
 function renderNew(){ renderToGrid(G('newGrid'),PRODS.filter(p=>p.isNew)); }
 
 function buildChips(){
-  const cats=[...new Set(PRODS.map(p=>p.cat))].sort();
+  const cats=[...new Set(PRODS.map(p=>p.cat||p.category||'').filter(Boolean))].sort();
   const el=G('shopChips'); if(!el) return;
   el.innerHTML=`<button class="chip a" data-c="" onclick="fc('')">${tl('shopTitle')||'Todas'}</button>`;
   cats.forEach(c=>{ el.insertAdjacentHTML('beforeend',`<button class="chip" data-c="${esc(c)}" onclick="fc('${esc(c)}')">${esc(c)}</button>`); });
@@ -1418,8 +1418,8 @@ function searchShop(){ if(typeof renderShop==='function') renderShop(); }
 function renderShop(){
   const q=(G('si')?G('si').value:'').toLowerCase();
   let list=PRODS.slice();
-  if(activeCat) list=list.filter(p=>p.cat===activeCat);
-  if(q) list=list.filter(p=>(p.name+' '+p.desc+' '+p.cat).toLowerCase().includes(q));
+  if(activeCat) list=list.filter(p=>(p.cat||p.category||'')===activeCat);
+  if(q) list=list.filter(p=>(p.name+' '+(p.desc||'')+' '+(p.cat||p.category||'')).toLowerCase().includes(q));
   const lbl=G('shopLbl');
   if(lbl) lbl.textContent=list.length+' pieza'+(list.length!==1?'s':'');
   renderToGrid(G('shopGrid'),list);
