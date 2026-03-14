@@ -929,6 +929,9 @@ async function initStore(){
     console.warn('[Store] Usando datos locales:', e);
   }
   buildChips(); renderHome(); buildMarquee();
+  // Re-render shop si ya estaba visible
+  const shopSec = G('s-shop');
+  if(shopSec && shopSec.style.display !== 'none') renderShop();
 }
 
 const CFG={wa:'10000000000',ppEmail:'payments@pleaseme.com',freeShip:100,cur:'USD'};
@@ -1381,7 +1384,7 @@ const SECS=['home','shop','byo','pers','new','contact'];
 function show(name){
   SECS.forEach(s=>{ const el=G('s-'+s); if(el) el.style.display=s===name?'block':'none'; });
   window.scrollTo({top:0,behavior:'smooth'});
-  if(name==='shop') renderShop();
+  if(name==='shop'){ buildChips(); renderShop(); }
   if(name==='home') renderHome();
   if(name==='new')  renderNew();
 }
