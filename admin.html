@@ -1181,13 +1181,19 @@
           <div class="drop-top">
             <div>
               <div class="drop-label">Imágenes de la prenda</div>
-              <div class="drop-hint">Arrastra fotos o usa el botón. JPG/PNG/WebP.</div>
+              <div class="drop-hint">Arrastra fotos, usa el botón o pega una URL. JPG/PNG/WebP.</div>
             </div>
             <div style="display:flex;gap:8px">
               <label class="btn primary sm" for="pImgInput" style="cursor:pointer">+ Fotos</label>
               <input id="pImgInput" type="file" accept="image/*" multiple style="display:none"/>
               <button class="btn sm" id="pClearImgs">Quitar</button>
             </div>
+          </div>
+          <!-- URL de imagen -->
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input id="pImgUrl" type="url" placeholder="O pega una URL de imagen (https://...)"
+              style="flex:1;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none"/>
+            <button class="btn sm" id="pAddImgUrl" style="white-space:nowrap">+ URL</button>
           </div>
           <div class="thumb-grid" id="pThumbGrid">
             <div class="pmeta" style="grid-column:1/-1;padding:6px 0">Sin imágenes.</div>
@@ -2111,14 +2117,9 @@ function toRow(table, item){
   const base = {id:item.id, record:{...item}, created_at:item.created_at||new Date().toISOString()};
 
   if(table==='productos'){
-    base.active     = item.active !== false;
-    base.name       = item.name      || '';
-    base.category   = item.category  || item.cat || '';
-    base.price      = Number(item.price    || 0);
-    base.old_price  = Number(item.old      || 0);
-    base.stock      = Number(item.stock    || 0);
-    base.is_new     = Boolean(item.isNew   || false);
-    base.updated_at = item.updated_at || new Date().toISOString();
+    // Solo columnas que existen en el schema: id, record, active, created_at
+    // El resto (name, category, price, stock, etc.) va dentro de record
+    base.active = item.active !== false;
   }
 
   if(table==='pedidos'){
@@ -4216,12 +4217,27 @@ function waSendCampaign(){
 
   /* ── helpers ── */
   const $=id=>document.getElementById(id);
-  const readFileAsDataURL = f => new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=()=>res(r.result);
-    r.onerror=rej;
-    r.readAsDataURL(f);
-  });
+  // Comprime la imagen a máx 900px ancho y calidad 0.78 antes de base64
+  function compressImage(file, maxW=900, quality=0.78){
+    return new Promise((res,rej)=>{
+      const url=URL.createObjectURL(file);
+      const img=new Image();
+      img.onload=()=>{
+        URL.revokeObjectURL(url);
+        const scale=Math.min(1, maxW/img.naturalWidth);
+        const w=Math.round(img.naturalWidth*scale);
+        const h=Math.round(img.naturalHeight*scale);
+        const c=document.createElement('canvas');
+        c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        res(c.toDataURL('image/jpeg', quality));
+      };
+      img.onerror=rej;
+      img.src=url;
+    });
+  }
+
+  const readFileAsDataURL = f => compressImage(f);
 
   function renderThumbs(){
     const grid=$('pThumbGrid'); if(!grid) return;
@@ -4376,6 +4392,29 @@ function waSendCampaign(){
           try{ const b64=await readFileAsDataURL(f); _pImages.push(b64); }catch(e){}
         }
         renderThumbs();
+      });
+    }
+
+    /* URL input button */
+    const addUrlBtn=$('pAddImgUrl');
+    if(addUrlBtn && !addUrlBtn._pmBound){
+      addUrlBtn._pmBound=true;
+      addUrlBtn.addEventListener('click',()=>{
+        const inp=$('pImgUrl');
+        const url=(inp?.value||'').trim();
+        if(!url){ if(window.toast) toast('Ingresa una URL válida','warn'); return; }
+        if(!url.startsWith('http')){ if(window.toast) toast('La URL debe comenzar con http','warn'); return; }
+        _pImages.push(url);
+        if(inp) inp.value='';
+        renderThumbs();
+      });
+    }
+    /* also allow Enter key on the URL input */
+    const urlInp=$('pImgUrl');
+    if(urlInp && !urlInp._pmUrlBound){
+      urlInp._pmUrlBound=true;
+      urlInp.addEventListener('keydown',e=>{
+        if(e.key==='Enter'){ e.preventDefault(); $('pAddImgUrl')?.click(); }
       });
     }
   }

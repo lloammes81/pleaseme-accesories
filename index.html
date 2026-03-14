@@ -693,7 +693,13 @@ async function sbLoadProducts(){
     if(!p.desc && p.description) p.desc = p.description;
     if(!p.isNew) p.isNew = p.is_new||false;
     if(!p.old && p.old_price) p.old = p.old_price;
-    if(!p.imgs && p.images) p.imgs = p.images;
+    // Normalizar campo de imágenes (puede llamarse images o imgs)
+    if(!p.imgs || !p.imgs.length){
+      if(p.images && p.images.length) p.imgs = p.images;
+    }
+    if(!p.images || !p.images.length){
+      if(p.imgs && p.imgs.length) p.images = p.imgs;
+    }
     return p;
   });
 }
