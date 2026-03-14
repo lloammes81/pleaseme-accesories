@@ -2805,7 +2805,7 @@ function renderDashboard(){
       <td style="font-family:var(--fd);font-size:15px;color:var(--gold)">${money(o.total)}</td>
       <td><span class="badge ${o.status}">${statusLabel(o.status)}</span></td>
     </tr>
-  `).join("") : `<tr><td colspan="4" class="empty-row">${t? t("noOrders") : "Sin pedidos aún."}</td></tr>`;
+  `).join("") : `<tr><td colspan="4" class="empty-row">Sin pedidos aún.</td></tr>`;
 
   // Stock alerts
   const alerts = DB.products.filter(p=>p.active&&p.stock<10).sort((a,b)=>a.stock-b.stock).slice(0,8);
@@ -2813,7 +2813,7 @@ function renderDashboard(){
     const cls = p.stock===0?"danger-c":p.stock<3?"danger-c":"warn-c";
     const label = p.stock===0?"AGOTADO":p.stock<3?"CRÍTICO":"BAJO";
     return `<div class="top-item">
-      <img class="stock-thumb" src="${p.images?.[0]||""}" alt="" onerror="this.style.display='none'"/>
+      <img class="stock-thumb" src="${getProductImages(p)[0]||''}" alt="" onerror="this.style.display='none'"/>
       <div style="flex:1;min-width:0">
         <div style="font-family:var(--fd);font-size:13px;color:var(--gold3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
         <div style="font-size:11px;color:var(--muted)">${esc(p.category)}</div>
@@ -2841,8 +2841,11 @@ function statusLabel(s){
     cancelado: "statusCanceled",
     reembolsado: "statusRefunded"
   };
-  const k = mapKey[s] || s;
-  try{ return t(k); }catch(e){ return s; }
+  const labels = {
+    pendiente:'Pendiente', procesando:'Procesando', enviado:'Enviado',
+    entregado:'Entregado', cancelado:'Cancelado', reembolsado:'Reembolsado'
+  };
+  return labels[s] || s;
 }
 
 function renderOrders(){
