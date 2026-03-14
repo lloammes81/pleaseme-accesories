@@ -2092,7 +2092,9 @@ async function sbPATCH(table, id, body){
 
 function fromRow(r){
   // Merge real columns on top of record so both are available
-  const rec = r.record||{};
+  let rec = r.record||{};
+  // Protección: Supabase a veces devuelve JSONB como string
+  if(typeof rec === 'string'){ try{ rec=JSON.parse(rec); }catch{ rec={}; } }
   const merged = {...rec, id:r.id, created_at:r.created_at};
   // Normalizar imgs ↔ images para compatibilidad con index.html y admin
   if(!merged.images || !merged.images.length){
@@ -2299,6 +2301,11 @@ async function initDB(){
     if(prods!==null) DB.products = prods;
     if(ords!==null)  DB.orders   = ords;
     if(clis!==null)  DB.clients  = clis;
+    // Diagnóstico: ver cuántos productos tienen imágenes
+    console.info('[Admin] Productos cargados:', (prods||[]).length,
+      '— Con imágenes:', (prods||[]).filter(p=>getProductImages(p).length>0).length,
+      '— Muestra:', (prods||[]).slice(0,3).map(p=>({id:p.id,name:p.name,imgs:getProductImages(p).length,keys:Object.keys(p)}))
+    );
     if(cfgRes&&cfgRes.length){
       DB.config={};
       cfgRes.forEach(r=>DB.config[r.key]=r.value);
