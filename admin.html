@@ -2094,6 +2094,13 @@ function fromRow(r){
   // Merge real columns on top of record so both are available
   const rec = r.record||{};
   const merged = {...rec, id:r.id, created_at:r.created_at};
+  // Normalizar imgs ↔ images para compatibilidad con index.html y admin
+  if(!merged.images || !merged.images.length){
+    if(Array.isArray(merged.imgs) && merged.imgs.length) merged.images = merged.imgs;
+  }
+  if(!merged.imgs || !merged.imgs.length){
+    if(Array.isArray(merged.images) && merged.images.length) merged.imgs = merged.images;
+  }
   // Prefer real columns when they have data
   if(r.name             !== undefined && r.name             !== '') merged.name             = r.name;
   if(r.email            !== undefined && r.email            !== '') merged.email            = r.email;
@@ -3357,6 +3364,28 @@ async function deleteAdminUser(id){
 //  RENDER FUNCTIONS
 // ══════════════════════════════════════════════════════════════
 
+// Helper: obtiene el array normalizado de imágenes de un producto
+function getProductImages(p){
+  if(Array.isArray(p.images)&&p.images.length) return p.images;
+  if(Array.isArray(p.imgs)&&p.imgs.length)     return p.imgs;
+  if(typeof p.images==='string'&&p.images)      return [p.images];
+  if(typeof p.image==='string'&&p.image)        return [p.image];
+  return [];
+}
+// Helper: HTML de la imagen principal de un producto (con fallback)
+function prodImgHTML(p, size=52){
+  const imgs = getProductImages(p);
+  const src  = imgs[0]||'';
+  const extra = imgs.length > 1 ? `<div style="position:absolute;bottom:2px;right:3px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;border-radius:3px;padding:0 3px;line-height:14px">+${imgs.length-1}</div>` : '';
+  return src
+    ? `<div style="position:relative;width:${size}px;height:${size}px;border-radius:9px;overflow:hidden;border:1px solid rgba(212,175,55,.18);background:rgba(212,175,55,.07)">
+        <img src="${src}" style="width:100%;height:100%;object-fit:cover" onerror="this.src='';this.style.display='none';this.parentElement.querySelector('.fb-ico').style.display='flex'">
+        <div class="fb-ico" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:${Math.round(size*.35)}px">💎</div>
+        ${extra}
+       </div>`
+    : `<div style="width:${size}px;height:${size}px;border-radius:9px;background:rgba(212,175,55,.07);border:1px solid rgba(212,175,55,.12);display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*.35)}px">💎</div>`;
+}
+
 function renderInventory(){
   const q=(document.getElementById('invQ')?.value||'').toLowerCase();
   const f=document.getElementById('invFilter')?.value||'';
@@ -3366,17 +3395,10 @@ function renderInventory(){
   const el=document.getElementById('invList'); if(!el) return;
   if(!list.length){el.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Sin productos</td></tr>';return;}
   el.innerHTML=list.map(p=>{
-    let imgSrc='';
-    if(p.images&&Array.isArray(p.images)&&p.images.length) imgSrc=p.images[0];
-    else if(typeof p.images==='string'&&p.images.startsWith('http')) imgSrc=p.images;
-    else if(p.image&&typeof p.image==='string') imgSrc=p.image;
-    const imgHTML=imgSrc
-      ? `<img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<span style=\'font-size:18px\'>💎</span>'">`
-      : `<span style="font-size:18px">💎</span>`;
+    const imgHTML = prodImgHTML(p, 52);
     return `
     <tr onclick="editProduct('${p.id}')" style="cursor:pointer">
-      <td style="padding:6px"><div style="width:52px;height:52px;border-radius:9px;background:rgba(212,175,55,.1);overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid rgba(212,175,55,.18)">
-        ${imgHTML}</div></td>
+      <td style="padding:6px">${imgHTML}</td>
       <td style="font-size:13px;color:var(--text);font-weight:500">${esc(p.name)}</td>
       <td style="font-size:11px;color:var(--muted)">${esc(p.category||'—')}</td>
       <td style="font-family:var(--fd);color:var(--gold)">$${Number(p.price||0).toFixed(2)}</td>
@@ -3449,19 +3471,17 @@ function renderProducts(){
   const count=document.getElementById('prodCount2'); if(count) count.textContent='('+list.length+')';
   if(!list.length){el.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">Sin productos. Agrega el primero arriba.</td></tr>';return;}
   el.innerHTML=list.map(p=>{
-    let imgSrc='';
-    if(p.images&&Array.isArray(p.images)&&p.images.length) imgSrc=p.images[0];
-    else if(typeof p.images==='string'&&p.images.startsWith('http')) imgSrc=p.images;
-    else if(p.image&&typeof p.image==='string') imgSrc=p.image;
-    const imgHTML=imgSrc
-      ? `<img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:8px" onerror="this.parentElement.innerHTML='<span style=\'font-size:24px\'>💎</span>'">`
-      : `<span style="font-size:26px">💎</span>`;
+    const imgs = getProductImages(p);
+    // Miniaturas: primera imagen grande + resto pequeñas
+    const mainHTML = prodImgHTML(p, 64);
+    const extraHTML = imgs.length > 1
+      ? `<div style="display:flex;gap:3px;margin-top:3px;flex-wrap:wrap;max-width:64px">${imgs.slice(1,4).map(s=>`<img src="${s}" style="width:18px;height:18px;border-radius:3px;object-fit:cover;border:1px solid rgba(212,175,55,.2)" onerror="this.style.display='none'">`).join('')}${imgs.length>4?`<span style="font-size:9px;color:var(--muted);line-height:18px">+${imgs.length-4}</span>`:''}</div>`
+      : '';
     return `
     <tr onclick="editProduct('${p.id}')" style="cursor:pointer">
       <td style="padding:8px 6px">
-        <div style="width:64px;height:64px;border-radius:10px;background:rgba(212,175,55,.1);overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid rgba(212,175,55,.18)">
-          ${imgHTML}
-        </div>
+        ${mainHTML}
+        ${extraHTML}
       </td>
       <td style="font-size:13px;color:var(--text);font-weight:600">${esc(p.name)}${p.description?`<br><span style="font-size:10px;color:var(--muted);font-weight:400">${esc(p.description.slice(0,55))}${p.description.length>55?'…':''}</span>`:''}</td>
       <td style="font-size:11px;color:var(--muted)">${esc(p.category||'—')}</td>
@@ -4424,7 +4444,7 @@ function waSendCampaign(){
   window.editProduct=function(id){
     const p=(DB.products||[]).find(x=>x.id===id); if(!p) return;
     _editingId=id;
-    _pImages=Array.isArray(p.images)?[...p.images]:(p.images?[p.images]:[]);
+    _pImages=getProductImages(p).slice();
     if(_origEdit) _origEdit(id);
     /* set currency which original stub skips */
     const cur=document.getElementById('pCurrency');
