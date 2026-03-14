@@ -712,7 +712,31 @@ async function sbLoadConfig(){
   return cfg;
 }
 
+// Genera el siguiente número de pedido online usando config 'order_counter' (independiente de facturas)
+async function sbNextOrderNum(){
+  const year = new Date().getFullYear();
+  try{
+    const data = await sbGET('config?key=eq.order_counter&select=value&limit=1');
+    const current = (data && data.length) ? Number(data[0].value||0) : 0;
+    const next = current + 1;
+    // Upsert el contador (crea la fila si no existe)
+    await fetch(SB_URL+'/rest/v1/config',{
+      method:'POST', headers:{...SB_H,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({key:'order_counter', value: next})
+    });
+    return `PED-${year}-${String(next).padStart(5,'0')}`;
+  }catch(e){
+    console.warn('[OrderNum]',e.message);
+    // Fallback a timestamp si Supabase falla
+    return `PED-${year}-${Date.now().toString().slice(-5)}`;
+  }
+}
+
 async function sbSaveOrder(order){
+  // Asignar número de pedido secuencial si no tiene uno
+  if(!order.order_num){
+    order.order_num = await sbNextOrderNum();
+  }
   await sbPOST('pedidos', {
     id:               order.id,
     status:           order.status           || 'pendiente',
@@ -726,6 +750,7 @@ async function sbSaveOrder(order){
     payment_method:   order.method           || '',
     items_count:      (order.items||[]).length,
     tracking_num:     order.trackingNum      || '',
+    order_num:        order.order_num        || '',
     updated_at:       new Date().toISOString(),
     created_at:       order.created_at       || new Date().toISOString(),
     record:           {...order}
@@ -2372,7 +2397,7 @@ function upSendMsg(){
 // ══════════════════════════════════════════════════
 async function upChangePass(){
   const s=(()=>{try{return JSON.parse(localStorage.getItem('pleaseme_session')||'null')}catch(e){return null}})();
-  if(!s){ upToast('upSecToast','Sesión expirada.','err'); return; }
+  if(!s||!s.email){ upToast('upSecToast','Sesión expirada. Inicia sesión de nuevo.','err'); return; }
   const curr  = document.getElementById('upCurrPass')?.value||'';
   const newp  = document.getElementById('upNewPass')?.value||'';
   const newp2 = document.getElementById('upNewPass2')?.value||'';
@@ -2380,17 +2405,18 @@ async function upChangePass(){
   if(newp.length<6){ upToast('upSecToast','Mínimo 6 caracteres.','err'); return; }
   if(newp!==newp2){ upToast('upSecToast','Las contraseñas no coinciden.','err'); return; }
   try{
-    const rows = await upFetch('clientes?id=eq.'+s.id+'&select=record&limit=1');
-    if(!rows||!rows.length){ upToast('upSecToast','Error al verificar.','err'); return; }
+    // Buscar por email (único) en lugar de por id para evitar discrepancias de ID
+    const rows = await upFetch('clientes?email=eq.'+encodeURIComponent(s.email)+'&select=id,record&limit=1');
+    if(!rows||!rows.length){ upToast('upSecToast','Cuenta no encontrada. Ve a Mi Cuenta para verificar.','err'); return; }
     const rec = rows[0].record||{};
     const currHash = btoa(unescape(encodeURIComponent(curr)));
     if(rec.password_hash !== currHash){ upToast('upSecToast','Contraseña actual incorrecta.','err'); return; }
     const newHash = btoa(unescape(encodeURIComponent(newp)));
-    const ok = await upPatch('id=eq.'+s.id,{record:{...rec,password_hash:newHash,updated_at:new Date().toISOString()}});
+    const ok = await upPatch('email=eq.'+encodeURIComponent(s.email),{record:{...rec,password_hash:newHash,updated_at:new Date().toISOString()}});
     if(ok){
       ['upCurrPass','upNewPass','upNewPass2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
       upToast('upSecToast','✅ Contraseña actualizada.','ok');
-    } else { upToast('upSecToast','Error al guardar.','err'); }
+    } else { upToast('upSecToast','Error al guardar. Intenta de nuevo.','err'); }
   }catch(e){ upToast('upSecToast','Error: '+e.message,'err'); }
 }
 

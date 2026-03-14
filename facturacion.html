@@ -500,7 +500,7 @@ let items = [];
 (async function init(){
   await loadAll();
   setDefaultDate();
-  generateInvNum();
+  await generateInvNum();
   const params = new URLSearchParams(window.location.search);
   const editId = params.get('edit');
   if(editId) setTimeout(()=>{ loadForEdit(editId); }, 200);
@@ -876,14 +876,36 @@ function setDefaultDate(){
   g('f_date').value = d.toISOString().slice(0,10);
 }
 
-function generateInvNum(){
+// Genera el siguiente número de factura usando el contador global en Supabase config.
+// El contador es independiente de los pedidos online (usa clave 'invoice_counter').
+async function generateInvNum(){
   const year = new Date().getFullYear();
-  const nums = DB.orders.map(o=>{ const m=(o.invoice_num||'').match(/(\d+)$/); return m?parseInt(m[1]):0; });
-  const next = (Math.max(0,...nums) + 1);
+  let next = 1;
+  try{
+    if(SB){
+      // Leer contador actual
+      const {data, error} = await SB.from('config').select('value').eq('key','invoice_counter').single();
+      if(!error && data && data.value){
+        const val = typeof data.value === 'number' ? data.value : Number(data.value);
+        next = (isNaN(val) ? 0 : val) + 1;
+      }
+      // Guardar nuevo valor (optimistic — sin transacción atómica)
+      await SB.from('config').upsert({key:'invoice_counter', value: next}, {onConflict:'key'});
+    } else {
+      // Fallback local: máximo de los registros existentes
+      const nums = DB.orders.map(o=>{ const m=(o.invoice_num||'').match(/(\d+)$/); return m?parseInt(m[1]):0; });
+      next = (Math.max(0,...nums) + 1);
+      localStorage.setItem('pm_invoice_counter', String(next));
+    }
+  }catch(e){
+    console.warn('[InvNum]',e.message);
+    const nums = DB.orders.map(o=>{ const m=(o.invoice_num||'').match(/(\d+)$/); return m?parseInt(m[1]):0; });
+    next = (Math.max(0,...nums) + 1);
+  }
   g('f_invNum').value = `F-${year}-${String(next).padStart(5,'0')}`;
 }
 
-function resetForm(){
+async function resetForm(){
   editingId = null;
   items = [];
   g('formTitle').textContent = 'Nueva Factura';
@@ -898,17 +920,16 @@ function resetForm(){
   g('f_status').value = 'pendiente';
   g('f_notes').value = '';
   setDefaultDate();
-  generateInvNum();
+  await generateInvNum();
   renderItems();
   recalc();
   document.querySelectorAll('.invoice-card').forEach(c=>c.classList.remove('active'));
-  // Asegurar campos activos en nueva factura
   g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=false);
   const vb = g('voidBanner'); if(vb) vb.style.display='none';
 }
 
-function openNewInvoice(){
-  resetForm();
+async function openNewInvoice(){
+  await resetForm();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 

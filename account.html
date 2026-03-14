@@ -905,7 +905,7 @@ G('btnSavePayment').addEventListener('click', async ()=>{
 //  SEGURIDAD — cambiar contraseña
 // ════════════════════════════════════════════════════════
 G('btnChangePass').addEventListener('click', async ()=>{
-  const s = getSession(); if(!s){ showToast('secToast','Sesión expirada.','err'); return; }
+  const s = getSession(); if(!s||!s.email){ showToast('secToast','Sesión expirada. Inicia sesión de nuevo.','err'); return; }
   const curr  = G('sCurrPass').value;
   const newp  = G('sNewPass').value;
   const newp2 = G('sNewPass2').value;
@@ -917,15 +917,17 @@ G('btnChangePass').addEventListener('click', async ()=>{
   const btn = G('btnChangePass'); btn.textContent='Verificando...'; btn.disabled=true;
 
   try{
-    const rows = await sbGET('clientes?id=eq.'+s.id+'&select=record&limit=1');
-    if(!rows||!rows.length){ showToast('secToast','Error al verificar cuenta.','err'); return; }
-    const rec = rows[0].record||{};
+    // Buscar por email (único e invariable) en lugar de por id
+    const rows = await sbGET('clientes?email=eq.'+encodeURIComponent(s.email)+'&select=id,record&limit=1');
+    if(!rows||!rows.length){ showToast('secToast','Cuenta no encontrada. Contacta soporte.','err'); return; }
+    const rowId = rows[0].id;
+    const rec   = rows[0].record||{};
     const currHash = btoa(unescape(encodeURIComponent(curr)));
     if(rec.password_hash !== currHash){ showToast('secToast','La contraseña actual es incorrecta.','err'); return; }
 
     const newHash = btoa(unescape(encodeURIComponent(newp)));
     const merged  = {...rec, password_hash:newHash, updated_at:new Date().toISOString()};
-    await sbPATCH('clientes','id=eq.'+s.id,{record:merged});
+    await sbPATCH('clientes','email=eq.'+encodeURIComponent(s.email),{record:merged});
 
     G('sCurrPass').value=''; G('sNewPass').value=''; G('sNewPass2').value='';
     showToast('secToast','✅ Contraseña actualizada exitosamente.','ok');
@@ -994,7 +996,7 @@ async function loadOrders(){
       const st    = o.status||'pendiente';
       return `<div class="order-item">
         <div class="order-top">
-          <span class="order-id">#${o.id||''}</span>
+          <span class="order-id">${o.order_num||('#'+o.id||'')}</span>
           <span class="order-date">${date}</span>
           <span class="order-status status-${st}">${statusLabels[st]||st}</span>
         </div>

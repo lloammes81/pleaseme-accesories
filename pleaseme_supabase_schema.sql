@@ -44,9 +44,11 @@ CREATE TABLE config (
 
 -- 5. CONFIG INICIAL
 INSERT INTO config (key, value) VALUES
-  ('company',    '{"name":"Pleaseme","whatsapp":"10000000000","email":"hello@pleaseme.com","instagram":"@pleasemejewels","address":"","logoUrl":""}'),
-  ('storefront', '{"freeShip":100,"currency":"USD","ppEmail":"payments@pleaseme.com"}'),
-  ('admin',      '{"passwordHash":"admin123"}')
+  ('company',         '{"name":"Pleaseme","whatsapp":"10000000000","email":"hello@pleaseme.com","instagram":"@pleasemejewels","address":"","logoUrl":""}'),
+  ('storefront',      '{"freeShip":100,"currency":"USD","ppEmail":"payments@pleaseme.com"}'),
+  ('admin',           '{"passwordHash":"admin123"}'),
+  ('order_counter',   '0'),
+  ('invoice_counter', '0')
 ON CONFLICT (key) DO NOTHING;
 
 -- 6. INDICES
