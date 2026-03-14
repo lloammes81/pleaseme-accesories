@@ -4344,31 +4344,23 @@ function waSendCampaign(){
     const _changedId = editId || DB.products[DB.products.length-1]?.id;
     const _changedProd = (DB.products||[]).find(p=>p.id===_changedId);
     try{
-      if(_changedProd && window.SB_URL && window.SB_H){
-        const row = window.toRow ? toRow('productos', _changedProd) : {
-          id:_changedProd.id,
-          record:{..._changedProd},
-          name:_changedProd.name||'',
-          category:_changedProd.category||'',
-          price:Number(_changedProd.price||0),
-          stock:Number(_changedProd.stock||0),
-          active:_changedProd.active!==false,
-          updated_at:_changedProd.updated_at||new Date().toISOString(),
-          created_at:_changedProd.created_at||new Date().toISOString()
-        };
-        await fetch(SB_URL+'/rest/v1/productos',{
+      if(_changedProd){
+        const row = toRow('productos', _changedProd);
+        const resp = await fetch(SB_URL+'/rest/v1/productos',{
           method:'POST',
           headers:{...SB_H,'Prefer':'resolution=merge-duplicates,return=minimal'},
           body:JSON.stringify(row)
         });
+        if(!resp.ok) console.warn('[SB] producto upsert error:', await resp.text());
+        else console.info('[SB] producto guardado OK:', _changedProd.id, 'imgs:', (row.record?.images||[]).length);
       }
-    }catch(e){ console.warn('[SB] producto upsert:',e); }
+    }catch(e){ console.warn('[SB] producto upsert excepción:',e); }
     /* Update localStorage cache */
-    if(window.save) save('pm_products_v1',DB.products);
+    save('pm_products_v1',DB.products);
 
-    if(window.renderProducts) renderProducts();
-    if(window.renderInventory) renderInventory();
-    if(window.updateCounts) updateCounts();
+    renderProducts();
+    renderInventory();
+    updateCounts();
     resetForm();
   }
 
