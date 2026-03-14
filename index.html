@@ -649,7 +649,6 @@ footer{position:relative;z-index:1;border-top:1px solid var(--ln);margin-top:40p
     <button class="ibt" style="font-size:15px;flex-shrink:0" onclick="this.closest('.toast').classList.remove('show')">&#10005;</button>
   </div>
 </div>
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
 <script>
 // ════════════════════════════════════════════════
 //  SUPABASE — REST API directa (sin SDK, sin workers)
@@ -1512,7 +1511,7 @@ function openPM(id){
   G('pmovl').classList.add('open');
 }
 function setPMImg(i){
-  G('pmimg').src=pmP.imgs[i];
+  G('pmimg').src=(pmP.imgs||pmP.images||[])[i]||'';
   document.querySelectorAll('.pmth').forEach((t,j)=>t.classList.toggle('on',i===j));
 }
 function selSz(s){ pmSz=s; document.querySelectorAll('.szb').forEach(b=>b.classList.toggle('on',b.textContent===s)); }
@@ -2460,16 +2459,24 @@ function goToAccount(tab){
 }
 function logoutUser(){ upLogout(); }
 
-// ── Auto-attach Places to checkout address fields
-function initCheckoutPlaces(){
-  ['coShipAddr','coBillAddr','ccaddr','upAddr1'].forEach(id=>{
-    attachPlacesInput(id);
-  });
+// ── Google Places autocomplete (solo si la API está configurada)
+function loadGooglePlaces(key){
+  if(!key) return;
+  const s=document.createElement('script');
+  s.src='https://maps.googleapis.com/maps/api/js?key='+key+'&libraries=places&callback=_gmapsReady';
+  s.async=true; s.defer=true;
+  document.head.appendChild(s);
 }
-// Try immediately and also after panel opens
+window._gmapsReady=function(){
+  ['coShipAddr','coBillAddr','ccaddr','upAddr1'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el && window.google && google.maps.places){
+      new google.maps.places.Autocomplete(el,{types:['address']});
+    }
+  });
+};
 document.addEventListener('DOMContentLoaded', ()=>{
   if(CFG.googleKey) loadGooglePlaces(CFG.googleKey);
-  setTimeout(initCheckoutPlaces, 2000);
 });
 </script>
 
