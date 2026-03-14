@@ -555,20 +555,31 @@ async function loadOrders(){
     const {data,error} = await SB.from('pedidos').select('*').order('created_at',{ascending:false});
     if(error) throw error;
     // Normalizar columnas de pedidos al formato interno del app
-    DB.orders = (data||[]).map(o=>({
-      ...o,
-      clientName:    o.client_name    || o.clientName    || '',
-      clientEmail:   o.client_email   || o.clientEmail   || '',
-      clientPhone:   o.client_phone   || o.clientPhone   || '',
-      invoice_num:   o.invoice_num    || o.invoiceNum    || '',
-      status:        o.status         || o.invoice_status|| 'pendiente',
-      invoice_status:o.invoice_status || o.status        || 'pendiente',
-      payment_method:o.payment_method || o.method        || '',
-      shipping:      o.shipping       || o.shipping_cost || 0,
-      shipping_cost: o.shipping       || o.shipping_cost || 0,
-      discountAmount:o.discount       || o.discountAmount|| 0,
-      items:         Array.isArray(o.items) ? o.items : (o.items ? JSON.parse(o.items) : []),
-    }));
+    // Muchos campos (items, invoice_num, notes, etc.) están guardados dentro
+    // de la columna "record" (JSON blob) — hay que extraerlos de ahí también.
+    DB.orders = (data||[]).map(o=>{
+      const rec = (o.record && typeof o.record === 'object') ? o.record : {};
+      let parsedItems = [];
+      if(Array.isArray(o.items))       parsedItems = o.items;
+      else if(Array.isArray(rec.items)) parsedItems = rec.items;
+      else if(o.items)                 try{ parsedItems = JSON.parse(o.items); }catch{}
+      return {
+        ...o,
+        clientName:    o.client_name     || rec.clientName    || rec.name    || '',
+        clientEmail:   o.client_email    || rec.clientEmail   || rec.email   || '',
+        clientPhone:   o.client_phone    || rec.clientPhone   || rec.phone   || '',
+        invoice_num:   o.invoice_num     || rec.invoice_num   || rec.invoiceNum || '',
+        status:        o.status          || o.invoice_status  || rec.status   || 'pendiente',
+        invoice_status:o.invoice_status  || o.status          || rec.status   || 'pendiente',
+        payment_method:o.payment_method  || rec.method        || rec.payment_method || '',
+        shipping:      Number(o.shipping_cost || o.shipping   || rec.shipping || 0),
+        shipping_cost: Number(o.shipping_cost || o.shipping   || rec.shipping || 0),
+        address:       o.shipping_address|| rec.shippingAddress || rec.address || '',
+        discountAmount:Number(o.discount || o.discountAmount  || rec.discountAmount || 0),
+        notes:         o.notes           || rec.notes         || '',
+        items:         parsedItems,
+      };
+    });
     localStorage.setItem(LS_ORDERS, JSON.stringify(DB.orders));
     console.log('[SB] Pedidos cargados:', DB.orders.length);
   }catch(e){
