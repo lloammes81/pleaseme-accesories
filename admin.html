@@ -692,7 +692,7 @@
 
 /* ── Notification bell ── */
 #notifBell:hover{ background:rgba(212,175,55,.12)!important; transform:scale(1.05); }
-#notifBell.has-notif{ animation:bellRing .5s ease; }
+#notifBell.has-notif{ animation:bellRing .5s ease 3; }
 @keyframes bellRing{
   0%,100%{transform:rotate(0)}  20%{transform:rotate(-18deg)}  40%{transform:rotate(18deg)}
   60%{transform:rotate(-10deg)} 80%{transform:rotate(10deg)}
@@ -2912,6 +2912,29 @@ function checkPendingAlert(){
         <div style="margin-left:auto;font-size:22px;font-weight:800;font-family:monospace;color:#2fe3b5">${pendInvoices.length}</div>
       </div>`);
   }
+
+  // ── Push to notification bell ──────────────────────────────
+  if(newOrders.length){
+    addNotif('order','🛍️',
+      newOrders.length+' compra'+(newOrders.length!==1?'s':'')+' nueva'+(newOrders.length!==1?'s':''),
+      newOrders.map(o=>o.clientName||o.name||'Cliente').slice(0,3).join(', ')+(newOrders.length>3?' y más...':'')
+    );
+  }
+  if(pendOrders.length){
+    addNotif('order','📦',
+      pendOrders.length+' pedido'+(pendOrders.length!==1?'s':'')+' pendiente'+(pendOrders.length!==1?'s':''),
+      'Requieren atención o confirmación'
+    );
+  }
+  if(pendInvoices.length){
+    addNotif('order','🧾',
+      pendInvoices.length+' factura'+(pendInvoices.length!==1?'s':'')+' pendiente'+(pendInvoices.length!==1?'s':''),
+      'Sin pago confirmado aún'
+    );
+  }
+  // Ring the bell
+  const bell=document.getElementById('notifBell');
+  if(bell){ bell.classList.add('has-notif'); setTimeout(()=>bell.classList.remove('has-notif'),600); }
 
   const el=document.getElementById('pendingAlertItems');
   if(el) el.innerHTML=items.join('');
