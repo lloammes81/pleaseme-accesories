@@ -629,6 +629,12 @@ function persist(){
   localStorage.setItem(LS_ORDERS,  JSON.stringify(DB.orders));
   localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
   window.dispatchEvent(new StorageEvent('storage', { key: LS_ORDERS }));
+  // Notificar a admin.html si está abierto como ventana padre
+  try{
+    if(window.opener && !window.opener.closed && typeof window.opener.syncOrdersFromStorage === 'function'){
+      window.opener.syncOrdersFromStorage();
+    }
+  }catch(e){}
 }
 
 // ══════════════════════════════════════════════════════

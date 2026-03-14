@@ -2799,6 +2799,27 @@ function updateCounts(){
 }
 
 // ══════════════════════════════════════
+//  SYNC FROM FACTURACION WINDOW
+// ══════════════════════════════════════
+window.syncOrdersFromStorage = function(){
+  try{
+    const fresh = JSON.parse(localStorage.getItem(LS_ORDERS)||'[]');
+    if(!Array.isArray(fresh)) return;
+    DB.orders = fresh;
+    renderDashboard(); updateCounts();
+    // Re-render active tab if visible
+    const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
+    if(activeTab==='pedidos')  renderOrders();
+    if(activeTab==='facturas') renderFacturas();
+  }catch(e){}
+};
+
+// Also listen for cross-tab storage events (when facturacion.html is in a different tab)
+window.addEventListener('storage', e=>{
+  if(e.key===LS_ORDERS) window.syncOrdersFromStorage();
+});
+
+// ══════════════════════════════════════
 //  PENDING ALERT MODAL
 // ══════════════════════════════════════
 let _pendingAlertShown = false;
