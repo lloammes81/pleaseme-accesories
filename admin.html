@@ -630,7 +630,7 @@
             style="width:100%;padding:11px 14px;border-radius:10px;
               background:rgba(255,255,255,.05);border:1px solid rgba(212,175,55,.15);
               color:#f0dfa0;font-family:'Jost',sans-serif;font-size:14px;outline:none"
-            autocomplete="current-password"/>
+            autocomplete="new-password" value=""/>
         </div>
         <div id="lgAdminToast" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:12px"></div>
         <button id="lgAdminBtn" onclick="doAdminLogin()"
@@ -3178,6 +3178,9 @@ function lgSwitchTab(tab){
   });
   if(pA) pA.style.display = isAdmin ? 'block' : 'none';
   if(pU) pU.style.display = !isAdmin ? 'block' : 'none';
+  // Always clear password fields when switching tabs
+  const ap=document.getElementById('lgAdminPass'); if(ap) ap.value='';
+  const up=document.getElementById('lgUserPass');  if(up) up.value='';
 }
 
 async function doAdminLogin(){
