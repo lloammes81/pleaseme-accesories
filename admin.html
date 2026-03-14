@@ -2811,6 +2811,9 @@ window.syncOrdersFromStorage = function(){
     const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
     if(activeTab==='pedidos')  renderOrders();
     if(activeTab==='facturas') renderFacturas();
+    // Re-check pending alert for new data (reset flag first)
+    _pendingAlertShown = false;
+    checkPendingAlert();
   }catch(e){}
 };
 
@@ -2822,6 +2825,7 @@ window.addEventListener('storage', e=>{
 // ══════════════════════════════════════
 //  PENDING ALERT MODAL
 // ══════════════════════════════════════
+const LS_LAST_SEEN = 'pm_admin_last_seen_v1';
 let _pendingAlertShown = false;
 
 function playAlertBeep(){
@@ -2846,12 +2850,45 @@ function playAlertBeep(){
 
 function checkPendingAlert(){
   if(_pendingAlertShown) return;
-  const pendOrders   = (DB.orders||[]).filter(o=>o.status==='pendiente');
-  const pendInvoices = (DB.orders||[]).filter(o=>(o.invoice_status||o.invoiceStatus)==='pendiente' && o.invoice_num);
-  if(!pendOrders.length && !pendInvoices.length) return;
+
+  const orders = DB.orders || [];
+
+  // Pedidos con status pendiente (cualquier origen: tienda, manual)
+  const pendOrders = orders.filter(o => o.status === 'pendiente');
+
+  // Facturas con invoice_status pendiente (sin pago confirmado)
+  const pendInvoices = orders.filter(o => {
+    const st = o.invoice_status || o.invoiceStatus || '';
+    return st === 'pendiente' && !!o.invoice_num;
+  });
+
+  // Nuevas compras desde la última vez que el admin revisó
+  const lastSeen = Number(localStorage.getItem(LS_LAST_SEEN) || 0);
+  const newOrders = orders.filter(o => {
+    const t = new Date(o.created_at || 0).getTime();
+    return t > lastSeen && o.status !== 'cancelado';
+  });
+  // Guardar timestamp actual como "visto ahora"
+  localStorage.setItem(LS_LAST_SEEN, Date.now());
+
+  if(!pendOrders.length && !pendInvoices.length && !newOrders.length) return;
   _pendingAlertShown = true;
 
   const items = [];
+
+  if(newOrders.length){
+    const names = newOrders.slice(0,3).map(o=>o.clientName||o.name||'Cliente').join(', ');
+    items.push(`
+      <div style="display:flex;align-items:center;gap:12px;background:rgba(100,200,255,.07);border:1px solid rgba(100,200,255,.25);border-radius:12px;padding:12px 14px">
+        <div style="font-size:26px;line-height:1">🛍️</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;color:#7dd3fc">${newOrders.length} compra${newOrders.length!==1?'s':''} nueva${newOrders.length!==1?'s':''}</div>
+          <div style="font-size:11px;color:rgba(125,211,252,.55);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${names}${newOrders.length>3?' y más...':''}</div>
+        </div>
+        <div style="margin-left:auto;font-size:22px;font-weight:800;font-family:monospace;color:#7dd3fc;flex-shrink:0">${newOrders.length}</div>
+      </div>`);
+  }
+
   if(pendOrders.length){
     items.push(`
       <div style="display:flex;align-items:center;gap:12px;background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.25);border-radius:12px;padding:12px 14px">
@@ -2863,6 +2900,7 @@ function checkPendingAlert(){
         <div style="margin-left:auto;font-size:22px;font-weight:800;font-family:monospace;color:#f5a623">${pendOrders.length}</div>
       </div>`);
   }
+
   if(pendInvoices.length){
     items.push(`
       <div style="display:flex;align-items:center;gap:12px;background:rgba(47,227,181,.07);border:1px solid rgba(47,227,181,.2);border-radius:12px;padding:12px 14px">
@@ -3477,6 +3515,7 @@ function enterPanel(){
   const ls=document.getElementById('adminLoginScreen'), panel=document.getElementById('adminShell');
   if(ls) ls.style.display='none';
   if(panel){ panel.style.display='block'; }
+  _pendingAlertShown = false; // reset so alert shows fresh each login
   try{ initDB(); }catch(e){ console.error('initDB:',e); }
   const hn=document.getElementById('headerUserName'); if(hn&&adminSession) hn.textContent=adminSession.name||'Admin';
   const bn=document.getElementById('adminBadgeName'); if(bn&&adminSession) bn.textContent=adminSession.name||'Admin';
