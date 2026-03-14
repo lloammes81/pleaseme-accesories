@@ -1550,7 +1550,7 @@
   <div class="modal" style="max-width:520px">
     <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
       <b>🔐 Cambiar contraseña</b>
-      <button class="btn sm" id="closeAdminPassModal">✕</button>
+      <button class="btn sm" onclick="closeAdminPassModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -1566,8 +1566,8 @@
         <input id="adminPassConfirm" type="password" placeholder="Repetir nueva contraseña"/>
       </div>
       <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px">
-        <button class="btn ghost" id="adminPassCancelBtn">Cancelar</button>
-        <button class="btn ok" id="adminPassSaveBtn">💾 Guardar</button>
+        <button class="btn ghost" onclick="closeAdminPassModal()">Cancelar</button>
+        <button class="btn ok" onclick="saveAdminPassword()">💾 Guardar</button>
       </div>
     </div>
   </div>
