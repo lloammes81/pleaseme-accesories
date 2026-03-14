@@ -1416,71 +1416,14 @@
             Obtén tu clave en <a href="https://console.cloud.google.com" target="_blank" style="color:var(--gold)">console.cloud.google.com</a> → Places API
           </small>
         </div>
-        <div style="padding:12px;background:rgba(212,175,55,.04);border:1px solid rgba(212,175,55,.12);border-radius:10px">
-          <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--gold);text-transform:uppercase;margin-bottom:10px">
-            📦 Envío — Proveedores de Labels
-          </div>
-          <!-- Pirateship -->
-          <div style="margin-bottom:10px;padding:10px;background:rgba(255,107,0,.04);border:1px solid rgba(255,107,0,.12);border-radius:9px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-              <div style="font-size:11px;font-weight:700;color:#ff6b00">🏴‍☠️ Pirateship <small style="font-weight:400;color:var(--muted)">(recomendado · USPS con descuento)</small></div>
-              <a href="https://www.pirateship.com" target="_blank" style="font-size:9px;color:rgba(255,107,0,.6)">Regístrate gratis →</a>
-            </div>
-            <div id="psCredStatus" style="display:none;margin-bottom:8px;padding:5px 10px;border-radius:7px;
-                 background:rgba(255,107,0,.08);border:1px solid rgba(255,107,0,.2);
-                 font-size:11px;color:#ff6b00;display:flex;align-items:center;gap:6px">
-              ✅ <span id="psCredUser">Credenciales guardadas</span>
-              <button onclick="psClearCreds()" style="margin-left:auto;padding:2px 8px;border-radius:5px;
-                border:1px solid rgba(255,77,109,.3);background:rgba(255,77,109,.08);
-                color:var(--danger);cursor:pointer;font-size:10px">Cambiar</button>
-            </div>
-            <div id="psCredForm">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                <div class="form-group" style="margin:0">
-                  <label>Email de Pirateship</label>
-                  <input id="coPsUser" type="email" placeholder="tu@correo.com" autocomplete="off"/>
-                </div>
-                <div class="form-group" style="margin:0">
-                  <label>API Token</label>
-                  <input id="coPsToken" type="password" placeholder="Token de API" autocomplete="off"/>
-                </div>
-              </div>
-              <small style="color:var(--muted);font-size:10px;margin-top:5px;display:block">
-                Obtén tu token en Pirateship → Settings → API
-              </small>
-            </div>
-          </div>
-          <!-- EasyPost divider -->
-          <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--gold);text-transform:uppercase;margin-bottom:10px">
-            EasyPost (alternativa · USPS, UPS, FedEx, DHL)
-            <a href="https://www.easypost.com/signup" target="_blank"
-               style="font-size:9px;color:rgba(212,175,55,.5);font-weight:400;text-transform:none;margin-left:6px">
-              Regístrate gratis →
-            </a>
-          </div>
-          <div id="epCredStatus" style="display:none;margin-bottom:8px;padding:6px 10px;
-               border-radius:7px;background:rgba(47,227,181,.08);border:1px solid rgba(47,227,181,.2);
-               font-size:11px;color:#2fe3b5;display:flex;align-items:center;gap:6px">
-            ✅ <span id="epCredUser">Credenciales guardadas</span>
-            <button onclick="epClearCreds()" style="margin-left:auto;padding:2px 8px;border-radius:5px;
-              border:1px solid rgba(255,77,109,.3);background:rgba(255,77,109,.08);
-              color:var(--danger);cursor:pointer;font-size:10px">Cambiar</button>
-          </div>
-          <div id="epCredForm">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div class="form-group" style="margin:0">
-                <label>Usuario (email)</label>
-                <input id="coEpUser" type="email" placeholder="tu@correo.com" autocomplete="off"/>
-              </div>
-              <div class="form-group" style="margin:0">
-                <label>Contraseña</label>
-                <input id="coEpPass" type="password" placeholder="••••••••" autocomplete="off"/>
-              </div>
-            </div>
-            <small style="color:var(--muted);font-size:10px;margin-top:6px;display:block">
-              Se guardan de forma segura en tu navegador · Soporta USPS, UPS, FedEx, DHL
-            </small>
-          </div>
+        <div style="padding:12px;background:rgba(212,175,55,.04);border:1px solid rgba(212,175,55,.12);border-radius:10px;display:flex;flex-direction:column;gap:10px;justify-content:center;align-items:center;text-align:center">
+          <div style="font-size:28px">📦</div>
+          <div style="font-size:12px;font-weight:700;color:var(--gold)">Configuración de Envíos</div>
+          <div style="font-size:11px;color:var(--muted);line-height:1.5">Las credenciales de Pirateship y EasyPost se configuran directamente al generar una etiqueta desde un pedido.</div>
+          <button class="btn sm" onclick="openShippingLabelModal(null)"
+            style="background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.4);color:var(--gold)">
+            ⚙️ Configurar Carriers
+          </button>
         </div>
         <div class="form-group">
           <label>Moneda principal</label>
@@ -1546,6 +1489,157 @@
 </div>
 
 <!-- ═══ ADMIN PASSWORD MODAL ═══ -->
+<!-- ═══ SHIPPING LABEL MODAL ═══ -->
+<div class="modal-overlay" id="shippingLabelModal" style="display:none;z-index:9990">
+  <div class="modal" style="max-width:700px;width:95vw">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(47,227,181,.05);border-bottom:1px solid rgba(47,227,181,.15)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">📦</span>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#2fe3b5">Generar Etiqueta de Envío</div>
+          <div id="slmOrderId" style="font-size:11px;color:rgba(47,227,181,.5);margin-top:1px"></div>
+        </div>
+      </div>
+      <button class="btn sm" onclick="closeShippingLabelModal()" style="border-color:rgba(47,227,181,.3);color:rgba(47,227,181,.6)">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+
+      <!-- TABS -->
+      <div style="display:flex;border-bottom:1px solid rgba(255,255,255,.06)">
+        <button class="slm-tab active" data-t="label" onclick="slmTab('label',this)" style="flex:1;padding:10px;font-size:12px;font-weight:600;border:none;background:rgba(47,227,181,.08);color:#2fe3b5;border-bottom:2px solid #2fe3b5;cursor:pointer">📦 Etiqueta</button>
+        <button class="slm-tab" data-t="config" onclick="slmTab('config',this)" style="flex:1;padding:10px;font-size:12px;font-weight:600;border:none;background:transparent;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer">⚙️ Carriers</button>
+      </div>
+
+      <!-- TAB: LABEL -->
+      <div id="slmTabLabel" style="padding:20px;display:flex;flex-direction:column;gap:16px">
+
+        <!-- FROM / TO -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">📤 Remitente</div>
+            <div class="form-group" style="margin-bottom:8px"><label>Nombre / Empresa</label><input id="slmFromName" placeholder="Pleaseme Accessories"/></div>
+            <div class="form-group" style="margin-bottom:8px"><label>Dirección</label><input id="slmFromAddr" placeholder="123 Main St"/></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:6px">
+              <div class="form-group" style="margin:0"><label>Ciudad</label><input id="slmFromCity" placeholder="Miami"/></div>
+              <div class="form-group" style="margin:0"><label>Estado</label><input id="slmFromState" placeholder="FL"/></div>
+              <div class="form-group" style="margin:0"><label>ZIP</label><input id="slmFromZip" placeholder="33101"/></div>
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">📥 Destinatario</div>
+            <div class="form-group" style="margin-bottom:8px"><label>Nombre</label><input id="slmToName" placeholder=""/></div>
+            <div class="form-group" style="margin-bottom:8px"><label>Dirección</label><input id="slmToAddr" placeholder=""/></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:6px">
+              <div class="form-group" style="margin:0"><label>Ciudad</label><input id="slmToCity" placeholder=""/></div>
+              <div class="form-group" style="margin:0"><label>Estado</label><input id="slmToState" placeholder=""/></div>
+              <div class="form-group" style="margin:0"><label>ZIP</label><input id="slmToZip" placeholder=""/></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PACKAGE -->
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">📐 Paquete</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr) 1fr;gap:8px;align-items:end">
+            <div class="form-group" style="margin:0"><label>Peso (oz)</label><input id="slmWeight" type="number" min="0.1" step="0.1" placeholder="8" value="8"/></div>
+            <div class="form-group" style="margin:0"><label>Largo (in)</label><input id="slmL" type="number" min="1" step="0.5" placeholder="10" value="10"/></div>
+            <div class="form-group" style="margin:0"><label>Ancho (in)</label><input id="slmW" type="number" min="1" step="0.5" placeholder="7" value="7"/></div>
+            <div class="form-group" style="margin:0"><label>Alto (in)</label><input id="slmH" type="number" min="1" step="0.5" placeholder="2" value="2"/></div>
+            <div class="form-group" style="margin:0">
+              <label>Carrier</label>
+              <select id="slmCarrier" style="width:100%">
+                <option value="pirateship">🏴‍☠️ Pirateship</option>
+                <option value="easypost">📮 EasyPost</option>
+                <option value="usps">🇺🇸 USPS directo</option>
+                <option value="ups">🟤 UPS directo</option>
+                <option value="fedex">🟣 FedEx directo</option>
+                <option value="manual">✍️ Manual</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- RESULT / TRACKING -->
+        <div id="slmResult" style="display:none;background:rgba(47,227,181,.06);border:1px solid rgba(47,227,181,.25);border-radius:12px;padding:14px">
+          <div style="font-size:12px;font-weight:700;color:#2fe3b5;margin-bottom:8px">✅ Etiqueta generada</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <div>
+              <div style="font-size:10px;color:var(--muted)">Número de rastreo</div>
+              <div id="slmTrackNum" style="font-size:15px;font-weight:700;font-family:monospace;color:#f0dfa0;letter-spacing:1px"></div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--muted)">Carrier</div>
+              <div id="slmTrackCarrier" style="font-size:13px;color:var(--text)"></div>
+            </div>
+            <button id="slmDownloadBtn" class="btn sm" style="margin-left:auto;background:rgba(47,227,181,.12);border-color:rgba(47,227,181,.4);color:#2fe3b5" onclick="slmPrintLabel()">🖨️ Imprimir etiqueta</button>
+          </div>
+        </div>
+
+        <!-- MANUAL TRACKING -->
+        <div id="slmManualSection" style="display:none;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:10px">✍️ Ingresar número de rastreo manualmente</div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end">
+            <div class="form-group" style="margin:0"><label>Número de rastreo</label><input id="slmManualTrack" placeholder="9400111899223397896800"/></div>
+            <button class="btn ok" onclick="slmSaveManualTracking()" style="white-space:nowrap">💾 Guardar y marcar enviado</button>
+          </div>
+        </div>
+
+        <!-- ERROR -->
+        <div id="slmError" style="display:none;padding:10px 14px;border-radius:10px;background:rgba(255,60,60,.1);border:1px solid rgba(255,80,80,.3);color:#ff9f9f;font-size:12px"></div>
+
+        <!-- ACTIONS -->
+        <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+          <div id="slmCarrierLinks" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn ghost" onclick="closeShippingLabelModal()">Cancelar</button>
+            <button id="slmGenBtn" class="btn ok" onclick="slmGenerate()" style="background:linear-gradient(135deg,#1a9e7a,#2fe3b5);border:none;color:#0d0900;font-weight:700">📦 Generar Etiqueta</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: CONFIG -->
+      <div id="slmTabConfig" style="padding:20px;display:none;flex-direction:column;gap:16px">
+        <div style="background:rgba(255,107,0,.04);border:1px solid rgba(255,107,0,.15);border-radius:12px;padding:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:700;color:#ff6b00">🏴‍☠️ Pirateship</div>
+            <a href="https://www.pirateship.com" target="_blank" style="font-size:10px;color:rgba(255,107,0,.6)">Regístrate gratis →</a>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group" style="margin:0"><label>Email</label><input id="slmPsUser" type="email" placeholder="tu@correo.com" autocomplete="off"/></div>
+            <div class="form-group" style="margin:0"><label>API Token</label><input id="slmPsToken" type="password" placeholder="Token de Pirateship" autocomplete="new-password"/></div>
+          </div>
+          <small style="color:var(--muted);font-size:10px;margin-top:6px;display:block">Pirateship → Settings → API Keys</small>
+        </div>
+        <div style="background:rgba(47,227,181,.04);border:1px solid rgba(47,227,181,.15);border-radius:12px;padding:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:700;color:#2fe3b5">📮 EasyPost</div>
+            <a href="https://www.easypost.com/signup" target="_blank" style="font-size:10px;color:rgba(47,227,181,.5)">Regístrate gratis →</a>
+          </div>
+          <div class="form-group" style="margin:0"><label>API Key</label><input id="slmEpKey" type="password" placeholder="EZAKxxxxxxxxx" autocomplete="new-password"/></div>
+          <small style="color:var(--muted);font-size:10px;margin-top:6px;display:block">EasyPost → Account → API Keys → Test/Production Key</small>
+        </div>
+        <div style="background:rgba(212,175,55,.04);border:1px solid rgba(212,175,55,.12);border-radius:12px;padding:16px">
+          <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:10px">🏠 Dirección remitente por defecto</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="form-group" style="margin:0"><label>Nombre / Empresa</label><input id="slmCfgFromName" placeholder="Pleaseme Accessories"/></div>
+            <div class="form-group" style="margin:0"><label>Dirección</label><input id="slmCfgFromAddr" placeholder="123 Main St"/></div>
+            <div class="form-group" style="margin:0"><label>Ciudad</label><input id="slmCfgFromCity" placeholder="Miami"/></div>
+            <div style="display:grid;grid-template-columns:1fr 80px;gap:6px">
+              <div class="form-group" style="margin:0"><label>Estado</label><input id="slmCfgFromState" placeholder="FL"/></div>
+              <div class="form-group" style="margin:0"><label>ZIP</label><input id="slmCfgFromZip" placeholder="33101"/></div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn ghost" onclick="closeShippingLabelModal()">Cancelar</button>
+          <button class="btn ok" onclick="slmSaveConfig()">💾 Guardar configuración</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- ═══ PENDING ALERT MODAL ═══ -->
 <div class="modal-overlay" id="pendingAlertModal" style="display:none;z-index:9999">
   <div class="modal" style="max-width:480px;border:1.5px solid rgba(245,166,35,.4);box-shadow:0 0 60px rgba(245,166,35,.15)">
@@ -4076,7 +4170,7 @@ function generateInvoice(){
 function generateLabel(){
   const id = window.__activeOrderId || currentOrderId;
   if(!id){ toast('No hay pedido activo.','warn'); return; }
-  quickLabel(id);
+  openShippingLabelModal(id);
 }
 function confirmAndLabel(){
   const id = window.__activeOrderId || currentOrderId;
@@ -4085,7 +4179,7 @@ function confirmAndLabel(){
   o.status = 'procesando';
   persist(); renderOrders();
   toast('✅ Pedido confirmado como "procesando"','ok');
-  setTimeout(()=>quickLabel(id), 300);
+  setTimeout(()=>openShippingLabelModal(id), 300);
 }
 // Precarga logo como base64 para jsPDF
 async function _loadLogoBase64(){
@@ -5648,6 +5742,241 @@ function abrirVentanaFacturacionDesdeModal(){
 window.abrirVentanaFacturacionDesdeModal = abrirVentanaFacturacionDesdeModal;
 
 window.saveAndPrintInvoice = saveAndPrintInvoice;
+
+// ══════════════════════════════════════════════════════════════
+//  SHIPPING LABEL MODAL
+// ══════════════════════════════════════════════════════════════
+const LS_SHIP_CFG = 'pm_ship_cfg_v1';
+let _slmOrderId = null;
+
+function _slmLoadCfg(){ try{ return JSON.parse(localStorage.getItem(LS_SHIP_CFG)||'{}'); }catch{ return {}; } }
+function _slmSaveCfg(cfg){ localStorage.setItem(LS_SHIP_CFG, JSON.stringify(cfg)); }
+function _sv(id,val){ const el=document.getElementById(id); if(el) el.value=val; }
+function _gv(id){ return (document.getElementById(id)?.value||'').trim(); }
+
+function openShippingLabelModal(orderId){
+  _slmOrderId = orderId || null;
+  const cfg = _slmLoadCfg();
+  const o = orderId ? (DB.orders||[]).find(x=>x.id===orderId) : null;
+  const co = getCompanyInfo();
+
+  const hdr = document.getElementById('slmOrderId');
+  if(hdr) hdr.textContent = o ? 'Pedido ' + o.id : 'Configuración de envíos';
+
+  _sv('slmFromName',  cfg.fromName  || co.name || 'Pleaseme Accessories');
+  _sv('slmFromAddr',  cfg.fromAddr  || co.address || '');
+  _sv('slmFromCity',  cfg.fromCity  || '');
+  _sv('slmFromState', cfg.fromState || '');
+  _sv('slmFromZip',   cfg.fromZip   || '');
+
+  if(o){
+    // Try to parse address parts from full address string
+    const fullAddr = o.address || o.clientAddress || '';
+    _sv('slmToName',  o.clientName  || o.name || '');
+    _sv('slmToAddr',  fullAddr);
+    _sv('slmToCity',  o.city  || o.clientCity  || '');
+    _sv('slmToState', o.state || o.clientState || '');
+    _sv('slmToZip',   o.zip   || o.clientZip   || o.postal_code || '');
+  } else {
+    ['slmToName','slmToAddr','slmToCity','slmToState','slmToZip'].forEach(id=>_sv(id,''));
+  }
+
+  _sv('slmPsUser',       cfg.psUser    || '');
+  _sv('slmPsToken',      cfg.psToken   || '');
+  _sv('slmEpKey',        cfg.epKey     || '');
+  _sv('slmCfgFromName',  cfg.fromName  || co.name || '');
+  _sv('slmCfgFromAddr',  cfg.fromAddr  || co.address || '');
+  _sv('slmCfgFromCity',  cfg.fromCity  || '');
+  _sv('slmCfgFromState', cfg.fromState || '');
+  _sv('slmCfgFromZip',   cfg.fromZip   || '');
+
+  ['slmResult','slmManualSection','slmError'].forEach(id=>{
+    const e=document.getElementById(id); if(e) e.style.display='none';
+  });
+
+  slmTab('label', document.querySelector('.slm-tab[data-t="label"]'));
+  _slmUpdateCarrierLinks();
+  document.getElementById('shippingLabelModal').style.display='flex';
+}
+
+function closeShippingLabelModal(){
+  document.getElementById('shippingLabelModal').style.display='none';
+  _slmOrderId=null;
+}
+
+function slmTab(name, btn){
+  document.querySelectorAll('.slm-tab').forEach(b=>{
+    b.style.background='transparent'; b.style.color='var(--muted)'; b.style.borderBottom='2px solid transparent';
+  });
+  if(btn){ btn.style.background='rgba(47,227,181,.08)'; btn.style.color='#2fe3b5'; btn.style.borderBottom='2px solid #2fe3b5'; }
+  const label=document.getElementById('slmTabLabel');
+  const config=document.getElementById('slmTabConfig');
+  if(label){ label.style.display=name==='label'?'flex':'none'; label.style.flexDirection='column'; }
+  if(config){ config.style.display=name==='config'?'flex':'none'; config.style.flexDirection='column'; }
+}
+
+function _slmUpdateCarrierLinks(){
+  const carrier=_gv('slmCarrier')||'pirateship';
+  const links=document.getElementById('slmCarrierLinks'); if(!links) return;
+  const map={
+    pirateship:{label:'🏴‍☠️ Pirateship',url:'https://ship.pirateship.com/create',color:'#ff6b00'},
+    easypost:  {label:'📮 EasyPost',    url:'https://www.easypost.com/shipments', color:'#2fe3b5'},
+    usps:      {label:'🇺🇸 USPS',       url:'https://cns.usps.com',               color:'#4a90e2'},
+    ups:       {label:'🟤 UPS',         url:'https://www.ups.com/ship',           color:'#c8a86b'},
+    fedex:     {label:'🟣 FedEx',       url:'https://www.fedex.com/en-us/shipping.html', color:'#9b72cf'},
+    manual:    null,
+  };
+  const info=map[carrier];
+  links.innerHTML=info
+    ? `<a href="${info.url}" target="_blank" class="btn sm" style="background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12);color:${info.color};text-decoration:none">🔗 Abrir ${info.label}</a>`
+    : '';
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const sel=document.getElementById('slmCarrier');
+  if(sel) sel.addEventListener('change',()=>{
+    _slmUpdateCarrierLinks();
+    const ms=document.getElementById('slmManualSection');
+    if(ms) ms.style.display=sel.value==='manual'?'block':'none';
+  });
+});
+
+async function slmGenerate(){
+  const carrier=_gv('slmCarrier');
+  const cfg=_slmLoadCfg();
+  const errEl=document.getElementById('slmError');
+  if(errEl){errEl.style.display='none'; errEl.textContent='';}
+
+  if(!_gv('slmToName')||!_gv('slmToAddr')){
+    if(errEl){errEl.textContent='⚠️ Completa la dirección del destinatario.'; errEl.style.display='block';} return;
+  }
+  if(carrier==='manual'){
+    const ms=document.getElementById('slmManualSection'); if(ms) ms.style.display='block'; return;
+  }
+
+  const btn=document.getElementById('slmGenBtn');
+  if(btn){btn.textContent='Procesando…'; btn.disabled=true;}
+  try{
+    let result=null;
+    if(carrier==='easypost' && cfg.epKey){
+      result=await _slmEasyPost(cfg.epKey);
+    } else {
+      // No API → show manual + carrier link
+      if(errEl){errEl.textContent='ℹ️ No hay API key configurada para '+carrier+'. Usa el enlace para crear la etiqueta externamente, luego ingresa el número de rastreo.'; errEl.style.display='block';}
+      const ms=document.getElementById('slmManualSection'); if(ms) ms.style.display='block';
+      _slmUpdateCarrierLinks(); return;
+    }
+    if(result?.tracking){
+      _slmShowResult(result.tracking, result.carrier||carrier, result.labelUrl||null);
+      _slmMarkSent(result.tracking, result.carrier||carrier);
+    } else { throw new Error(result?.error||'Respuesta inválida'); }
+  }catch(e){
+    if(errEl){errEl.textContent='❌ '+e.message+'. Ingresa el rastreo manualmente.'; errEl.style.display='block';}
+    const ms=document.getElementById('slmManualSection'); if(ms) ms.style.display='block';
+  }finally{
+    if(btn){btn.textContent='📦 Generar Etiqueta'; btn.disabled=false;}
+  }
+}
+
+async function _slmEasyPost(apiKey){
+  const from={name:_gv('slmFromName'),street1:_gv('slmFromAddr'),city:_gv('slmFromCity'),state:_gv('slmFromState'),zip:_gv('slmFromZip'),country:'US'};
+  const to  ={name:_gv('slmToName'), street1:_gv('slmToAddr'), city:_gv('slmToCity'), state:_gv('slmToState'), zip:_gv('slmToZip'), country:'US'};
+  const parcel={weight:parseFloat(_gv('slmWeight')||'8'),length:parseFloat(_gv('slmL')||'10'),width:parseFloat(_gv('slmW')||'7'),height:parseFloat(_gv('slmH')||'2')};
+  const auth='Basic '+btoa(apiKey+':');
+
+  const sR=await fetch('https://api.easypost.com/v2/shipments',{method:'POST',headers:{Authorization:auth,'Content-Type':'application/json'},body:JSON.stringify({shipment:{from_address:from,to_address:to,parcel}})});
+  if(!sR.ok) throw new Error('EasyPost: '+(await sR.text()).slice(0,120));
+  const ship=await sR.json();
+  const rates=(ship.rates||[]).sort((a,b)=>parseFloat(a.rate)-parseFloat(b.rate));
+  if(!rates.length) throw new Error('EasyPost: sin tarifas disponibles');
+
+  const bR=await fetch('https://api.easypost.com/v2/shipments/'+ship.id+'/buy',{method:'POST',headers:{Authorization:auth,'Content-Type':'application/json'},body:JSON.stringify({rate:{id:rates[0].id}})});
+  if(!bR.ok) throw new Error('EasyPost buy: '+(await bR.text()).slice(0,120));
+  const bought=await bR.json();
+  return{tracking:bought.tracking_code, carrier:bought.selected_rate?.carrier||'EasyPost', labelUrl:bought.postage_label?.label_url||null};
+}
+
+function _slmShowResult(tracking, carrier, labelUrl){
+  const res=document.getElementById('slmResult');
+  const tn =document.getElementById('slmTrackNum');
+  const tc =document.getElementById('slmTrackCarrier');
+  const db =document.getElementById('slmDownloadBtn');
+  if(tn) tn.textContent=tracking;
+  if(tc) tc.textContent=carrier;
+  if(db){db.style.display=labelUrl?'inline-flex':'none'; if(labelUrl) db.onclick=()=>window.open(labelUrl,'_blank');}
+  if(res) res.style.display='block';
+}
+
+function _slmMarkSent(tracking, carrier){
+  if(!_slmOrderId) return;
+  const idx=(DB.orders||[]).findIndex(o=>o.id===_slmOrderId); if(idx<0) return;
+  Object.assign(DB.orders[idx],{status:'enviado',tracking_number:tracking,tracking_carrier:carrier,shipped_at:new Date().toISOString()});
+  try{
+    fetch(SB_URL+'/rest/v1/pedidos?id=eq.'+encodeURIComponent(_slmOrderId),{
+      method:'PATCH', headers:{...SB_H,'Content-Type':'application/json'},
+      body:JSON.stringify({status:'enviado'})
+    });
+  }catch(e){}
+  persist(); renderOrders(); renderFacturas(); updateCounts();
+  toast('✅ Pedido marcado como ENVIADO — tracking: '+tracking,'ok');
+  addNotif('order','✈️','Pedido enviado','#'+_slmOrderId+' — '+carrier+': '+tracking);
+}
+
+function slmSaveManualTracking(){
+  const tracking=_gv('slmManualTrack');
+  if(!tracking){toast('Ingresa el número de rastreo.','warn'); return;}
+  const carrier=_gv('slmCarrier')||'manual';
+  _slmShowResult(tracking, carrier, null);
+  _slmMarkSent(tracking, carrier);
+  const ms=document.getElementById('slmManualSection'); if(ms) ms.style.display='none';
+}
+
+function slmPrintLabel(){
+  const tracking=document.getElementById('slmTrackNum')?.textContent||'';
+  const carrier =document.getElementById('slmTrackCarrier')?.textContent||'';
+  const o=_slmOrderId?(DB.orders||[]).find(x=>x.id===_slmOrderId):null;
+  const from=[_gv('slmFromName'),_gv('slmFromAddr'),_gv('slmFromCity')+' '+_gv('slmFromState')+' '+_gv('slmFromZip')].filter(Boolean).join('\n');
+  const to  =[_gv('slmToName'), _gv('slmToAddr'), _gv('slmToCity')+' '+_gv('slmToState')+' '+_gv('slmToZip')].filter(Boolean).join('\n');
+  const co  =getCompanyInfo();
+  const html=`<!DOCTYPE html><html><head><title>Etiqueta</title><style>
+    *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;padding:20px;background:#fff;color:#000}
+    .label{width:4in;min-height:6in;border:3px solid #000;padding:16px;margin:0 auto}
+    .logo{font-size:20px;font-weight:900;text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:12px}
+    .sec{margin-bottom:14px;padding-bottom:14px;border-bottom:1px dashed #888}
+    .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px}
+    .val{font-size:13px;font-weight:700;white-space:pre-line}
+    .track{font-size:16px;font-weight:900;letter-spacing:2px;text-align:center;padding:10px;border:2px solid #000;margin-top:10px;word-break:break-all}
+    .car{font-size:11px;text-align:center;margin-top:4px;font-weight:600}
+    @media print{button{display:none}}
+  </style></head><body>
+  <div class="label">
+    <div class="logo">${co.name||'Pleaseme'}</div>
+    <div class="sec"><div class="lbl">DE:</div><div class="val">${from}</div></div>
+    <div class="sec"><div class="lbl">PARA:</div><div class="val">${to}</div></div>
+    ${o?'<div class="sec"><div class="lbl">Pedido</div><div class="val">'+o.id+'</div></div>':''}
+    <div class="lbl" style="margin-top:10px">Número de rastreo</div>
+    <div class="track">${tracking}</div>
+    <div class="car">${carrier}</div>
+  </div>
+  <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">🖨️ Imprimir</button></div>
+  </body></html>`;
+  const w=window.open('','_blank','width=500,height=700');
+  if(w){w.document.write(html);w.document.close();}
+}
+
+function slmSaveConfig(){
+  const cfg={
+    psUser:_gv('slmPsUser'),psToken:_gv('slmPsToken'),epKey:_gv('slmEpKey'),
+    fromName:_gv('slmCfgFromName'),fromAddr:_gv('slmCfgFromAddr'),
+    fromCity:_gv('slmCfgFromCity'),fromState:_gv('slmCfgFromState'),fromZip:_gv('slmCfgFromZip'),
+  };
+  _slmSaveCfg(cfg);
+  if(cfg.psToken){CFG.psToken=cfg.psToken; CFG.psUser=cfg.psUser;}
+  if(cfg.epKey)  CFG.epKey=cfg.epKey;
+  toast('✅ Configuración de envíos guardada.','ok');
+  slmTab('label', document.querySelector('.slm-tab[data-t="label"]'));
+}
+window.openShippingLabelModal = openShippingLabelModal;
 
 
 </script>
