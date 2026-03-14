@@ -34,7 +34,7 @@ header{position:sticky;top:0;z-index:10000;isolation:isolate;background:rgba(3,3
 .ni:hover .nb,.nb.act{color:var(--g2)}.ni:hover .nb::after,.nb.act::after{left:13px;right:13px}
 .narr{font-size:8px;transition:transform .2s;opacity:.6}.ni:hover .narr{transform:rotate(180deg)}
 /* ── DROPDOWNS ── */
-.dd{position:absolute;top:100%;left:50%;transform:translateX(-50%) translateY(10px);min-width:210px;background:rgba(5,4,1,.98);border:1px solid var(--l2);border-radius:14px;box-shadow:0 28px 60px rgba(0,0,0,.7);padding:10px;opacity:0;visibility:hidden;transition:all .22s cubic-bezier(.2,.8,.3,1);pointer-events:none;z-index:300}
+.dd{position:absolute;top:100%;left:50%;transform:translateX(-50%) translateY(10px);min-width:210px;background:rgba(5,4,1,.98);border:1px solid var(--l2);border-radius:14px;box-shadow:0 28px 60px rgba(0,0,0,.7);padding:10px;padding-top:18px;margin-top:-8px;opacity:0;visibility:hidden;transition:all .22s cubic-bezier(.2,.8,.3,1);pointer-events:none;z-index:300}
 .ni:hover .dd{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);pointer-events:auto}
 .dd::before{content:"";position:absolute;top:-6px;left:50%;width:12px;height:12px;background:rgba(5,4,1,.98);border-left:1px solid var(--l2);border-top:1px solid var(--l2);transform:translateX(-50%) rotate(45deg)}
 .dd.wide{min-width:420px;left:0;transform:translateX(0) translateY(10px)}.ni:hover .dd.wide{transform:translateX(0) translateY(0)}
@@ -273,19 +273,18 @@ footer{position:relative;z-index:1;border-top:1px solid var(--ln);margin-top:40p
     <div class="ni">
       <button class="nb" id="nav-shop">Shop <span class="narr">&#9662;</span></button>
       <div class="dd wide">
-        <div class="ddh">Collections</div>
+        <div class="ddh">Colecciones</div>
         <div class="ddg">
-          <div class="ddi" onclick="filterAndShow('Necklaces')"><span class="ddi-i">&#128253;</span><div><div>Necklaces</div><span class="ddi-s">Chains &amp; pendants</span></div></div>
-          <div class="ddi" onclick="filterAndShow('Rings')"><span class="ddi-i">&#128141;</span><div><div>Rings</div><span class="ddi-s">Statement &amp; stacking</span></div></div>
-          <div class="ddi" onclick="filterAndShow('Bracelets')"><span class="ddi-i">&#10024;</span><div><div>Bracelets</div><span class="ddi-s">Bangles &amp; chains</span></div></div>
-          <div class="ddi" onclick="filterAndShow('Earrings')"><span class="ddi-i">&#128302;</span><div><div>Earrings</div><span class="ddi-s">Hoops &amp; studs</span></div></div>
-          <div class="ddi" onclick="filterAndShow('Sets')"><span class="ddi-i">&#127873;</span><div><div>Sets</div><span class="ddi-s">Matching collections</span></div></div>
-          <div class="ddi" onclick="filterAndShow('Anklets')"><span class="ddi-i">&#129419;</span><div><div>Anklets</div><span class="ddi-s">Delicate &amp; bold</span></div></div>
-          <div class="ddi" onclick="filterAndShow('Charms')"><span class="ddi-i">&#127775;</span><div><div>Charms</div><span class="ddi-s">Mix &amp; layer</span></div></div>
-          <div class="ddi" onclick="filterAndShow('Pendants')"><span class="ddi-i">&#129683;</span><div><div>Pendants</div><span class="ddi-s">Gold &amp; crystal</span></div></div>
+          <div class="ddi" onclick="filterAndShow('Collares')"><span class="ddi-i">&#128253;</span><div><div>Collares</div><span class="ddi-s">Cadenas &amp; colgantes</span></div></div>
+          <div class="ddi" onclick="filterAndShow('Anillos')"><span class="ddi-i">&#128141;</span><div><div>Anillos</div><span class="ddi-s">Clásicos &amp; modernos</span></div></div>
+          <div class="ddi" onclick="filterAndShow('Pulseras')"><span class="ddi-i">&#10024;</span><div><div>Pulseras</div><span class="ddi-s">Cadenas &amp; brazaletes</span></div></div>
+          <div class="ddi" onclick="filterAndShow('Aretes')"><span class="ddi-i">&#128302;</span><div><div>Aretes</div><span class="ddi-s">Argollas &amp; colgantes</span></div></div>
+          <div class="ddi" onclick="filterAndShow('Sets')"><span class="ddi-i">&#127873;</span><div><div>Sets</div><span class="ddi-s">Colecciones combinadas</span></div></div>
+          <div class="ddi" onclick="filterAndShow('Tobilleras')"><span class="ddi-i">&#129419;</span><div><div>Tobilleras</div><span class="ddi-s">Delicadas &amp; llamativas</span></div></div>
+          <div class="ddi" onclick="filterAndShow('Charms')"><span class="ddi-i">&#127775;</span><div><div>Charms</div><span class="ddi-s">Mezcla &amp; combina</span></div></div>
         </div>
         <div class="ddiv"></div>
-        <div class="ddi" onclick="filterAndShow('')" style="color:var(--g2)"><span class="ddi-i">&#127991;</span><div>View All Jewellery</div></div>
+        <div class="ddi" onclick="filterAndShow('')" style="color:var(--g2)"><span class="ddi-i">&#127991;</span><div>Ver Toda la Joyería</div></div>
       </div>
     </div>
     <div class="ni">
@@ -341,14 +340,14 @@ footer{position:relative;z-index:1;border-top:1px solid var(--ln);margin-top:40p
     <div class="mni" onclick="show('home');closeMob()"><span id="mnav-home">Inicio</span></div>
     <div class="mni" onclick="this.nextElementSibling.classList.toggle('open')"><span id="mnav-shop">Tienda</span><span>&#9662;</span></div>
     <div class="mnsub">
-      <div class="mnsi" onclick="filterAndShow('Necklaces');closeMob()">Necklaces</div>
-      <div class="mnsi" onclick="filterAndShow('Rings');closeMob()">Rings</div>
-      <div class="mnsi" onclick="filterAndShow('Bracelets');closeMob()">Bracelets</div>
-      <div class="mnsi" onclick="filterAndShow('Earrings');closeMob()">Earrings</div>
+      <div class="mnsi" onclick="filterAndShow('Collares');closeMob()">Collares</div>
+      <div class="mnsi" onclick="filterAndShow('Anillos');closeMob()">Anillos</div>
+      <div class="mnsi" onclick="filterAndShow('Pulseras');closeMob()">Pulseras</div>
+      <div class="mnsi" onclick="filterAndShow('Aretes');closeMob()">Aretes</div>
       <div class="mnsi" onclick="filterAndShow('Sets');closeMob()">Sets</div>
-      <div class="mnsi" onclick="filterAndShow('Anklets');closeMob()">Anklets</div>
+      <div class="mnsi" onclick="filterAndShow('Tobilleras');closeMob()">Tobilleras</div>
       <div class="mnsi" onclick="filterAndShow('Charms');closeMob()">Charms</div>
-      <div class="mnsi" onclick="filterAndShow('');closeMob()">View All</div>
+      <div class="mnsi" onclick="filterAndShow('');closeMob()">Ver Todo</div>
     </div>
     <div class="mni" onclick="this.nextElementSibling.classList.toggle('open')"><span id="mnav-byo">Crea el Tuyo</span><span>&#9662;</span></div>
     <div class="mnsub">
@@ -510,7 +509,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--ln);margin-top:40p
 <div class="wrap">
   <div class="fg">
     <div class="fb-brand"><div class="logog" style="width:36px;height:36px;font-size:17px">P</div><div class="bname" style="margin:10px 0 4px">Pleaseme</div><p id="footerDesc">Joyería de Oro Laminado premium. Resistente al agua, sin manchas. Diseñada para quienes saben lo que valen.</p><div class="fpay"><span class="fpb">&#128179; Card</span><span class="fpb">&#127856; PayPal</span><span class="fpb">&#128172; WhatsApp</span></div></div>
-    <div><div class="fct" id="footShopTitle">Tienda</div><span class="fl" onclick="filterAndShow('Necklaces')">Necklaces</span><span class="fl" onclick="filterAndShow('Rings')">Rings</span><span class="fl" onclick="filterAndShow('Bracelets')">Bracelets</span><span class="fl" onclick="filterAndShow('Earrings')">Earrings</span><span class="fl" onclick="filterAndShow('Sets')">Sets</span><span class="fl" onclick="filterAndShow('')">View All</span></div>
+    <div><div class="fct" id="footShopTitle">Tienda</div><span class="fl" onclick="filterAndShow('Collares')">Collares</span><span class="fl" onclick="filterAndShow('Anillos')">Anillos</span><span class="fl" onclick="filterAndShow('Pulseras')">Pulseras</span><span class="fl" onclick="filterAndShow('Aretes')">Aretes</span><span class="fl" onclick="filterAndShow('Sets')">Sets</span><span class="fl" onclick="filterAndShow('')">Ver Todo</span></div>
     <div><div class="fct" id="footHelpTitle">Ayuda</div><span class="fl" onclick="show('contact')">Shipping Info</span><span class="fl" onclick="show('contact')">Returns</span><span class="fl" onclick="show('byo')">Build Your Own</span><span class="fl" onclick="show('pers')">Trending</span><a class="fl" href="account.html">My Account</a></div>
     <div><div class="fct" id="footContactTitle">Contacto</div><span class="fl" onclick="openWA('')">&#128172; WhatsApp</span><span class="fl">&#128231; <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="157d7079797a5565797074667078703b767a78">[email&#160;protected]</a></span><span class="fl">Instagram &middot; @pleasemejewels</span></div>
   </div>
