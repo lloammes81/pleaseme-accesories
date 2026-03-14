@@ -257,6 +257,28 @@
         <div id="rToast" class="toast"></div>
         <button class="btn-primary" id="btnRegister">✓ Crear mi cuenta</button>
       </div>
+
+      <!-- VERIFY EMAIL -->
+      <div id="panelVerify" style="display:none">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:36px;margin-bottom:10px">📧</div>
+          <p style="color:var(--gold2);font-size:15px;font-weight:600;letter-spacing:.5px">Verifica tu correo</p>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6">Ingresa el código de 6 dígitos enviado a<br/><strong id="verifyEmailDisplay" style="color:var(--gold2)"></strong></p>
+        </div>
+        <div class="field">
+          <label>Código de verificación</label>
+          <input id="verifyCode" type="text" inputmode="numeric" placeholder="000000" maxlength="6"
+            style="text-align:center;letter-spacing:10px;font-size:22px;font-family:monospace"
+            oninput="this.value=this.value.replace(/\D/g,'')"/>
+        </div>
+        <div id="vToast" class="toast"></div>
+        <button class="btn-primary" id="btnVerify">✓ Verificar cuenta</button>
+        <button class="btn-ghost" id="btnResendCode" style="width:100%;margin-top:10px;text-align:center">↺ Reenviar código</button>
+        <div id="verifyDemoBox" style="margin-top:16px;padding:14px;background:rgba(47,227,181,.05);border:1px solid rgba(47,227,181,.15);border-radius:12px;display:none">
+          <p style="font-size:10px;color:rgba(47,227,181,.5);margin-bottom:6px;text-align:center;letter-spacing:.5px">CÓDIGO GENERADO (demo)</p>
+          <p id="verifyDemoCode" style="font-size:24px;letter-spacing:10px;text-align:center;color:#7af0d4;font-weight:600;font-family:monospace"></p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -551,18 +573,31 @@ G('btnRegister').addEventListener('click', async ()=>{
       created_at:now, updated_at:now
     };
 
-    await sbPOST('clientes',{id,email,name,record,created_at:now});
+    // Generate 6-digit verification code (valid 15 minutes)
+    const vCode = String(Math.floor(100000 + Math.random() * 900000));
+    const vExpires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const recordWithVerify = { ...record, email_verified: false, verification_code: vCode, verification_expires_at: vExpires };
+
+    await sbPOST('clientes',{id,email,name,record:recordWithVerify,created_at:now});
 
     // Limpiar campos
     ['rName','rUsername','rEmail','rPhone','rPass','rPass2'].forEach(id=>{ const el=G(id); if(el) el.value=''; });
     const hint=G('rUsernameCheck'); if(hint) hint.textContent='';
 
-    // Guardar sesión
-    const session = {id,name,username,email,phone,shipping_address:'',billing_address:'',same_billing:true,preferred_payment:'card',created_at:now};
+    // Guardar sesión (sin marcar como logueado hasta verificar)
+    const session = {id,name,username,email,phone,shipping_address:'',billing_address:'',same_billing:true,preferred_payment:'card',created_at:now,email_verified:false};
     saveSession(session);
 
-    showToast('rToast','✓ ¡Cuenta creada! Bienvenida, @'+username+' ✨','ok');
-    setTimeout(()=>window.location.href='index.html', 1800);
+    // Guardar verificación pendiente
+    localStorage.setItem('pm_pending_verify', JSON.stringify({id, email, username}));
+
+    // Mostrar panel de verificación
+    G('panelRegister').style.display = 'none';
+    G('panelVerify').style.display   = 'block';
+    const emailDisp = G('verifyEmailDisplay'); if(emailDisp) emailDisp.textContent = email;
+    const demoCode  = G('verifyDemoCode');     if(demoCode)  demoCode.textContent  = vCode;
+    const demoBox   = G('verifyDemoBox');      if(demoBox)   demoBox.style.display = 'block';
+    showToast('rToast','✓ Cuenta creada. Verifica tu correo para continuar.','ok');
 
   }catch(e){
     showToast('rToast','Error: '+e.message,'err');
@@ -592,6 +627,24 @@ G('btnLogin').addEventListener('click', async ()=>{
     const hash = btoa(unescape(encodeURIComponent(pass)));
     if(rec.password_hash !== hash){ showToast('lToast','Contraseña incorrecta.','err'); return; }
 
+    // Check email verification
+    if(rec.email_verified === false){
+      // Generate new code and show verify panel
+      const vCode    = String(Math.floor(100000 + Math.random() * 900000));
+      const vExpires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      try{ await sbPATCH('clientes','id=eq.'+encodeURIComponent(data.id),{record:{...rec,verification_code:vCode,verification_expires_at:vExpires}}); }catch(e){}
+      localStorage.setItem('pm_pending_verify', JSON.stringify({id:data.id, email, username:rec.username||''}));
+      const session2 = {id:data.id,name:rec.name||email,username:rec.username||'',email,phone:rec.phone||'',shipping_address:'',billing_address:'',same_billing:true,preferred_payment:'card',created_at:rec.created_at,email_verified:false};
+      saveSession(session2);
+      G('panelLogin').style.display  = 'none';
+      G('panelVerify').style.display = 'block';
+      const emailDisp = G('verifyEmailDisplay'); if(emailDisp) emailDisp.textContent = email;
+      const demoCode  = G('verifyDemoCode');     if(demoCode)  demoCode.textContent  = vCode;
+      const demoBox   = G('verifyDemoBox');      if(demoBox)   demoBox.style.display = 'block';
+      showToast('lToast','⚠ Debes verificar tu correo antes de continuar.','warn');
+      return;
+    }
+
     const session = {
       id:       data.id,
       name:     rec.name||email,
@@ -616,6 +669,83 @@ G('btnLogin').addEventListener('click', async ()=>{
     console.error('[SB] login:',e);
   }finally{
     btn.textContent='→ Entrar'; btn.disabled=false;
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  AUTH — VERIFICACIÓN DE CORREO
+// ════════════════════════════════════════════════════════
+G('btnVerify')?.addEventListener('click', async ()=>{
+  const code    = (G('verifyCode')?.value||'').trim();
+  const pending = JSON.parse(localStorage.getItem('pm_pending_verify')||'null');
+
+  if(!code||code.length!==6){ showToast('vToast','Ingresa el código de 6 dígitos.','err'); return; }
+  if(!pending){ showToast('vToast','No hay verificación pendiente. Inicia sesión de nuevo.','err'); return; }
+
+  const btn = G('btnVerify'); btn.textContent='Verificando...'; btn.disabled=true;
+  try{
+    const rows = await sbGET('clientes?id=eq.'+encodeURIComponent(pending.id)+'&select=id,email,name,record&limit=1');
+    if(!rows||!rows.length){ showToast('vToast','Error al verificar la cuenta.','err'); return; }
+    const rec = rows[0].record||{};
+
+    if(rec.verification_expires_at && new Date(rec.verification_expires_at)<new Date()){
+      showToast('vToast','El código expiró. Solicita uno nuevo.','warn'); return;
+    }
+    if(rec.verification_code !== code){ showToast('vToast','Código incorrecto. Inténtalo de nuevo.','err'); return; }
+
+    // Mark as verified
+    const updatedRec = {...rec, email_verified:true, verification_code:null, verification_expires_at:null, updated_at:new Date().toISOString()};
+    await sbPATCH('clientes','id=eq.'+encodeURIComponent(pending.id),{record:updatedRec});
+
+    // Update session and log in
+    const s = getSession()||{};
+    const fullSession = {
+      id:pending.id, name:updatedRec.name||rows[0].email,
+      username:updatedRec.username||pending.username||'',
+      email:rows[0].email||pending.email,
+      phone:updatedRec.phone||'',
+      shipping_address:updatedRec.shipping_address||'',
+      billing_address:updatedRec.billing_address||'',
+      same_billing:updatedRec.same_billing!==false,
+      preferred_payment:updatedRec.preferred_payment||'card',
+      paypal_email:updatedRec.paypal_email||'',
+      created_at:updatedRec.created_at,
+      email_verified:true
+    };
+    saveSession(fullSession);
+    localStorage.setItem('pleaseme_logged_in_demo', fullSession.email);
+    localStorage.removeItem('pm_pending_verify');
+
+    showToast('vToast','✓ ¡Correo verificado! Bienvenida, '+fullSession.name+' ✨','ok');
+    setTimeout(()=>window.location.href='index.html', 1800);
+  }catch(e){
+    showToast('vToast','Error de conexión. Intenta de nuevo.','err');
+    console.error('[SB] verify:',e);
+  }finally{
+    btn.textContent='✓ Verificar cuenta'; btn.disabled=false;
+  }
+});
+
+G('btnResendCode')?.addEventListener('click', async ()=>{
+  const pending = JSON.parse(localStorage.getItem('pm_pending_verify')||'null');
+  if(!pending){ showToast('vToast','No hay verificación pendiente.','err'); return; }
+
+  const btn = G('btnResendCode'); btn.textContent='Enviando...'; btn.disabled=true;
+  try{
+    const newCode    = String(Math.floor(100000 + Math.random() * 900000));
+    const newExpires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const rows = await sbGET('clientes?id=eq.'+encodeURIComponent(pending.id)+'&select=id,record&limit=1');
+    if(rows&&rows.length){
+      const rec = rows[0].record||{};
+      await sbPATCH('clientes','id=eq.'+encodeURIComponent(pending.id),{record:{...rec,verification_code:newCode,verification_expires_at:newExpires}});
+      const demoCode = G('verifyDemoCode'); if(demoCode) demoCode.textContent = newCode;
+      const demoBox  = G('verifyDemoBox');  if(demoBox)  demoBox.style.display = 'block';
+      showToast('vToast','Código reenviado. Válido por 15 minutos.','ok');
+    }
+  }catch(e){
+    showToast('vToast','Error al reenviar el código.','err');
+  }finally{
+    btn.textContent='↺ Reenviar código'; btn.disabled=false;
   }
 });
 
