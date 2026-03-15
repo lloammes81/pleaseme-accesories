@@ -1649,19 +1649,23 @@
 
       <!-- ── STEP 2: ADDRESSES + PACKAGE + RATES ── -->
       <div class="slm-step" id="slmStep2">
-        <!-- FROM / TO -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px">
-            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">📤 Remitente</div>
-            <div class="form-group" style="margin-bottom:8px"><label>Nombre / Empresa</label><input id="slmFromName" placeholder="Pleaseme Accessories"/></div>
-            <div class="form-group" style="margin-bottom:8px"><label>Dirección</label><input id="slmFromAddr" placeholder="123 Main St"/></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 72px;gap:6px">
-              <div class="form-group" style="margin:0"><label>Ciudad</label><input id="slmFromCity" placeholder="Miami"/></div>
-              <div class="form-group" style="margin:0"><label>Estado</label><input id="slmFromState" placeholder="FL"/></div>
-              <div class="form-group" style="margin:0"><label>ZIP</label><input id="slmFromZip" placeholder="33101"/></div>
-            </div>
+
+        <!-- COMPANY SENDER STRIP (read-only) -->
+        <div id="slmFromStrip" style="display:flex;align-items:center;gap:12px;background:rgba(212,175,55,.05);border:1px solid rgba(212,175,55,.18);border-radius:12px;padding:10px 14px">
+          <img id="slmFromLogo" src="" alt="" style="height:36px;width:auto;max-width:72px;border-radius:6px;object-fit:contain;display:none;background:transparent"/>
+          <div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;margin-bottom:2px">📤 Remitente</div>
+            <div id="slmFromInfo" style="font-size:12px;color:#f8f0da;line-height:1.5"></div>
           </div>
-          <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px">
+        </div>
+
+        <!-- Hidden inputs kept for EasyPost API calls -->
+        <input id="slmFromName"  type="hidden"/><input id="slmFromAddr"  type="hidden"/>
+        <input id="slmFromCity"  type="hidden"/><input id="slmFromState" type="hidden"/>
+        <input id="slmFromZip"   type="hidden"/>
+
+        <!-- DESTINATARIO full width -->
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px">
             <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase">📥 Destinatario</div>
             <!-- Address search -->
             <div style="position:relative">
@@ -1689,7 +1693,6 @@
               </div>
               <iframe id="slmMapFrame" src="" width="100%" height="180" style="border:none;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
             </div>
-          </div>
         </div>
 
         <!-- PACKAGE -->
@@ -6030,12 +6033,23 @@ function openShippingLabelModal(orderId){
   const hdr=document.getElementById('slmOrderId');
   if(hdr) hdr.textContent=o?'Pedido '+o.id:'Configuración de envíos';
 
-  // Pre-fill sender: always use company (Pleaseme) registered data first
+  // Fill hidden sender inputs (used by EasyPost API) from company data
   _sv('slmFromName', co.name||cfg.fromName||'Pleaseme Accessories');
   _sv('slmFromAddr', co.address||cfg.fromAddr||'');
   _sv('slmFromCity', co.city||cfg.fromCity||'');
   _sv('slmFromState',co.state||cfg.fromState||'');
   _sv('slmFromZip',  co.zip||co.postal_code||cfg.fromZip||'');
+
+  // Populate the read-only sender strip with company logo + info
+  const logoEl = document.getElementById('slmFromLogo');
+  const infoEl = document.getElementById('slmFromInfo');
+  const logoSrc = co.logo_data||co.logoUrl||co.logo_url||'';
+  if(logoEl){ if(logoSrc){ logoEl.src=logoSrc; logoEl.style.display='block'; } else { logoEl.style.display='none'; } }
+  if(infoEl){
+    const addrLine = [co.address, [co.city,co.state].filter(Boolean).join(', '), co.zip].filter(Boolean).join(' · ');
+    infoEl.innerHTML = `<span style="font-weight:700">${esc(co.name||'Pleaseme')}</span>`+
+      (addrLine?`<br><span style="color:var(--muted);font-size:11px">${esc(addrLine)}</span>`:'');
+  }
 
   if(o){
     _sv('slmToName',  o.clientName||o.name||'');
@@ -6470,10 +6484,15 @@ function slmPrintLabel(){
         <tr style="border-top:2px solid #000;font-weight:700"><td colspan="2" style="padding:4px">Total</td><td style="text-align:right;padding:4px">$${Number(o?.total||0).toFixed(2)}</td></tr>
       </table>` : '';
 
+  const logoSrc = co.logo_data||co.logoUrl||co.logo_url||'';
+  const logoHtml = logoSrc
+    ? `<img src="${logoSrc}" style="height:48px;width:auto;max-width:120px;object-fit:contain;display:block;margin:0 auto 6px"/>`
+    : '';
   const html=`<!DOCTYPE html><html><head><title>Etiqueta ${o?.id||''}</title><style>
     *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;padding:20px;background:#fff;color:#000}
     .label{width:4in;min-height:6in;border:3px solid #000;padding:16px;margin:0 auto}
-    .logo{font-size:20px;font-weight:900;text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:12px}
+    .logo-wrap{text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:12px}
+    .logo-name{font-size:18px;font-weight:900;margin-top:4px}
     .sec{margin-bottom:14px;padding-bottom:14px;border-bottom:1px dashed #888}
     .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:3px}
     .val{font-size:13px;font-weight:700;white-space:pre-line}
@@ -6482,7 +6501,7 @@ function slmPrintLabel(){
     @media print{.no-print{display:none}}
   </style></head><body>
   <div class="label">
-    <div class="logo">${co.name||'Pleaseme'}</div>
+    <div class="logo-wrap">${logoHtml}<div class="logo-name">${co.name||'Pleaseme'}</div></div>
     <div class="sec"><div class="lbl">DE:</div><div class="val">${from}</div></div>
     <div class="sec"><div class="lbl">PARA:</div><div class="val">${to}</div></div>
     ${o?`<div class="sec"><div class="lbl">Pedido #</div><div class="val">${o.id}</div>
