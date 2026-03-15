@@ -2572,6 +2572,7 @@ async function initDB(){
   showLoader(false);
   renderDashboard(); updateCounts();
   setTimeout(checkPendingAlert, 800);
+  _slmLoadCfgFromSB(); // sync carrier config from Supabase in background
 }
 
 const LS_PRODS  = "pm_products_v1";
@@ -5813,8 +5814,34 @@ let _slmShipId    = null;   // EasyPost shipment id (for buying)
 let _slmPickedRate= null;   // selected rate object
 let _slmLabelUrl  = null;
 
-function _slmLoadCfg(){ try{ return JSON.parse(localStorage.getItem(LS_SHIP_CFG)||'{}'); }catch{ return {}; } }
-function _slmSaveCfg(cfg){ localStorage.setItem(LS_SHIP_CFG, JSON.stringify(cfg)); }
+function _slmLoadCfg(){
+  try{ return JSON.parse(localStorage.getItem(LS_SHIP_CFG)||'{}'); }catch{ return {}; }
+}
+async function _slmSaveCfg(cfg){
+  localStorage.setItem(LS_SHIP_CFG, JSON.stringify(cfg));
+  // Persist to Supabase config table
+  try{
+    await fetch(SB_URL+'/rest/v1/config', {
+      method:'POST',
+      headers:{...SB_H,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify({ key:'shipping_config', value: cfg })
+    });
+  }catch(e){ console.warn('[SB] shipping_config save:', e.message); }
+}
+async function _slmLoadCfgFromSB(){
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/config?key=eq.shipping_config&select=value&limit=1',{headers:SB_H});
+    if(!r.ok) return;
+    const rows=await r.json();
+    if(rows&&rows.length&&rows[0].value){
+      const remote=typeof rows[0].value==='string'?JSON.parse(rows[0].value):rows[0].value;
+      // Merge: remote wins over local
+      const local=_slmLoadCfg();
+      const merged={...local,...remote};
+      localStorage.setItem(LS_SHIP_CFG, JSON.stringify(merged));
+    }
+  }catch(e){ console.warn('[SB] shipping_config load:', e.message); }
+}
 function _sv(id,val){ const el=document.getElementById(id); if(el) el.value=val; }
 function _gv(id){ return (document.getElementById(id)?.value||'').trim(); }
 
@@ -5902,16 +5929,15 @@ function slmSelectCarrier(key){
   if(nextBtn){ nextBtn.disabled=!isConfigured; nextBtn.style.opacity=isConfigured?'1':'.4'; }
 }
 
-function slmSaveCfgInline(){
+async function slmSaveCfgInline(){
   const cfg=_slmLoadCfg();
   const epKey=_gv('slmEpKey'), psToken=_gv('slmPsToken'), psUser=_gv('slmPsUser');
-  if(epKey)   cfg.epKey=epKey;
+  if(epKey)    cfg.epKey=epKey;
   if(psToken){ cfg.psToken=psToken; cfg.psUser=psUser; }
-  _slmSaveCfg(cfg);
+  await _slmSaveCfg(cfg);
   _slmRefreshBadges();
-  // Re-evaluate selected carrier
   if(_slmCarrier) slmSelectCarrier(_slmCarrier);
-  toast('✅ Credenciales guardadas.','ok');
+  toast('✅ Credenciales guardadas en la base de datos.','ok');
 }
 
 function slmGoStep1(){ slmGoToStep(1); }
@@ -6123,14 +6149,14 @@ function slmPrintLabel(){
   if(w){w.document.write(html);w.document.close();}
 }
 
-function slmSaveConfig(){
+async function slmSaveConfig(){
   const cfg=_slmLoadCfg();
   cfg.psUser=_gv('slmPsUser'); cfg.psToken=_gv('slmPsToken'); cfg.epKey=_gv('slmEpKey');
   cfg.fromName=_gv('slmCfgFromName'); cfg.fromAddr=_gv('slmCfgFromAddr');
   cfg.fromCity=_gv('slmCfgFromCity'); cfg.fromState=_gv('slmCfgFromState'); cfg.fromZip=_gv('slmCfgFromZip');
-  _slmSaveCfg(cfg);
+  await _slmSaveCfg(cfg);
   _slmRefreshBadges();
-  toast('✅ Configuración de envíos guardada.','ok');
+  toast('✅ Configuración guardada en la base de datos.','ok');
 }
 window.openShippingLabelModal = openShippingLabelModal;
 
