@@ -547,6 +547,7 @@
   .carrier-btn:hover { transform:translateY(-2px);filter:brightness(1.2); }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <!-- Google Places (se carga dinámicamente con la API key del admin) -->
 <script>
   window._placesCallbackQueue = [];
@@ -1446,6 +1447,29 @@
         </div>
       </div>
 
+      <!-- EmailJS config -->
+      <div style="padding:14px;background:rgba(47,227,181,.03);border:1px solid rgba(47,227,181,.12);border-radius:12px;margin-bottom:4px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">📧 Notificaciones por Email al cliente (EmailJS)</div>
+        <div class="grid-2" style="margin-bottom:8px">
+          <div class="form-group" style="margin:0">
+            <label>Public Key <small style="color:var(--muted);font-weight:400">emailjs.com → Account</small></label>
+            <input id="coEjPublicKey" placeholder="user_XXXXXXXXXXXXXXX" autocomplete="off"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Service ID <small style="color:var(--muted);font-weight:400">emailjs.com → Services</small></label>
+            <input id="coEjServiceId" placeholder="service_xxxxxxx" autocomplete="off"/>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:6px">
+          <label>Template ID <small style="color:var(--muted);font-weight:400">emailjs.com → Email Templates</small></label>
+          <input id="coEjTemplateId" placeholder="template_xxxxxxx" autocomplete="off"/>
+        </div>
+        <small style="color:var(--muted);font-size:10px;line-height:1.5;display:block">
+          Crea tu cuenta gratis en <a href="https://www.emailjs.com" target="_blank" style="color:var(--gold)">emailjs.com</a>.
+          Variables disponibles en el template: <b style="color:#7dd3fc">{{to_name}}, {{to_email}}, {{order_num}}, {{tracking_num}}, {{carrier}}, {{est_delivery}}, {{ship_to}}, {{items_list}}, {{order_total}}, {{company_name}}</b>
+        </small>
+      </div>
+
       <div class="form-group">
         <label>Vista previa rápida</label>
         <div id="companyPreview" class="infobox">Aquí verás un resumen guardado.</div>
@@ -1655,7 +1679,7 @@
             <div style="display:grid;grid-template-columns:1fr 1fr 72px;gap:6px">
               <div class="form-group" style="margin:0"><label>Ciudad</label><input id="slmToCity" placeholder=""/></div>
               <div class="form-group" style="margin:0"><label>Estado</label><input id="slmToState" placeholder=""/></div>
-              <div class="form-group" style="margin:0"><label>ZIP</label><input id="slmToZip" placeholder=""/></div>
+              <div class="form-group" style="margin:0"><label>ZIP</label><input id="slmToZip" placeholder="" maxlength="10" oninput="slmZipInput(this.value)"/></div>
             </div>
             <!-- Map preview -->
             <div id="slmMapWrap" style="display:none;border-radius:10px;overflow:hidden;border:1px solid rgba(47,227,181,.2)">
@@ -2640,9 +2664,12 @@ function loadCompanyInfoForm(){
   if($("coWhatsApp")) $("coWhatsApp").value = c.whatsapp || "";
   if($("coInstagram")) $("coInstagram").value = c.instagram || "";
   if($("coAddress")) $("coAddress").value = c.address || "";
-  if($("coCity"))    $("coCity").value    = c.city    || "";
-  if($("coState"))   $("coState").value   = c.state   || "";
-  if($("coZip"))     $("coZip").value     = c.zip     || "";
+  if($("coCity"))          $("coCity").value          = c.city          || "";
+  if($("coState"))         $("coState").value         = c.state         || "";
+  if($("coZip"))           $("coZip").value           = c.zip           || "";
+  if($("coEjPublicKey"))   $("coEjPublicKey").value   = c.ej_public_key  || "";
+  if($("coEjServiceId"))   $("coEjServiceId").value   = c.ej_service_id  || "";
+  if($("coEjTemplateId"))  $("coEjTemplateId").value  = c.ej_template_id || "";
   if($("companyPreview")) $("companyPreview").innerHTML = companyPreviewHtml(c);
 }
 function bindCompanyInfoPreview(){
@@ -2671,6 +2698,9 @@ function saveCompanyInfo(){
     city:         $("coCity")?.value.trim()||'',
     state:        ($("coState")?.value.trim()||'').toUpperCase(),
     zip:          $("coZip")?.value.trim()||'',
+    ej_public_key:  $("coEjPublicKey")?.value.trim()||'',
+    ej_service_id:  $("coEjServiceId")?.value.trim()||'',
+    ej_template_id: $("coEjTemplateId")?.value.trim()||'',
     logo_url:     logoUrl,
     logo_data:    logoData,
     google_key:   $("coGoogleKey")?.value.trim()||'',
@@ -2709,6 +2739,9 @@ function saveCompanyInfo(){
     city:         c.city,
     state:        c.state,
     zip:          c.zip,
+    ej_public_key:  c.ej_public_key,
+    ej_service_id:  c.ej_service_id,
+    ej_template_id: c.ej_template_id,
     logo_url:     c.logo_url,
     logo_data:    c.logo_data,
     google_key:   c.google_key,
@@ -6121,6 +6154,36 @@ function _slmStateAbbr(full){
   return M[full]||full;
 }
 
+// ZIP → city/state auto-fill via Nominatim
+let _slmZipTimer = null;
+function slmZipInput(val){
+  clearTimeout(_slmZipTimer);
+  const zip = val.trim().replace(/\D/g,'');
+  if(zip.length < 5) return;
+  _slmZipTimer = setTimeout(()=>_slmLookupZip(zip), 500);
+}
+async function _slmLookupZip(zip){
+  try{
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&postalcode=${zip}&countrycodes=us`,
+      { headers:{'User-Agent':'PleasemeAdmin/1.0'} }
+    );
+    const res = await r.json();
+    if(!res||!res.length) return;
+    const a = res[0];
+    const ad = a.address||{};
+    const city  = ad.city||ad.town||ad.village||ad.municipality||ad.county||'';
+    const state = _slmStateAbbr(ad.state||'');
+    if(city  && !_gv('slmToCity'))  _sv('slmToCity',  city);
+    if(state && !_gv('slmToState')) _sv('slmToState', state);
+    // If already had city overwrite only if empty
+    if(city)  _sv('slmToCity',  _gv('slmToCity')||city);
+    if(state) _sv('slmToState', _gv('slmToState')||state);
+    // Show map
+    if(a.lat && a.lon) slmShowMap(parseFloat(a.lat), parseFloat(a.lon), a.display_name);
+  }catch(e){}
+}
+
 // Close dropdown on outside click
 document.addEventListener('click', e=>{
   const dd=document.getElementById('slmAddrDropdown');
@@ -6325,36 +6388,49 @@ function _slmFinish(tracking, carrierLabel, labelUrl, days){
   if(td)  td.textContent=days||'—';
   if(db){ db.style.display=labelUrl?'inline-flex':'none'; _slmLabelUrl=labelUrl; }
 
-  // Mark order as sent
+  // Save tracking info to order WITHOUT changing status yet
+  // Status is updated to 'enviado' when label is printed (slmPrintLabel / slmOpenLabel)
   if(_slmOrderId){
     const idx=(DB.orders||[]).findIndex(o=>o.id===_slmOrderId); if(idx>=0){
-      Object.assign(DB.orders[idx],{status:'enviado',tracking_number:tracking,tracking_carrier:carrierLabel,shipped_at:new Date().toISOString()});
-      try{
-        fetch(SB_URL+'/rest/v1/pedidos?id=eq.'+encodeURIComponent(_slmOrderId),{
-          method:'PATCH',headers:{...SB_H,'Content-Type':'application/json'},
-          body:JSON.stringify({status:'enviado'})});
-      }catch(e){}
-      persist(); renderOrders(); renderFacturas(); updateCounts();
-      addNotif('order','✈️','Pedido enviado','#'+_slmOrderId+' — '+carrierLabel+': '+tracking);
-      recheckPendingAlert();
+      Object.assign(DB.orders[idx],{
+        tracking_number: tracking,
+        tracking_carrier: carrierLabel,
+        tracking_days: days||'—'
+      });
+      persist();
     }
   }
+  _slmNotifSent = false; // reset so next print triggers notification
   slmGoToStep(3);
-  toast('✅ Pedido marcado como ENVIADO','ok');
+  toast('✅ Etiqueta lista — imprime para confirmar el envío','ok');
 }
 
 function slmOpenLabel(){
-  if(_slmLabelUrl) window.open(_slmLabelUrl,'_blank');
+  if(_slmLabelUrl){
+    window.open(_slmLabelUrl,'_blank');
+    _slmConfirmSent();
+  }
 }
 
 function slmPrintLabel(){
   const tracking=document.getElementById('slmTrackNum')?.textContent||'';
   const carrier =document.getElementById('slmTrackCarrier')?.textContent||'';
+  const days    =document.getElementById('slmTrackDays')?.textContent||'—';
   const o=_slmOrderId?(DB.orders||[]).find(x=>x.id===_slmOrderId):null;
   const from=[_gv('slmFromName'),_gv('slmFromAddr'),_gv('slmFromCity')+' '+_gv('slmFromState')+' '+_gv('slmFromZip')].filter(Boolean).join('\n');
   const to  =[_gv('slmToName'), _gv('slmToAddr'), _gv('slmToCity')+' '+_gv('slmToState')+' '+_gv('slmToZip')].filter(Boolean).join('\n');
   const co  =getCompanyInfo();
-  const html=`<!DOCTYPE html><html><head><title>Etiqueta</title><style>
+
+  // Build items table for invoice copy in label
+  const items = o?.items||o?.products||[];
+  const itemsHtml = items.length
+    ? `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:11px">
+        <tr style="border-bottom:1px solid #000"><th style="text-align:left;padding:3px 4px">Artículo</th><th style="padding:3px 4px">Cant</th><th style="padding:3px 4px;text-align:right">Precio</th></tr>
+        ${items.map(it=>`<tr><td style="padding:3px 4px">${it.name||it.title||''}</td><td style="text-align:center;padding:3px 4px">${it.qty||it.quantity||1}</td><td style="text-align:right;padding:3px 4px">$${Number(it.price||0).toFixed(2)}</td></tr>`).join('')}
+        <tr style="border-top:2px solid #000;font-weight:700"><td colspan="2" style="padding:4px">Total</td><td style="text-align:right;padding:4px">$${Number(o?.total||0).toFixed(2)}</td></tr>
+      </table>` : '';
+
+  const html=`<!DOCTYPE html><html><head><title>Etiqueta ${o?.id||''}</title><style>
     *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;padding:20px;background:#fff;color:#000}
     .label{width:4in;min-height:6in;border:3px solid #000;padding:16px;margin:0 auto}
     .logo{font-size:20px;font-weight:900;text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:12px}
@@ -6363,21 +6439,153 @@ function slmPrintLabel(){
     .val{font-size:13px;font-weight:700;white-space:pre-line}
     .track{font-size:16px;font-weight:900;letter-spacing:2px;text-align:center;padding:10px;border:2px solid #000;margin-top:10px;word-break:break-all}
     .car{font-size:11px;text-align:center;margin-top:4px;font-weight:600}
-    @media print{button{display:none}}
+    @media print{.no-print{display:none}}
   </style></head><body>
   <div class="label">
     <div class="logo">${co.name||'Pleaseme'}</div>
     <div class="sec"><div class="lbl">DE:</div><div class="val">${from}</div></div>
     <div class="sec"><div class="lbl">PARA:</div><div class="val">${to}</div></div>
-    ${o?'<div class="sec"><div class="lbl">Pedido</div><div class="val">'+o.id+'</div></div>':''}
+    ${o?`<div class="sec"><div class="lbl">Pedido #</div><div class="val">${o.id}</div>
+    ${itemsHtml}
+    </div>`:''}
     <div class="lbl" style="margin-top:10px">Número de rastreo</div>
     <div class="track">${tracking}</div>
-    <div class="car">${carrier}</div>
+    <div class="car">${carrier}${days&&days!=='—'?' · '+days+' días':''}
+    </div>
   </div>
-  <div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">🖨️ Imprimir</button></div>
+  <div class="no-print" style="text-align:center;margin-top:16px;display:flex;gap:10px;justify-content:center">
+    <button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">🖨️ Imprimir</button>
+  </div>
   </body></html>`;
-  const w=window.open('','_blank','width=500,height=700');
-  if(w){w.document.write(html);w.document.close();}
+  const w=window.open('','_blank','width=520,height=750');
+  if(w){ w.document.write(html); w.document.close(); }
+
+  // Mark as enviado + send email on print
+  _slmConfirmSent();
+}
+
+// Mark order as enviado and send client email (called once per shipment)
+let _slmNotifSent = false;
+function _slmConfirmSent(){
+  if(_slmNotifSent) return;
+  _slmNotifSent = true;
+  const tracking = document.getElementById('slmTrackNum')?.textContent||'';
+  const carrier  = document.getElementById('slmTrackCarrier')?.textContent||'';
+  const days     = document.getElementById('slmTrackDays')?.textContent||'—';
+  if(!_slmOrderId||!tracking) return;
+
+  // Mark order as enviado
+  const idx=(DB.orders||[]).findIndex(o=>o.id===_slmOrderId);
+  if(idx>=0){
+    Object.assign(DB.orders[idx],{status:'enviado',tracking_number:tracking,tracking_carrier:carrier,shipped_at:new Date().toISOString()});
+    try{
+      fetch(SB_URL+'/rest/v1/pedidos?id=eq.'+encodeURIComponent(_slmOrderId),{
+        method:'PATCH',headers:{...SB_H,'Content-Type':'application/json'},
+        body:JSON.stringify({status:'enviado',record: DB.orders[idx].record||DB.orders[idx]})});
+    }catch(e){}
+    persist(); renderOrders(); renderFacturas(); updateCounts();
+    addNotif('order','✈️','Pedido enviado','#'+_slmOrderId+' — '+carrier+': '+tracking);
+    recheckPendingAlert();
+
+    // Send client notification email
+    slmSendShippingEmail(DB.orders[idx], tracking, carrier, days);
+    toast('✅ Pedido marcado como ENVIADO — notificación al cliente enviada','ok');
+  }
+}
+
+async function slmSendShippingEmail(o, tracking, carrier, days){
+  const co = getCompanyInfo();
+  const clientEmail = o?.clientEmail || o?.email || o?.record?.email || '';
+  if(!clientEmail){
+    toast('⚠️ El pedido no tiene email de cliente — notificación omitida','warn');
+    return;
+  }
+
+  // Build items list text
+  const items = o?.items||o?.products||[];
+  const itemsList = items.length
+    ? items.map(it=>`• ${it.name||it.title||''} x${it.qty||it.quantity||1} — $${Number(it.price||0).toFixed(2)}`).join('\n')
+    : 'Ver detalle en factura adjunta';
+
+  // Build invoice HTML for email body
+  const invoiceHtml = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;padding:24px;border-radius:8px">
+      <div style="text-align:center;border-bottom:2px solid #eee;padding-bottom:16px;margin-bottom:20px">
+        <h2 style="margin:0;color:#1a1a1a">${co.name||'Pleaseme'}</h2>
+        <p style="color:#666;margin:4px 0 0">Tu pedido está en camino 🚀</p>
+      </div>
+      <p style="color:#333">Hola <strong>${o?.clientName||o?.name||'Cliente'}</strong>,</p>
+      <p style="color:#333">Tu pedido <strong>#${o?.order_num||o?.id||''}</strong> ha sido enviado. Aquí están los detalles de tu envío:</p>
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin:16px 0;border-left:4px solid #2fe3b5">
+        <div style="margin-bottom:8px"><strong>📦 Carrier:</strong> ${carrier}</div>
+        <div style="margin-bottom:8px"><strong>🔢 Número de rastreo:</strong> <code style="font-size:14px;background:#e9ecef;padding:2px 6px;border-radius:4px">${tracking}</code></div>
+        ${days&&days!=='—'?`<div><strong>📅 Entrega estimada:</strong> ${days} días hábiles</div>`:''}
+      </div>
+      <div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:16px;margin:16px 0">
+        <h4 style="margin:0 0 12px;color:#1a1a1a">📋 Detalle de tu pedido</h4>
+        ${items.length?`<table style="width:100%;border-collapse:collapse">
+          <tr style="background:#f5f5f5"><th style="text-align:left;padding:8px;border-bottom:1px solid #ddd">Artículo</th><th style="padding:8px;border-bottom:1px solid #ddd">Cant</th><th style="text-align:right;padding:8px;border-bottom:1px solid #ddd">Precio</th></tr>
+          ${items.map(it=>`<tr><td style="padding:8px;border-bottom:1px solid #f0f0f0">${it.name||it.title||''}</td><td style="text-align:center;padding:8px;border-bottom:1px solid #f0f0f0">${it.qty||it.quantity||1}</td><td style="text-align:right;padding:8px;border-bottom:1px solid #f0f0f0">$${Number(it.price||0).toFixed(2)}</td></tr>`).join('')}
+          <tr><td colspan="2" style="padding:8px;font-weight:700">Total</td><td style="text-align:right;padding:8px;font-weight:700">$${Number(o?.total||0).toFixed(2)}</td></tr>
+        </table>`:'<p style="color:#666;margin:0">Consulta tu factura para el detalle completo.</p>'}
+      </div>
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin:16px 0">
+        <h4 style="margin:0 0 8px;color:#1a1a1a">📍 Dirección de envío</h4>
+        <p style="margin:0;color:#444">${[_gv('slmToName'),_gv('slmToAddr'),`${_gv('slmToCity')}, ${_gv('slmToState')} ${_gv('slmToZip')}`].filter(x=>x&&x.trim()).join('<br>')}</p>
+      </div>
+      <p style="color:#666;font-size:12px;text-align:center;margin-top:24px;border-top:1px solid #eee;padding-top:16px">
+        ${co.name||'Pleaseme'} · ${co.email||''} ${co.whatsapp?'· '+co.whatsapp:''}
+      </p>
+    </div>`;
+
+  const templateParams = {
+    to_name:      o?.clientName||o?.name||'Cliente',
+    to_email:     clientEmail,
+    order_num:    String(o?.order_num||o?.id||''),
+    tracking_num: tracking,
+    carrier:      carrier,
+    est_delivery: days&&days!=='—'? days+' días hábiles' : 'Por confirmar',
+    ship_to:      [_gv('slmToAddr'),_gv('slmToCity')+' '+_gv('slmToState')+' '+_gv('slmToZip')].filter(Boolean).join(', '),
+    items_list:   itemsList,
+    order_total:  '$'+Number(o?.total||0).toFixed(2),
+    company_name: co.name||'Pleaseme',
+    invoice_html: invoiceHtml
+  };
+
+  const ejKey  = co.ej_public_key  || '';
+  const ejSvc  = co.ej_service_id  || '';
+  const ejTpl  = co.ej_template_id || '';
+
+  if(ejKey && ejSvc && ejTpl){
+    try{
+      if(typeof emailjs !== 'undefined'){
+        emailjs.init({publicKey: ejKey});
+        await emailjs.send(ejSvc, ejTpl, templateParams);
+        toast('📧 Email de envío enviado a '+clientEmail,'ok');
+      } else {
+        throw new Error('EmailJS no cargado');
+      }
+    }catch(err){
+      console.warn('[EmailJS]', err);
+      _slmMailtoFallback(clientEmail, templateParams, co);
+    }
+  } else {
+    // No EmailJS configured — open mailto as fallback
+    _slmMailtoFallback(clientEmail, templateParams, co);
+  }
+}
+
+function _slmMailtoFallback(toEmail, p, co){
+  const subject = encodeURIComponent(`Tu pedido #${p.order_num} ha sido enviado — ${co.name||'Pleaseme'}`);
+  const body = encodeURIComponent(
+    `Hola ${p.to_name},\n\nTu pedido #${p.order_num} ha sido enviado.\n\n`+
+    `Carrier: ${p.carrier}\nNúmero de rastreo: ${p.tracking_num}\nEntrega estimada: ${p.est_delivery}\n\n`+
+    `Dirección de envío:\n${p.ship_to}\n\n`+
+    `Detalle:\n${p.items_list}\n\nTotal: ${p.order_total}\n\n`+
+    `${co.name||'Pleaseme'} · ${co.email||''}`
+  );
+  window.open(`mailto:${toEmail}?subject=${subject}&body=${body}`, '_blank');
+  toast('📧 Se abrió tu cliente de email para enviar la notificación','warn');
 }
 
 async function slmSaveConfig(){
