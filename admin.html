@@ -1702,22 +1702,25 @@
 
 <!-- ═══ PENDING ALERT MODAL ═══ -->
 <div class="modal-overlay" id="pendingAlertModal" style="display:none;z-index:9999">
-  <div class="modal" style="max-width:480px;border:1.5px solid rgba(245,166,35,.4);box-shadow:0 0 60px rgba(245,166,35,.15)">
+  <div class="modal" style="max-width:500px;border:1.5px solid rgba(245,166,35,.4);box-shadow:0 0 60px rgba(245,166,35,.15)">
     <div class="modal-head" style="background:rgba(245,166,35,.07);border-bottom:1px solid rgba(245,166,35,.2);display:flex;align-items:center;gap:12px;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:22px">⚠️</span>
+        <span style="font-size:22px" id="paIcon">⚠️</span>
         <div>
-          <div style="font-size:15px;font-weight:700;color:#ffd580">Atención requerida</div>
-          <div style="font-size:11px;color:rgba(255,213,128,.6);margin-top:1px">Tienes elementos pendientes</div>
+          <div style="font-size:15px;font-weight:700;color:#ffd580" id="paTitle">Atención requerida</div>
+          <div style="font-size:11px;color:rgba(255,213,128,.6);margin-top:1px" id="paSubtitle">Tienes elementos pendientes</div>
         </div>
       </div>
-      <button class="btn sm" onclick="closePendingAlert()" style="border-color:rgba(245,166,35,.3);color:rgba(255,213,128,.6)">✕</button>
+      <button class="btn sm" onclick="tryClosePendingAlert()" style="border-color:rgba(245,166,35,.3);color:rgba(255,213,128,.6)" title="Cerrar (solo si no hay pendientes)">✕</button>
     </div>
     <div class="modal-body" style="padding:20px 22px">
-      <div id="pendingAlertItems" style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px"></div>
+      <div id="pendingAlertItems" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
+      <!-- Persistent warning strip -->
+      <div id="paWarnStrip" style="display:none;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:10px;padding:10px 14px;font-size:11px;color:rgba(255,213,128,.8);line-height:1.6;margin-bottom:14px">
+        🔒 Esta notificación se cerrará automáticamente cuando todos los pedidos cambien a <b>Procesando</b> o <b>Enviado</b>.
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn ghost" onclick="closePendingAlert()">Cerrar</button>
-        <button class="btn ok" onclick="closePendingAlert();switchTab('pedidos')" style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900">Ver Pedidos</button>
+        <button class="btn ok" onclick="closePendingAlert();switchTab('pedidos')" style="background:linear-gradient(135deg,#c9963a,#e8c56e);color:#0d0900;font-weight:700">📦 Ir a Pedidos →</button>
       </div>
     </div>
   </div>
@@ -2966,9 +2969,10 @@ window.syncOrdersFromStorage = function(){
     const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
     if(activeTab==='pedidos')  renderOrders();
     if(activeTab==='facturas') renderFacturas();
-    // Re-check pending alert for new data (reset flag first)
-    _pendingAlertShown = false;
-    checkPendingAlert();
+    // Re-check: if modal is open update counts; otherwise check for new pending items
+    recheckPendingAlert();
+    const m=document.getElementById('pendingAlertModal');
+    if(!m||m.style.display==='none'){ _pendingAlertShown=false; checkPendingAlert(); }
   }catch(e){}
 };
 
@@ -3100,6 +3104,56 @@ function checkPendingAlert(){
 function closePendingAlert(){
   const m=document.getElementById('pendingAlertModal');
   if(m) m.style.display='none';
+  _pendingAlertShown = false;
+}
+
+function tryClosePendingAlert(){
+  const orders = DB.orders || [];
+  const stillPending = orders.some(o => o.status === 'pendiente') ||
+    orders.some(o => {
+      const st = o.invoice_status || o.invoiceStatus || '';
+      return st === 'pendiente' && !!o.invoice_num;
+    });
+  const strip = document.getElementById('paWarnStrip');
+  if(stillPending){
+    if(strip){ strip.style.display='block'; strip.style.animation='none'; void strip.offsetWidth; strip.style.animation=''; }
+    return; // block close
+  }
+  closePendingAlert();
+}
+
+function recheckPendingAlert(){
+  const orders = DB.orders || [];
+  const pendOrders   = orders.filter(o => o.status === 'pendiente');
+  const pendInvoices = orders.filter(o => {
+    const st = o.invoice_status || o.invoiceStatus || '';
+    return st === 'pendiente' && !!o.invoice_num;
+  });
+  const m = document.getElementById('pendingAlertModal');
+  if(!m || m.style.display==='none') return; // modal not open, nothing to recheck
+
+  if(!pendOrders.length && !pendInvoices.length){
+    closePendingAlert();
+    return;
+  }
+  // Still pending — update counts in modal
+  const items = [];
+  if(pendOrders.length){
+    items.push(`<div class="pa-item pa-item--order">
+      <span class="pa-icon">📦</span>
+      <div><strong>${pendOrders.length} pedido${pendOrders.length>1?'s':''} pendiente${pendOrders.length>1?'s':''}</strong>
+      <div class="pa-sub">${pendOrders.map(o=>'#'+(o.order_num||o.id)+(o.clientName?' — '+o.clientName:'')).join(', ')}</div></div></div>`);
+  }
+  if(pendInvoices.length){
+    items.push(`<div class="pa-item pa-item--invoice">
+      <span class="pa-icon">🧾</span>
+      <div><strong>${pendInvoices.length} factura${pendInvoices.length>1?'s':''} sin pagar</strong>
+      <div class="pa-sub">${pendInvoices.map(o=>'#'+(o.invoice_num||o.id)+(o.clientName?' — '+o.clientName:'')).join(', ')}</div></div></div>`);
+  }
+  const el = document.getElementById('pendingAlertItems');
+  if(el) el.innerHTML = items.join('');
+  const strip = document.getElementById('paWarnStrip');
+  if(strip) strip.style.display = 'block';
 }
 
 // ══════════════════════════════════════
@@ -3396,6 +3450,7 @@ $("updateStatusBtn").addEventListener("click",()=>{
   toast(`Estado → ${o.status} ✅`,"ok");
   $("orderModal").querySelector(".badge").className="badge "+o.status;
   $("orderModal").querySelector(".badge").textContent=o.status;
+  recheckPendingAlert();
 });
 
 $("saveNotesBtn").addEventListener("click",()=>{
@@ -6106,6 +6161,7 @@ function _slmFinish(tracking, carrierLabel, labelUrl, days){
       }catch(e){}
       persist(); renderOrders(); renderFacturas(); updateCounts();
       addNotif('order','✈️','Pedido enviado','#'+_slmOrderId+' — '+carrierLabel+': '+tracking);
+      recheckPendingAlert();
     }
   }
   slmGoToStep(3);
