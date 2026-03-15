@@ -1403,8 +1403,23 @@
           <input id="coInstagram" placeholder="@pleaseme o https://instagram.com/pleaseme"/>
         </div>
         <div class="form-group">
-          <label>Dirección completa</label>
-          <textarea id="coAddress" rows="3" placeholder="2892 Tennis Club Dr, Apt 602, West Palm Beach, FL 33417"></textarea>
+          <label>Dirección (calle y número)</label>
+          <textarea id="coAddress" rows="2" placeholder="2892 Tennis Club Dr, Apt 602"></textarea>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 90px;gap:10px;margin-bottom:16px">
+        <div class="form-group" style="margin:0">
+          <label>Ciudad</label>
+          <input id="coCity" placeholder="West Palm Beach"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Estado</label>
+          <input id="coState" placeholder="FL" maxlength="2" style="text-transform:uppercase"/>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>ZIP</label>
+          <input id="coZip" placeholder="33417" maxlength="10"/>
         </div>
       </div>
 
@@ -1627,14 +1642,33 @@
               <div class="form-group" style="margin:0"><label>ZIP</label><input id="slmFromZip" placeholder="33101"/></div>
             </div>
           </div>
-          <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px">
-            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;margin-bottom:10px">📥 Destinatario</div>
-            <div class="form-group" style="margin-bottom:8px"><label>Nombre</label><input id="slmToName" placeholder=""/></div>
-            <div class="form-group" style="margin-bottom:8px"><label>Dirección</label><input id="slmToAddr" placeholder=""/></div>
+          <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase">📥 Destinatario</div>
+            <!-- Address search -->
+            <div style="position:relative">
+              <div style="display:flex;gap:6px">
+                <input id="slmAddrQ" type="text" placeholder="🔍 Buscar y verificar dirección..." autocomplete="off"
+                  style="flex:1;padding:7px 10px;background:rgba(47,227,181,.05);border:1.5px solid rgba(47,227,181,.3);border-radius:9px;color:#f8f0da;font-size:12px"
+                  oninput="slmAddrInput(this.value)"/>
+                <button type="button" onclick="slmVerifyCurrentAddr()" title="Verificar dirección actual"
+                  style="padding:7px 10px;background:rgba(47,227,181,.1);border:1.5px solid rgba(47,227,181,.3);border-radius:9px;color:#2fe3b5;font-size:13px;cursor:pointer;white-space:nowrap">🗺️</button>
+              </div>
+              <div id="slmAddrDropdown" style="display:none;position:absolute;left:0;right:0;z-index:300;background:#1a1400;border:1.5px solid rgba(47,227,181,.25);border-radius:10px;margin-top:3px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.7);max-height:220px;overflow-y:auto"></div>
+            </div>
+            <div class="form-group" style="margin:0"><label>Nombre</label><input id="slmToName" placeholder=""/></div>
+            <div class="form-group" style="margin:0"><label>Dirección</label><input id="slmToAddr" placeholder=""/></div>
             <div style="display:grid;grid-template-columns:1fr 1fr 72px;gap:6px">
               <div class="form-group" style="margin:0"><label>Ciudad</label><input id="slmToCity" placeholder=""/></div>
               <div class="form-group" style="margin:0"><label>Estado</label><input id="slmToState" placeholder=""/></div>
               <div class="form-group" style="margin:0"><label>ZIP</label><input id="slmToZip" placeholder=""/></div>
+            </div>
+            <!-- Map preview -->
+            <div id="slmMapWrap" style="display:none;border-radius:10px;overflow:hidden;border:1px solid rgba(47,227,181,.2)">
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;padding:5px 10px;background:rgba(47,227,181,.04);border-bottom:1px solid rgba(47,227,181,.12);display:flex;justify-content:space-between;align-items:center">
+                <span>📍 Vista del destino</span>
+                <span id="slmMapLabel" style="color:#7dd3fc;font-size:10px;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+              </div>
+              <iframe id="slmMapFrame" src="" width="100%" height="180" style="border:none;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
             </div>
           </div>
         </div>
@@ -2611,10 +2645,13 @@ function loadCompanyInfoForm(){
   if($("coWhatsApp")) $("coWhatsApp").value = c.whatsapp || "";
   if($("coInstagram")) $("coInstagram").value = c.instagram || "";
   if($("coAddress")) $("coAddress").value = c.address || "";
+  if($("coCity"))    $("coCity").value    = c.city    || "";
+  if($("coState"))   $("coState").value   = c.state   || "";
+  if($("coZip"))     $("coZip").value     = c.zip     || "";
   if($("companyPreview")) $("companyPreview").innerHTML = companyPreviewHtml(c);
 }
 function bindCompanyInfoPreview(){
-  ["coName","coLogoUrl","coEmail","coWhatsApp","coInstagram","coAddress"].forEach(id=>{
+  ["coName","coLogoUrl","coEmail","coWhatsApp","coInstagram","coAddress","coCity","coState","coZip"].forEach(id=>{
     $(id)?.addEventListener("input", ()=>{
       $("companyPreview").innerHTML = companyPreviewHtml({
         name:$("coName").value.trim(),
@@ -2636,6 +2673,9 @@ function saveCompanyInfo(){
     whatsapp:     $("coWhatsApp").value.trim(),
     instagram:    $("coInstagram").value.trim(),
     address:      $("coAddress").value.trim(),
+    city:         $("coCity")?.value.trim()||'',
+    state:        ($("coState")?.value.trim()||'').toUpperCase(),
+    zip:          $("coZip")?.value.trim()||'',
     logo_url:     logoUrl,
     logo_data:    logoData,
     google_key:   $("coGoogleKey")?.value.trim()||'',
@@ -2671,6 +2711,9 @@ function saveCompanyInfo(){
     whatsapp:     c.whatsapp,
     instagram:    c.instagram,
     address:      c.address,
+    city:         c.city,
+    state:        c.state,
+    zip:          c.zip,
     logo_url:     c.logo_url,
     logo_data:    c.logo_data,
     google_key:   c.google_key,
@@ -5939,18 +5982,155 @@ function openShippingLabelModal(orderId){
   _sv('slmPsUser',  cfg.psUser||'');
   _sv('slmPsToken', cfg.psToken||'');
 
+  // Reset map + search
+  const mw=document.getElementById('slmMapWrap');
+  if(mw) mw.style.display='none';
+  const mf=document.getElementById('slmMapFrame');
+  if(mf) mf.src='';
+  const aq=document.getElementById('slmAddrQ');
+  if(aq) aq.value='';
+
   // Update configured badges
   document.querySelectorAll('.slm-carrier-card').forEach(c=>c.classList.remove('selected'));
   _slmRefreshBadges();
 
   slmGoToStep(1);
   document.getElementById('shippingLabelModal').style.display='flex';
+
+  // If order has address, auto-verify and show map
+  if(o && (o.address||o.clientAddress)){
+    setTimeout(slmVerifyCurrentAddr, 600);
+  }
 }
 
 function closeShippingLabelModal(){
   document.getElementById('shippingLabelModal').style.display='none';
   _slmOrderId=null;
 }
+
+// ── ADDRESS AUTOCOMPLETE + MAP ──────────────────────────────
+let _slmAddrTimer = null;
+let _slmAddrResults = [];
+
+function slmAddrInput(val){
+  clearTimeout(_slmAddrTimer);
+  const dd = document.getElementById('slmAddrDropdown');
+  if(!val || val.length < 4){ if(dd) dd.style.display='none'; return; }
+  _slmAddrTimer = setTimeout(()=>_slmDoSearch(val), 420);
+}
+
+async function _slmDoSearch(q){
+  const dd = document.getElementById('slmAddrDropdown');
+  if(!dd) return;
+  try{
+    dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px">Buscando...</div>';
+    dd.style.display = 'block';
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&q=${encodeURIComponent(q)}&countrycodes=us`,
+      { headers:{'Accept-Language':'es-US,es;q=0.9','User-Agent':'PleasemeAdmin/1.0'} }
+    );
+    _slmAddrResults = await r.json();
+    if(!_slmAddrResults.length){
+      dd.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px">Sin resultados — verifica la dirección</div>';
+      return;
+    }
+    dd.innerHTML = _slmAddrResults.map((a,i)=>{
+      const parts = a.display_name.split(',');
+      return `<div onclick="slmPickAddr(${i})"
+        style="padding:10px 14px;cursor:pointer;font-size:12px;border-bottom:1px solid rgba(255,255,255,.05);transition:background .12s"
+        onmouseover="this.style.background='rgba(47,227,181,.09)'" onmouseout="this.style.background=''">
+        <div style="font-weight:600;color:#f8f0da">${esc(parts.slice(0,2).join(','))}</div>
+        <div style="color:var(--muted);margin-top:2px;font-size:11px">${esc(parts.slice(2,5).join(','))}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    if(dd) dd.innerHTML = '<div style="padding:10px 14px;color:#ff9f9f;font-size:12px">Error de conexión — intenta de nuevo</div>';
+  }
+}
+
+function slmPickAddr(i){
+  const a = _slmAddrResults[i]; if(!a) return;
+  const ad = a.address || {};
+  const street = [ad.house_number, ad.road].filter(Boolean).join(' ') ||
+                 (a.display_name.split(',')[0]||'').trim();
+  const city   = ad.city||ad.town||ad.village||ad.municipality||ad.county||'';
+  const state  = ad.state||'';
+  const zip    = ad.postcode||'';
+  _sv('slmToAddr',  street);
+  _sv('slmToCity',  city);
+  _sv('slmToState', _slmStateAbbr(state));
+  _sv('slmToZip',   zip);
+  const aq = document.getElementById('slmAddrQ');
+  if(aq) aq.value='';
+  document.getElementById('slmAddrDropdown').style.display='none';
+  slmShowMap(parseFloat(a.lat), parseFloat(a.lon), a.display_name);
+}
+
+// Verify the current To fields by geocoding them
+async function slmVerifyCurrentAddr(){
+  const parts = [_gv('slmToAddr'),_gv('slmToCity'),_gv('slmToState'),_gv('slmToZip')].filter(Boolean);
+  if(!parts.length) return;
+  const q = parts.join(', ');
+  try{
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent(q)}&countrycodes=us`,
+      { headers:{'User-Agent':'PleasemeAdmin/1.0'} }
+    );
+    const res = await r.json();
+    if(res && res.length){
+      const a = res[0];
+      // Auto-correct ZIP if Nominatim returns one
+      if(a.address?.postcode && !_gv('slmToZip')) _sv('slmToZip', a.address.postcode);
+      slmShowMap(parseFloat(a.lat), parseFloat(a.lon), a.display_name);
+    } else {
+      // Still show map using text query as fallback
+      slmShowMapByAddr(q);
+    }
+  }catch(e){ slmShowMapByAddr(q); }
+}
+
+function slmShowMap(lat, lon, label){
+  const wrap  = document.getElementById('slmMapWrap');
+  const frame = document.getElementById('slmMapFrame');
+  const lbl   = document.getElementById('slmMapLabel');
+  if(!wrap||!frame) return;
+  // Use Google Maps embed (hybrid satellite) — no API key required for basic embed
+  frame.src = `https://maps.google.com/maps?q=${lat},${lon}&t=h&z=16&output=embed`;
+  if(lbl) lbl.textContent = label ? label.split(',').slice(0,3).join(',') : '';
+  wrap.style.display = 'block';
+}
+
+function slmShowMapByAddr(addr){
+  const wrap  = document.getElementById('slmMapWrap');
+  const frame = document.getElementById('slmMapFrame');
+  const lbl   = document.getElementById('slmMapLabel');
+  if(!wrap||!frame) return;
+  frame.src = `https://maps.google.com/maps?q=${encodeURIComponent(addr)}&t=h&z=15&output=embed`;
+  if(lbl) lbl.textContent = addr;
+  wrap.style.display = 'block';
+}
+
+// US state full name → 2-letter abbreviation
+function _slmStateAbbr(full){
+  const M={'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA','Colorado':'CO',
+    'Connecticut':'CT','Delaware':'DE','Florida':'FL','Georgia':'GA','Hawaii':'HI','Idaho':'ID',
+    'Illinois':'IL','Indiana':'IN','Iowa':'IA','Kansas':'KS','Kentucky':'KY','Louisiana':'LA',
+    'Maine':'ME','Maryland':'MD','Massachusetts':'MA','Michigan':'MI','Minnesota':'MN',
+    'Mississippi':'MS','Missouri':'MO','Montana':'MT','Nebraska':'NE','Nevada':'NV',
+    'New Hampshire':'NH','New Jersey':'NJ','New Mexico':'NM','New York':'NY',
+    'North Carolina':'NC','North Dakota':'ND','Ohio':'OH','Oklahoma':'OK','Oregon':'OR',
+    'Pennsylvania':'PA','Rhode Island':'RI','South Carolina':'SC','South Dakota':'SD',
+    'Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT','Virginia':'VA',
+    'Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY',
+    'District of Columbia':'DC','Puerto Rico':'PR'};
+  return M[full]||full;
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e=>{
+  const dd=document.getElementById('slmAddrDropdown');
+  if(dd && !e.target.closest('#slmAddrDropdown') && e.target.id!=='slmAddrQ') dd.style.display='none';
+});
 
 function _slmRefreshBadges(){
   const cfg=_slmLoadCfg();
