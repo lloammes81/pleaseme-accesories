@@ -1780,6 +1780,46 @@
 </div>
 
 <!-- ═══ DELETE CONFIRM MODAL ═══ -->
+<!-- ═══ NO-EMAIL ALERT MODAL ═══ -->
+<div class="modal-overlay" id="noEmailModal" style="display:none;z-index:9998">
+  <div class="modal" style="max-width:430px;border:1.5px solid rgba(245,166,35,.35);box-shadow:0 0 60px rgba(245,166,35,.1)">
+    <div class="modal-head" style="background:rgba(245,166,35,.06);border-bottom:1px solid rgba(245,166,35,.2);display:flex;align-items:center;gap:12px;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:22px">📧</span>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#ffd580">Sin email de contacto</div>
+          <div style="font-size:11px;color:rgba(255,213,128,.6);margin-top:1px">El cliente no tiene dirección de email registrada</div>
+        </div>
+      </div>
+      <button class="icon-btn" onclick="closeNoEmailModal()">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div style="background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.2);border-radius:10px;padding:12px 14px;font-size:13px;color:#ffd580;line-height:1.5">
+        ⚠️ El pedido <b id="nemOrderId"></b> del cliente <b id="nemClientName"></b> no tiene email registrado.<br>
+        <span style="color:var(--muted);font-size:12px">Agrega un correo para poder enviar la notificación de envío.</span>
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label>Email del cliente</label>
+        <input id="nemEmail" type="email" placeholder="cliente@ejemplo.com" style="border-color:rgba(245,166,35,.4)"
+          oninput="document.getElementById('nemSendBtn').disabled=!this.value.includes('@')"/>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Teléfono / WhatsApp <small style="color:var(--muted);font-weight:400">(opcional)</small></label>
+        <input id="nemPhone" type="tel" placeholder="+1 (555) 000-0000"/>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn ghost" onclick="closeNoEmailModal()">Omitir</button>
+        <button id="nemSendBtn" class="btn ok" disabled onclick="nemSaveAndSend()"
+          style="background:linear-gradient(135deg,#b07800,#ffd580);border:none;color:#1a0f00;font-weight:700">
+          💾 Guardar y enviar notificación
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="deleteConfirmModal" style="display:none;z-index:9998">
   <div class="modal" style="max-width:440px;border:1.5px solid rgba(255,80,80,.35);box-shadow:0 0 60px rgba(255,80,80,.12)">
     <div class="modal-head" style="background:rgba(255,60,60,.06);border-bottom:1px solid rgba(255,80,80,.2);display:flex;align-items:center;gap:12px;justify-content:space-between">
@@ -6493,11 +6533,64 @@ function _slmConfirmSent(){
   }
 }
 
+// ── NO-EMAIL MODAL ─────────────────────────────────────────
+let _nemPendingCall = null; // stores {o, tracking, carrier, days} to retry after email added
+
+function openNoEmailModal(o, tracking, carrier, days){
+  _nemPendingCall = {o, tracking, carrier, days};
+  document.getElementById('nemOrderId').textContent   = '#'+(o?.order_num||o?.id||'');
+  document.getElementById('nemClientName').textContent = o?.clientName||o?.name||'Cliente';
+  document.getElementById('nemEmail').value  = '';
+  document.getElementById('nemPhone').value  = '';
+  document.getElementById('nemSendBtn').disabled = true;
+  // Also fire a bell notification so admin sees it even if modal is dismissed
+  addNotif('warn','📧','Sin email de cliente',
+    'Pedido #'+(o?.order_num||o?.id||'')+' — '+(o?.clientName||'Cliente')+' necesita un correo para recibir la notificación de envío.');
+  document.getElementById('noEmailModal').style.display = 'flex';
+}
+function closeNoEmailModal(){
+  document.getElementById('noEmailModal').style.display = 'none';
+  _nemPendingCall = null;
+}
+async function nemSaveAndSend(){
+  if(!_nemPendingCall) return;
+  const {o, tracking, carrier, days} = _nemPendingCall;
+  const email = document.getElementById('nemEmail').value.trim();
+  const phone = document.getElementById('nemPhone').value.trim();
+  if(!email){ toast('Ingresa un email válido','warn'); return; }
+
+  // Save email (and optional phone) to the order
+  const idx = (DB.orders||[]).findIndex(x=>x.id===o.id);
+  if(idx>=0){
+    DB.orders[idx].clientEmail = email;
+    DB.orders[idx].client_email = email;
+    if(phone){ DB.orders[idx].clientPhone = phone; DB.orders[idx].client_phone = phone; }
+    // Persist locally + Supabase
+    persist();
+    try{
+      const record = {...(DB.orders[idx].record||{}), client_email: email, client_phone: phone||DB.orders[idx].clientPhone||''};
+      fetch(SB_URL+'/rest/v1/pedidos?id=eq.'+encodeURIComponent(o.id),{
+        method:'PATCH', headers:{...SB_H,'Content-Type':'application/json','Prefer':'return=minimal'},
+        body: JSON.stringify({record})
+      });
+    }catch(e){}
+    renderOrders();
+  }
+
+  document.getElementById('noEmailModal').style.display = 'none';
+  _nemPendingCall = null;
+  toast('✅ Email guardado','ok');
+  // Re-trigger the send now that we have an email
+  const updatedOrder = (DB.orders||[]).find(x=>x.id===o.id)||o;
+  updatedOrder.clientEmail = email;
+  await slmSendShippingEmail(updatedOrder, tracking, carrier, days);
+}
+
 async function slmSendShippingEmail(o, tracking, carrier, days){
   const co = getCompanyInfo();
-  const clientEmail = o?.clientEmail || o?.email || o?.record?.email || '';
+  const clientEmail = o?.clientEmail || o?.email || o?.record?.email || o?.client_email || '';
   if(!clientEmail){
-    toast('⚠️ El pedido no tiene email de cliente — notificación omitida','warn');
+    openNoEmailModal(o, tracking, carrier, days);
     return;
   }
 
