@@ -141,7 +141,11 @@
     .kpi-lbl{font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px}
 
     /* ── PANEL DERECHO ── */
-    .right-panel{position:sticky;top:80px}
+    .right-panel{
+      position:sticky;top:80px;
+      height:calc(100vh - 96px);
+      display:flex;flex-direction:column;
+    }
 
     /* ── DIVIDER ── */
     hr{border:none;border-top:1px solid rgba(255,255,255,.07);margin:16px 0}
@@ -424,7 +428,7 @@
 
   <!-- ═══ COLUMNA DERECHA — LISTA FACTURAS ═══ -->
   <div class="right-panel">
-    <div class="card" style="position:sticky;top:80px">
+    <div class="card" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
       <div class="card-title">Facturas</div>
       <div class="search-wrap">
         <input id="searchQ" placeholder="Buscar cliente, No. factura..." oninput="renderList()" />
@@ -439,7 +443,7 @@
           <option value="cancelado">Cancelado</option>
         </select>
       </div>
-      <div class="invoice-list" id="invoiceList" style="max-height:calc(100vh - 340px);overflow-y:auto">
+      <div class="invoice-list" id="invoiceList" style="flex:1;overflow-y:auto;min-height:0">
         <div class="items-empty">Cargando facturas...</div>
       </div>
     </div>
