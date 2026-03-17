@@ -1328,7 +1328,7 @@ async function saveOnly(){
 }
 
 async function saveAndPDF(){
-  saveOnly();
+  await saveOnly();
   const o = DB.orders.find(x=>x.id===editingId);
   if(!o) return;
   try{
@@ -1557,10 +1557,13 @@ function printInvoice(id){
   openPrintWindow(o);
 }
 
-function printCurrentInvoice(){
-  if(!editingId){ toast('Guarda la factura primero','warn'); return; }
+async function printCurrentInvoice(){
+  if(!editingId){
+    await saveOnly();
+    if(!editingId){ toast('Guarda la factura primero','warn'); return; }
+  }
   const o = DB.orders.find(x=>x.id===editingId);
-  if(!o){ saveOnly(); setTimeout(()=>printCurrentInvoice(),400); return; }
+  if(!o){ await saveOnly(); setTimeout(()=>printCurrentInvoice(),400); return; }
   openPrintWindow(o);
 }
 
