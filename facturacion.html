@@ -1426,6 +1426,7 @@ function renderList(){
           <div style="display:flex;gap:4px">
             <button class="btn btn-sm btn-green" onclick="event.stopPropagation();quickPDF('${o.id}')" title="Generar PDF">🧾</button>
             <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();printInvoice('${o.id}')" title="Imprimir">🖨</button>
+            <button class="btn btn-sm" onclick="event.stopPropagation();openEtiqueta('${o.id}')" title="Etiqueta de envío" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">📦</button>
             ${status==='cancelado'||status==='anulado'
               ? `<span class="status-badge s-cancelado" style="display:flex;align-items:center;padding:2px 8px">ANULADA</span>`
               : `<button class="btn btn-sm btn-red" onclick="event.stopPropagation();voidInvoice('${o.id}')" title="Anular factura">🚫 Anular</button>`
@@ -1939,6 +1940,21 @@ function buildInvoicePDF(o){
     console.error('PDF error:',err);
     toast('Error PDF: '+err.message,'err');
     return null;
+  }
+}
+// ══════════════════════════════════════════════════════
+//  ETIQUETA DE ENVÍO — delega a admin.html (ventana padre)
+// ══════════════════════════════════════════════════════
+function openEtiqueta(id){
+  try{
+    if(window.opener && !window.opener.closed && typeof window.opener.openShippingLabelModal === 'function'){
+      window.opener.focus();
+      window.opener.openShippingLabelModal(id);
+    } else {
+      toast('Abre esta ventana desde el panel Admin para generar etiquetas','warn');
+    }
+  }catch(e){
+    toast('Abre esta ventana desde el panel Admin para generar etiquetas','warn');
   }
 }
 
