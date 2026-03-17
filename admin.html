@@ -881,6 +881,9 @@
       <button class="tab-btn" data-tab="notificaciones" id="tabBtnNotif">
         ◈ Mensajes WA <span class="tab-count" id="tcNotif" style="background:rgba(37,211,102,.2);color:#25d366">0</span>
       </button>
+      <button class="tab-btn admin-only" data-tab="carriers" id="tabBtnCarriers">
+        ◈ Carriers
+      </button>
     </div>
   </div>
 </header>
@@ -2166,6 +2169,77 @@
     <div id="waCampaignLog"></div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════
+     TAB: CARRIERS / CONFIGURACIÓN DE ENVÍOS
+══════════════════════════════════════ -->
+<div class="page" id="tab-carriers">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+    <div>
+      <h2 style="font-family:var(--fd);font-size:22px;color:var(--gold2)">🚚 Carriers &amp; Envíos</h2>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px">Gestiona los servicios de paquetería y sus credenciales de API.</p>
+    </div>
+    <button class="btn ok" onclick="carriersRefresh()" style="background:rgba(47,227,181,.12);border-color:rgba(47,227,181,.3);color:#2fe3b5">
+      ↺ Recargar config
+    </button>
+  </div>
+
+  <!-- Tabla de carriers -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="orders-table" id="carriersTable" style="margin:0">
+      <thead>
+        <tr>
+          <th style="width:40px"></th>
+          <th>Carrier</th>
+          <th>Tipo</th>
+          <th>Estado</th>
+          <th>Credenciales</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="carriersBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Panel de edición inline -->
+  <div id="carrierEditPanel" style="display:none;margin-top:16px">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px" id="carrierEditTitle">Configurar Carrier</div>
+      <div id="carrierEditFields" style="display:grid;grid-template-columns:1fr 1fr;gap:12px"></div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn ok" onclick="carrierSaveCfg()" style="background:rgba(47,227,181,.12);border-color:rgba(47,227,181,.3);color:#2fe3b5">
+          💾 Guardar credenciales
+        </button>
+        <button class="btn" onclick="carrierCloseEdit()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info carriers sin API -->
+  <div class="card" style="margin-top:16px;background:rgba(212,175,55,.04);border-color:rgba(212,175,55,.12)">
+    <div class="card-title" style="margin-bottom:10px;font-size:12px;color:var(--muted)">ℹ️ Carriers directos (sin API)</div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.6;margin:0">
+      USPS Click-N-Ship, UPS y FedEx no requieren credenciales. Al generar una etiqueta se abre el sitio oficial del carrier en una nueva pestaña y debes ingresar el número de tracking manualmente.
+    </p>
+  </div>
+</div>
+
+<style>
+  #carriersTable tbody tr:hover td { background: rgba(212,175,55,.03); }
+  .carrier-status-badge {
+    display:inline-flex;align-items:center;gap:5px;
+    padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.3px;
+  }
+  .carrier-status-ok  { background:rgba(47,227,181,.12); color:#2fe3b5; border:1px solid rgba(47,227,181,.25); }
+  .carrier-status-warn{ background:rgba(245,166,35,.12);  color:#f5a623; border:1px solid rgba(245,166,35,.25); }
+  .carrier-status-info{ background:rgba(74,144,226,.12);  color:#4a90e2; border:1px solid rgba(74,144,226,.25); }
+  .carrier-type-badge {
+    padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  }
+  .carrier-type-api   { background:rgba(47,227,181,.08); color:#2fe3b5; border:1px solid rgba(47,227,181,.2); }
+  .carrier-type-direct{ background:rgba(74,144,226,.08); color:#4a90e2; border:1px solid rgba(74,144,226,.2); }
+  .carrier-type-manual{ background:rgba(255,255,255,.06); color:var(--muted); border:1px solid var(--line); }
+</style>
 
 <!-- ══ MODAL: CREAR / EDITAR USUARIO ══ -->
 <div class="modal-overlay" id="userModal" style="display:none">
@@ -6716,6 +6790,220 @@ async function slmSaveConfig(){
   toast('✅ Configuración guardada en la base de datos.','ok');
 }
 window.openShippingLabelModal = openShippingLabelModal;
+
+// ══════════════════════════════════════
+//  TAB CARRIERS — gestión de paqueterías
+// ══════════════════════════════════════
+
+const CARRIERS_TABLE = 'carriers';
+let _carriersData = [];   // rows from Supabase
+let _carrierEditKey = null;
+
+async function carriersLoadTab(){
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/'+CARRIERS_TABLE+'?select=*&order=id', {headers:SB_H});
+    if(r.ok){
+      const rows = await r.json();
+      if(rows && rows.length) _carriersData = rows;
+    }
+  }catch(e){ console.warn('[carriers] load:', e.message); }
+
+  // Si la tabla está vacía, sembramos los carriers base
+  if(!_carriersData.length){
+    await carriersSeedDefaults();
+    return;
+  }
+  carriersRender();
+}
+
+async function carriersSeedDefaults(){
+  const defaults = [
+    {id:'easypost',   label:'EasyPost',          icon:'📮', color:'#2fe3b5', api_type:'api',    url:'https://www.easypost.com/shipments',               enabled:true},
+    {id:'pirateship', label:'Pirateship',         icon:'🏴', color:'#ff6b00', api_type:'api',    url:'https://ship.pirateship.com/create',               enabled:true},
+    {id:'usps',       label:'USPS Click-N-Ship',  icon:'🇺🇸', color:'#4a90e2', api_type:'direct', url:'https://cns.usps.com',                             enabled:true},
+    {id:'ups',        label:'UPS',                icon:'🟤', color:'#c8a86b', api_type:'direct', url:'https://www.ups.com/ship',                         enabled:true},
+    {id:'fedex',      label:'FedEx',              icon:'🟣', color:'#9b72cf', api_type:'direct', url:'https://www.fedex.com/en-us/shipping.html',        enabled:true},
+    {id:'manual',     label:'Manual',             icon:'✍️', color:null,      api_type:'manual', url:null,                                              enabled:true},
+  ];
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/'+CARRIERS_TABLE, {
+      method:'POST',
+      headers:{...SB_H,'Content-Type':'application/json','Prefer':'resolution=ignore-duplicates,return=minimal'},
+      body: JSON.stringify(defaults)
+    });
+    if(r.ok) _carriersData = defaults;
+  }catch(e){ console.warn('[carriers] seed:', e.message); _carriersData = defaults; }
+  carriersRender();
+}
+
+function carriersRender(){
+  const tbody = document.getElementById('carriersBody');
+  if(!tbody) return;
+  const cfg = _slmLoadCfg();
+
+  tbody.innerHTML = _carriersData.map(c => {
+    const typeLabel = c.api_type==='api' ? '<span class="carrier-type-badge carrier-type-api">API</span>'
+                    : c.api_type==='direct' ? '<span class="carrier-type-badge carrier-type-direct">Directo</span>'
+                    : '<span class="carrier-type-badge carrier-type-manual">Manual</span>';
+
+    let statusBadge, credInfo;
+    if(c.api_type==='api'){
+      const hasCred = c.id==='easypost' ? !!(c.ep_key||cfg.epKey)
+                    : c.id==='pirateship' ? !!(c.ps_token||cfg.psToken)
+                    : false;
+      statusBadge = hasCred
+        ? '<span class="carrier-status-badge carrier-status-ok">✅ Configurado</span>'
+        : '<span class="carrier-status-badge carrier-status-warn">⚠️ Sin credenciales</span>';
+      if(c.id==='easypost'){
+        const k = c.ep_key||cfg.epKey||'';
+        credInfo = k ? '<code style="font-size:10px;color:var(--muted)">'+k.slice(0,8)+'••••••</code>' : '<span style="color:var(--muted);font-size:11px">—</span>';
+      } else if(c.id==='pirateship'){
+        const u = c.ps_user||cfg.psUser||'';
+        credInfo = u ? '<span style="font-size:11px;color:var(--muted)">'+u+'</span>' : '<span style="color:var(--muted);font-size:11px">—</span>';
+      } else {
+        credInfo = '<span style="color:var(--muted);font-size:11px">—</span>';
+      }
+    } else {
+      statusBadge = c.enabled
+        ? '<span class="carrier-status-badge carrier-status-info">🔗 Directo</span>'
+        : '<span class="carrier-status-badge" style="background:rgba(255,77,109,.1);color:#ff4d6d;border-color:rgba(255,77,109,.2)">Desactivado</span>';
+      credInfo = c.url
+        ? '<a href="'+c.url+'" target="_blank" style="font-size:10px;color:var(--muted);text-decoration:none">'+c.url.replace('https://','').split('/')[0]+'</a>'
+        : '<span style="color:var(--muted);font-size:11px">—</span>';
+    }
+
+    const enabledToggle = `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--muted)">
+      <input type="checkbox" ${c.enabled!==false?'checked':''} onchange="carrierToggleEnabled('${c.id}',this.checked)" style="accent-color:var(--gold)"/>
+      Activo
+    </label>`;
+
+    const editBtn = c.api_type==='api'
+      ? `<button class="btn sm ok" onclick="carrierEditOpen('${c.id}')" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5;font-size:10px">✏️ Credenciales</button>`
+      : '';
+
+    return `<tr>
+      <td style="font-size:22px;text-align:center;padding:10px 8px">${c.icon||'📦'}</td>
+      <td>
+        <div style="font-weight:600;font-size:13px;color:var(--text)">${c.label}</div>
+        ${c.notes ? '<div style="font-size:10px;color:var(--muted);margin-top:2px">'+c.notes+'</div>' : ''}
+      </td>
+      <td>${typeLabel}</td>
+      <td>${statusBadge}</td>
+      <td>${credInfo}</td>
+      <td style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${editBtn}${enabledToggle}</td>
+    </tr>`;
+  }).join('');
+}
+
+function carrierEditOpen(key){
+  const c = _carriersData.find(x=>x.id===key);
+  if(!c) return;
+  _carrierEditKey = key;
+  const cfg = _slmLoadCfg();
+  const panel = document.getElementById('carrierEditPanel');
+  const title = document.getElementById('carrierEditTitle');
+  const fields = document.getElementById('carrierEditFields');
+  title.textContent = (c.icon||'')+'  Configurar '+c.label;
+
+  if(key==='easypost'){
+    fields.innerHTML = `
+      <div class="form-group" style="margin:0;grid-column:1/-1">
+        <label>API Key <a href="https://www.easypost.com/account/api-keys" target="_blank" style="font-size:10px;color:rgba(47,227,181,.6)">Ver en EasyPost →</a></label>
+        <input id="cEditEpKey" type="password" placeholder="EZAKxxxxxxxxx" value="${c.ep_key||cfg.epKey||''}" autocomplete="new-password"/>
+        <small style="color:var(--muted);font-size:10px">EasyPost → Account → API Keys</small>
+      </div>`;
+  } else if(key==='pirateship'){
+    fields.innerHTML = `
+      <div class="form-group" style="margin:0">
+        <label>Email</label>
+        <input id="cEditPsUser" type="email" placeholder="tu@correo.com" value="${c.ps_user||cfg.psUser||''}" autocomplete="off"/>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>API Token</label>
+        <input id="cEditPsToken" type="password" placeholder="Token de Pirateship" value="${c.ps_token||cfg.psToken||''}" autocomplete="new-password"/>
+        <small style="color:var(--muted);font-size:10px">Pirateship → Settings → API</small>
+      </div>`;
+  }
+
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function carrierCloseEdit(){
+  _carrierEditKey = null;
+  document.getElementById('carrierEditPanel').style.display = 'none';
+}
+
+async function carrierSaveCfg(){
+  if(!_carrierEditKey) return;
+  const cfg = _slmLoadCfg();
+  const update = {};
+
+  if(_carrierEditKey==='easypost'){
+    const k = (document.getElementById('cEditEpKey')?.value||'').trim();
+    if(!k){ toast('Ingresa la API Key de EasyPost','warn'); return; }
+    cfg.epKey = k;
+    update.ep_key = k;
+  } else if(_carrierEditKey==='pirateship'){
+    const u = (document.getElementById('cEditPsUser')?.value||'').trim();
+    const t = (document.getElementById('cEditPsToken')?.value||'').trim();
+    if(!u||!t){ toast('Completa email y token de Pirateship','warn'); return; }
+    cfg.psUser = u; cfg.psToken = t;
+    update.ps_user = u; update.ps_token = t;
+  }
+
+  update.updated_at = new Date().toISOString();
+
+  // Guardar en localStorage + config Supabase (compatibilidad)
+  await _slmSaveCfg(cfg);
+
+  // Guardar en tabla carriers
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/'+CARRIERS_TABLE+'?id=eq.'+_carrierEditKey,{
+      method:'PATCH',
+      headers:{...SB_H,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify(update)
+    });
+    if(r.ok){
+      const row = _carriersData.find(x=>x.id===_carrierEditKey);
+      if(row) Object.assign(row, update);
+      toast('Credenciales guardadas','ok');
+      carrierCloseEdit();
+      carriersRender();
+    } else {
+      toast('Error al guardar en base de datos','err');
+    }
+  }catch(e){
+    toast('Error de conexión: '+e.message,'err');
+  }
+}
+
+async function carrierToggleEnabled(key, enabled){
+  const row = _carriersData.find(x=>x.id===key);
+  if(row) row.enabled = enabled;
+  try{
+    await fetch(SB_URL+'/rest/v1/'+CARRIERS_TABLE+'?id=eq.'+key,{
+      method:'PATCH',
+      headers:{...SB_H,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({enabled, updated_at: new Date().toISOString()})
+    });
+  }catch(e){ console.warn('[carriers] toggle:', e.message); }
+  carriersRender();
+}
+
+function carriersRefresh(){
+  _carriersData = [];
+  carriersLoadTab();
+}
+
+// Cargar el tab cuando se activa
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    if(btn.dataset.tab==='carriers'){
+      btn.addEventListener('click', ()=>{ if(!_carriersData.length) carriersLoadTab(); });
+    }
+  });
+});
 
 
 </script>
