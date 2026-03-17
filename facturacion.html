@@ -1210,6 +1210,13 @@ async function saveOnly(){
   const data = collectData();
   if(!validate(data)) return;
 
+  // Al procesar la factura, pasar automáticamente de "pendiente" → "procesando"
+  if(data.status === 'pendiente'){
+    data.status = 'procesando';
+    data.invoice_status = 'procesando';
+    g('f_status').value = 'procesando';
+  }
+
   // ── Solo guardar cliente si NO existe (nunca guardar artículos) ──
   const clientNameLower = (data.clientName||'').toLowerCase().trim();
   const clienteExiste = DB.clients.some(c=>(c.name||'').toLowerCase().trim()===clientNameLower);
