@@ -1946,13 +1946,19 @@ function buildInvoicePDF(o){
 //  ETIQUETA DE ENVÍO — delega a admin.html (ventana padre)
 // ══════════════════════════════════════════════════════
 function openEtiqueta(id){
+  // 1) intenta via window.opener (popup)
   try{
     if(window.opener && !window.opener.closed && typeof window.opener.openShippingLabelModal === 'function'){
       window.opener.focus();
       window.opener.openShippingLabelModal(id);
-    } else {
-      toast('Abre esta ventana desde el panel Admin para generar etiquetas','warn');
+      return;
     }
+  }catch(e){}
+  // 2) fallback: localStorage event (funciona con tabs y popups)
+  try{
+    localStorage.setItem('pm_open_label', JSON.stringify({id, ts: Date.now()}));
+    localStorage.removeItem('pm_open_label');
+    toast('Abriendo etiqueta en Admin...','ok');
   }catch(e){
     toast('Abre esta ventana desde el panel Admin para generar etiquetas','warn');
   }

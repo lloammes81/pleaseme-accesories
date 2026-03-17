@@ -3093,6 +3093,12 @@ window.syncOrdersFromStorage = function(){
 // Also listen for cross-tab storage events (when facturacion.html is in a different tab)
 window.addEventListener('storage', e=>{
   if(e.key===LS_ORDERS) window.syncOrdersFromStorage();
+  if(e.key==='pm_open_label' && e.newValue){
+    try{
+      const {id} = JSON.parse(e.newValue);
+      if(id) openShippingLabelModal(id);
+    }catch(err){}
+  }
 });
 
 // ══════════════════════════════════════
