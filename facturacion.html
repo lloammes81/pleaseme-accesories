@@ -1229,15 +1229,18 @@ async function saveOnly(){
       created_at: new Date().toISOString(),
     };
     try{
+      const cliId = 'cli-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
       const clienteSB = {
+        id:         cliId,
         name:       nuevoCliente.name,
-        email:      nuevoCliente.email,
+        email:      nuevoCliente.email || null,
         phone:      nuevoCliente.phone,
         address:    nuevoCliente.address,
+        record:     nuevoCliente,
         created_at: nuevoCliente.created_at,
       };
-      const ins = await sbPOST('clientes', clienteSB);
-      nuevoCliente.id = (ins && ins.length) ? ins[0].id : 'cli-'+Date.now();
+      await sbPOST('clientes', clienteSB, 'return=minimal');
+      nuevoCliente.id = cliId;
       DB.clients.push(nuevoCliente);
       localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
       toast('👤 Cliente guardado: '+data.clientName,'ok');
@@ -1253,6 +1256,7 @@ async function saveOnly(){
   // Columnas exactas de la tabla pedidos (igual que admin.html toRow + sbSaveOrder)
   function buildPedidoRow(d, existingId){
     const row = {
+      id:               existingId || ('ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)),
       status:           d.status            || 'pendiente',
       client_name:      d.clientName        || '',
       client_email:     d.clientEmail       || '',
@@ -1272,7 +1276,6 @@ async function saveOnly(){
       created_at:       d.created_at        || new Date().toISOString(),
       record:           d,
     };
-    if(existingId) row.id = existingId;
     return row;
   }
 
@@ -1287,19 +1290,18 @@ async function saveOnly(){
     const idx = DB.orders.findIndex(o=>o.id===editingId);
     if(idx>=0) DB.orders[idx] = {...DB.orders[idx], ...data, id:editingId};
   } else {
+    const row = buildPedidoRow(data);
+    const newId = row.id;
     try{
-      const ins = await sbPOST('pedidos', buildPedidoRow(data));
-      const newId = (ins && ins.length) ? ins[0].id : null;
-      if(!newId) throw new Error('Sin ID retornado');
+      await sbPOST('pedidos', row, 'return=minimal');
       editingId = newId;
       DB.orders.unshift({...data, id:newId});
       toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
     }catch(e){
       console.error('[SB] insert pedido:', e.message);
       toast('⚠ Error BD: '+e.message,'err');
-      const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
-      editingId = localId;
-      DB.orders.unshift({...data, id:localId});
+      editingId = newId;
+      DB.orders.unshift({...data, id:newId});
       toast('⚠ Guardado solo localmente — '+data.invoice_num,'warn');
     }
   }
