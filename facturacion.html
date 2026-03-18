@@ -1211,13 +1211,12 @@ async function saveOnly(){
     try{
       const cliId = 'cli-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
       const clienteSB = {
-        id:               cliId,
-        name:             nuevoCliente.name,
-        email:            nuevoCliente.email || null,
-        phone:            nuevoCliente.phone,
-        shipping_address: nuevoCliente.address,
-        record:           nuevoCliente,
-        created_at:       nuevoCliente.created_at,
+        id:         cliId,
+        name:       nuevoCliente.name,
+        email:      nuevoCliente.email || null,
+        phone:      nuevoCliente.phone,
+        address:    nuevoCliente.address,
+        created_at: nuevoCliente.created_at,
       };
       await sbPOST('clientes', clienteSB, 'return=minimal');
       nuevoCliente.id = cliId;
