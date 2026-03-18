@@ -1273,7 +1273,7 @@ async function saveOnly(){
           invoice_status:   data.status,
           payment_method:   data.payment_method,
           notes:            data.notes,
-          items:            data.items,
+          items_count:      (data.items||[]).length,
           subtotal:         data.subtotal,
           shipping_cost:    data.shipping||0,
           discount_amount:  data.discountAmount||0,
@@ -1302,7 +1302,7 @@ async function saveOnly(){
       invoice_status:   data.status,
       payment_method:   data.payment_method,
       notes:            data.notes,
-      items:            data.items,
+      items_count:      (data.items||[]).length,
       subtotal:         data.subtotal,
       shipping_cost:    data.shipping||0,
       discount_amount:  data.discountAmount||0,
@@ -1320,10 +1320,11 @@ async function saveOnly(){
         toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
       }catch(e){
         console.error('[SB] insert pedido:', e.message);
+        toast('⚠ Error BD: '+e.message,'err');
         const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
         editingId = localId;
         DB.orders.unshift({...data, id:localId});
-        toast('✅ Factura guardada localmente — '+data.invoice_num,'ok');
+        toast('⚠ Factura guardada solo localmente — '+data.invoice_num,'warn');
       }
     } else {
       const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
