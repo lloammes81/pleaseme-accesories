@@ -1255,10 +1255,6 @@ async function saveOnly(){
   // ── Guardar/actualizar factura ──
   // Columnas exactas de la tabla pedidos
   function buildPedidoRow(d, existingId){
-    // Mapear status del formulario → invoice_status válido en DB
-    // DB solo acepta: pendiente | pagada | cancelada
-    const statusMap = { entregado:'pagada', cancelado:'cancelada' };
-    const dbInvoiceStatus = statusMap[d.status] || 'pendiente';
     const row = {
       id:               existingId || ('ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)),
       status:           d.status            || 'pendiente',
@@ -1272,8 +1268,9 @@ async function saveOnly(){
       payment_method:   d.payment_method    || '',
       items_count:      (d.items||[]).length,
       invoice_num:      d.invoice_num       || '',
-      invoice_status:   dbInvoiceStatus,
-      discount:         Number(d.discountAmount || 0),
+      invoice_status:   d.status            || 'pendiente',
+      currency:         'USD',
+      discount_amount:  Number(d.discountAmount || 0),
       notes:            d.notes             || '',
       updated_at:       new Date().toISOString(),
       created_at:       d.created_at        || new Date().toISOString(),
