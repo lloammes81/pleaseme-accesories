@@ -141,7 +141,11 @@
     .kpi-lbl{font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px}
 
     /* ── PANEL DERECHO ── */
-    .right-panel{position:sticky;top:80px}
+    .right-panel{
+      position:sticky;top:80px;
+      height:calc(100vh - 96px);
+      display:flex;flex-direction:column;
+    }
 
     /* ── DIVIDER ── */
     hr{border:none;border-top:1px solid rgba(255,255,255,.07);margin:16px 0}
@@ -417,14 +421,14 @@
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-outline" onclick="resetForm()" style="flex:1;min-width:100px">✕ Nuevo</button>
         <button class="btn btn-outline" onclick="saveOnly()" style="flex:1.5;min-width:120px">💾 Guardar</button>
-        <button class="btn btn-gold" onclick="printCurrentInvoice()" style="flex:2;min-width:150px" id="btnPrint" title="Guardar e imprimir">🖨 Guardar & Imprimir</button>
+        <button class="btn btn-gold" onclick="printCurrentInvoice()" style="flex:2;min-width:150px" id="btnPrint" title="Guardar e imprimir">🖨 General</button>
       </div>
     </div>
   </div>
 
   <!-- ═══ COLUMNA DERECHA — LISTA FACTURAS ═══ -->
   <div class="right-panel">
-    <div class="card" style="position:sticky;top:80px">
+    <div class="card" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
       <div class="card-title">Facturas</div>
       <div class="search-wrap">
         <input id="searchQ" placeholder="Buscar cliente, No. factura..." oninput="renderList()" />
@@ -439,7 +443,7 @@
           <option value="cancelado">Cancelado</option>
         </select>
       </div>
-      <div class="invoice-list" id="invoiceList" style="max-height:calc(100vh - 340px);overflow-y:auto">
+      <div class="invoice-list" id="invoiceList" style="flex:1;overflow-y:auto;min-height:0">
         <div class="items-empty">Cargando facturas...</div>
       </div>
     </div>
@@ -1206,6 +1210,13 @@ async function saveOnly(){
   const data = collectData();
   if(!validate(data)) return;
 
+  // Al procesar la factura, pasar automáticamente de "pendiente" → "procesando"
+  if(data.status === 'pendiente'){
+    data.status = 'procesando';
+    data.invoice_status = 'procesando';
+    g('f_status').value = 'procesando';
+  }
+
   // ── Solo guardar cliente si NO existe (nunca guardar artículos) ──
   const clientNameLower = (data.clientName||'').toLowerCase().trim();
   const clienteExiste = DB.clients.some(c=>(c.name||'').toLowerCase().trim()===clientNameLower);
@@ -1946,13 +1957,19 @@ function buildInvoicePDF(o){
 //  ETIQUETA DE ENVÍO — delega a admin.html (ventana padre)
 // ══════════════════════════════════════════════════════
 function openEtiqueta(id){
+  // 1) intenta via window.opener (popup)
   try{
     if(window.opener && !window.opener.closed && typeof window.opener.openShippingLabelModal === 'function'){
       window.opener.focus();
       window.opener.openShippingLabelModal(id);
-    } else {
-      toast('Abre esta ventana desde el panel Admin para generar etiquetas','warn');
+      return;
     }
+  }catch(e){}
+  // 2) fallback: localStorage event (funciona con tabs y popups)
+  try{
+    localStorage.setItem('pm_open_label', JSON.stringify({id, ts: Date.now()}));
+    localStorage.removeItem('pm_open_label');
+    toast('Abriendo etiqueta en Admin...','ok');
   }catch(e){
     toast('Abre esta ventana desde el panel Admin para generar etiquetas','warn');
   }
