@@ -620,14 +620,17 @@ async function loadClients(){
   try{
     const data = await sbGET('clientes?select=*&order=name');
     if(data === null) throw new Error('null response');
-    // Normalizar columnas de clientes
-    DB.clients = (data||[]).map(cl=>({
-      ...cl,
-      name:    cl.name    || cl.nombre  || '',
-      email:   cl.email   || cl.correo  || '',
-      phone:   cl.phone   || cl.telefono|| '',
-      address: cl.address || cl.direccion|| '',
-    }));
+    // Normalizar columnas de clientes (datos en record JSONB)
+    DB.clients = (data||[]).map(cl=>{
+      const rec = (cl.record && typeof cl.record === 'object') ? cl.record : {};
+      return {
+        ...cl,
+        name:    rec.name    || rec.nombre    || cl.name    || '',
+        email:   cl.email    || rec.email     || rec.correo || '',
+        phone:   rec.phone   || rec.telefono  || '',
+        address: rec.address || rec.direccion || '',
+      };
+    });
     localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
     console.log('[SB] Clientes cargados:', DB.clients.length);
   }catch(e){
@@ -1234,10 +1237,8 @@ async function saveOnly(){
     };
     try{
       const clienteSB = {
-        name:       nuevoCliente.name,
-        email:      nuevoCliente.email,
-        phone:      nuevoCliente.phone,
-        address:    nuevoCliente.address,
+        email:      nuevoCliente.email || null,
+        record:     nuevoCliente,
         created_at: nuevoCliente.created_at,
       };
       const ins = await sbPOST('clientes', clienteSB);
@@ -1254,35 +1255,12 @@ async function saveOnly(){
   }
 
   // ── Guardar/actualizar factura ──
-  // Columnas exactas de la tabla pedidos (igual que admin.html toRow + sbSaveOrder)
+  // La tabla pedidos solo tiene: id, status, record (JSONB), created_at
   function buildPedidoRow(d, existingId){
     const row = {
-      status:           d.status            || 'pendiente',
-      client_name:      d.clientName        || '',
-      client_email:     d.clientEmail       || '',
-      client_phone:     d.clientPhone       || '',
-      total:            Number(d.total      || 0),
-      subtotal:         Number(d.subtotal   || 0),
-      shipping_cost:    Number(d.shipping   || 0),
-      shipping_address: d.address           || '',
-      payment_method:   d.payment_method    || '',
-      items_count:      (d.items||[]).length,
-      tracking_num:     d.trackingNum       || '',
-      invoice_num:      d.invoice_num       || '',
-      invoice_status:   d.status            || 'pendiente',
-      currency:         'USD',
-      discount_value:   Number(d.discountValue  || d.discountAmount || 0),
-      discount_type:    d.discountType      || 'fixed',
-      discount_amount:  Number(d.discountAmount || 0),
-      payment_type:     d.paymentType       || 'contado',
-      credit_days:      Number(d.creditDays || 0),
-      due_date:         d.dueDate           || null,
-      deposit:          Number(d.deposit    || 0),
-      balance_due:      Number(d.balanceDue || 0),
-      notes:            d.notes             || '',
-      updated_at:       new Date().toISOString(),
-      created_at:       d.created_at        || new Date().toISOString(),
-      record:           d,
+      status:     d.status     || 'pendiente',
+      record:     d,
+      created_at: d.created_at || new Date().toISOString(),
     };
     if(existingId) row.id = existingId;
     return row;
