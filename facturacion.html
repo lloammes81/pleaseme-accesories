@@ -1231,13 +1231,13 @@ async function saveOnly(){
     try{
       const cliId = 'cli-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
       const clienteSB = {
-        id:         cliId,
-        name:       nuevoCliente.name,
-        email:      nuevoCliente.email || null,
-        phone:      nuevoCliente.phone,
-        address:    nuevoCliente.address,
-        record:     nuevoCliente,
-        created_at: nuevoCliente.created_at,
+        id:               cliId,
+        name:             nuevoCliente.name,
+        email:            nuevoCliente.email || null,
+        phone:            nuevoCliente.phone,
+        shipping_address: nuevoCliente.address,
+        record:           nuevoCliente,
+        created_at:       nuevoCliente.created_at,
       };
       await sbPOST('clientes', clienteSB, 'return=minimal');
       nuevoCliente.id = cliId;
@@ -1253,7 +1253,7 @@ async function saveOnly(){
   }
 
   // ── Guardar/actualizar factura ──
-  // Columnas exactas de la tabla pedidos (igual que admin.html toRow + sbSaveOrder)
+  // Columnas exactas de la tabla pedidos
   function buildPedidoRow(d, existingId){
     const row = {
       id:               existingId || ('ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)),
@@ -1281,7 +1281,7 @@ async function saveOnly(){
 
   if(editingId){
     try{
-      await sbPATCH('pedidos','id=eq.'+encodeURIComponent(editingId), buildPedidoRow(data));
+      await sbPATCH('pedidos','id=eq.'+encodeURIComponent(editingId), buildPedidoRow(data, editingId));
       toast('✅ Factura actualizada — '+data.invoice_num,'ok');
     }catch(e){
       console.error('[SB] update pedido:', e.message);
@@ -1496,11 +1496,12 @@ async function confirmVoid(){
   if(idx<0){ toast('Factura no encontrada','err'); return; }
 
   const voidData = {
-    status:       'cancelado',
-    void_reason:  reason,
-    void_note:    note,
-    void_at:      new Date().toISOString(),
-    updated_at:   new Date().toISOString(),
+    status:         'cancelado',
+    invoice_status: 'cancelada',
+    void_reason:    reason,
+    void_note:      note,
+    void_at:        new Date().toISOString(),
+    updated_at:     new Date().toISOString(),
   };
 
   try{
