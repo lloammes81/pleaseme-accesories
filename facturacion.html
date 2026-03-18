@@ -538,6 +538,8 @@ let items = [];
     }
   });
   window.addEventListener('storage', e=>{
+    // El evento storage nativo sólo se dispara desde OTRAS pestañas/ventanas,
+    // nunca desde la ventana que hizo el localStorage.setItem().
     if([LS_ORDERS,LS_PRODS,LS_CLIENTS].includes(e.key)){
       loadAll().then(()=>{ renderList(); updateKPIs(); });
     }
@@ -641,7 +643,9 @@ function persist(){
   // Solo guarda en localStorage como cache local — Supabase se maneja en saveOnly()
   localStorage.setItem(LS_ORDERS,  JSON.stringify(DB.orders));
   localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
-  window.dispatchEvent(new StorageEvent('storage', { key: LS_ORDERS }));
+  // NO se dispara el evento storage en esta misma ventana para evitar
+  // que loadAll() sobreescriba DB.orders con datos de Supabase y borre
+  // facturas recién creadas que aún no están sincronizadas.
   // Notificar a admin.html si está abierto como ventana padre
   try{
     if(window.opener && !window.opener.closed && typeof window.opener.syncOrdersFromStorage === 'function'){
