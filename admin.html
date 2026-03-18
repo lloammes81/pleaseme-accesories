@@ -1100,10 +1100,11 @@
         <thead>
           <tr>
             <th>Cliente</th>
+            <th>Email</th>
             <th>Teléfono</th>
-            <th>Pedidos</th>
+            <th>Registrado</th>
             <th>Total gastado</th>
-            <th>Último pedido</th>
+            <th>Verificado</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -4125,7 +4126,12 @@ function renderClients(){
   list.sort((a,b)=>so==='name'?(a.name||'').localeCompare(b.name||''):new Date(b.created_at||0)-new Date(a.created_at||0));
   const el=document.getElementById('clientsBody'); if(!el) return;
   if(!list.length){el.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">Sin clientes</td></tr>';return;}
-  el.innerHTML=list.map(c=>`
+  el.innerHTML=list.map(c=>{
+    const verified = c.email_verified === true;
+    const verBadge = verified
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;background:rgba(47,227,181,.12);border:1px solid rgba(47,227,181,.3);color:#2fe3b5;font-size:10px;font-weight:600">✓ Verificado</span>`
+      : `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;background:rgba(255,163,72,.08);border:1px solid rgba(255,163,72,.25);color:#ffa348;font-size:10px;font-weight:600">⚠ Pendiente</span>`;
+    return `
     <tr onclick="openClientModal('${c.id}')" style="cursor:pointer">
       <td><div style="display:flex;align-items:center;gap:10px">
         <div style="width:34px;height:34px;border-radius:50%;background:rgba(212,175,55,.2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--gold);font-size:14px;flex-shrink:0">${(c.name||'?')[0].toUpperCase()}</div>
@@ -4135,16 +4141,23 @@ function renderClients(){
       <td style="font-size:12px;color:var(--muted)">${esc(c.phone||'—')}</td>
       <td style="font-size:12px;color:var(--muted)">${fmtDate(c.created_at)}</td>
       <td style="font-family:var(--fd);color:var(--gold)">$${Number(c.total_spent||0).toFixed(2)}</td>
+      <td>${verBadge}</td>
       <td onclick="event.stopPropagation()"><button class="btn sm danger" onclick="deleteClient('${c.id}')">🗑</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   // KPIs
   const kpi=document.getElementById('clientsKpiGrid');
   if(kpi){
-    const total=(DB.clients||[]).length;
-    const newThisMonth=(DB.clients||[]).filter(c=>{const d=new Date(c.created_at||0);const n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).length;
+    const allClients=(DB.clients||[]);
+    const total=allClients.length;
+    const newThisMonth=allClients.filter(c=>{const d=new Date(c.created_at||0);const n=new Date();return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}).length;
+    const verified=allClients.filter(c=>c.email_verified===true).length;
+    const unverified=allClients.filter(c=>c.email_verified===false).length;
     kpi.innerHTML=`
       <div class="kpi-card"><div class="kpi-icon">👥</div><div class="kpi-val">${total}</div><div class="kpi-label">Clientes</div></div>
-      <div class="kpi-card"><div class="kpi-icon">✨</div><div class="kpi-val">${newThisMonth}</div><div class="kpi-label">Nuevos este mes</div></div>`;
+      <div class="kpi-card"><div class="kpi-icon">✨</div><div class="kpi-val">${newThisMonth}</div><div class="kpi-label">Nuevos este mes</div></div>
+      <div class="kpi-card"><div class="kpi-icon">✅</div><div class="kpi-val" style="color:#2fe3b5">${verified}</div><div class="kpi-label">Email verificado</div></div>
+      <div class="kpi-card"><div class="kpi-icon">⚠️</div><div class="kpi-val" style="color:#ffa348">${unverified}</div><div class="kpi-label">Sin verificar</div></div>`;
   }
 }
 
