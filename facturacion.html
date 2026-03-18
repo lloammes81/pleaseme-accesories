@@ -502,7 +502,7 @@ async function sbPATCH(table, filter, body){
 // ══════════════════════════════════════════════════════
 //  CONSTANTES localStorage (fallback / cache)
 // ══════════════════════════════════════════════════════
-const LS_ORDERS  = 'pm_orders_v1';
+const LS_ORDERS  = 'pm_facturas_v1';
 const LS_PRODS   = 'pm_products_v1';
 const LS_CLIENTS = 'pm_clients_v1';
 const LS_COMPANY = 'pm_company_v1';
@@ -565,9 +565,9 @@ function loadLocal(){
 
 async function loadOrders(){
   try{
-    const data = await sbGET('pedidos?select=*&order=created_at.desc');
+    const data = await sbGET('facturas?select=*&order=created_at.desc');
     if(data === null) throw new Error('null response');
-    // Normalizar columnas de pedidos al formato interno del app
+    // Normalizar columnas de facturas al formato interno del app
     // Muchos campos (items, invoice_num, notes, etc.) están guardados dentro
     // de la columna "record" (JSON blob) — hay que extraerlos de ahí también.
     DB.orders = (data||[]).map(o=>{
@@ -1253,10 +1253,10 @@ async function saveOnly(){
   }
 
   // ── Guardar/actualizar factura ──
-  // Columnas exactas de la tabla pedidos
-  function buildPedidoRow(d, existingId){
+  // Columnas exactas de la tabla facturas
+  function buildFacturaRow(d, existingId){
     const row = {
-      id:               existingId || ('ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)),
+      id:               existingId || ('fac-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)),
       status:           d.status            || 'pendiente',
       client_name:      d.clientName        || '',
       client_email:     d.clientEmail       || '',
@@ -1281,24 +1281,24 @@ async function saveOnly(){
 
   if(editingId){
     try{
-      await sbPATCH('pedidos','id=eq.'+encodeURIComponent(editingId), buildPedidoRow(data, editingId));
+      await sbPATCH('facturas','id=eq.'+encodeURIComponent(editingId), buildFacturaRow(data, editingId));
       toast('✅ Factura actualizada — '+data.invoice_num,'ok');
     }catch(e){
-      console.error('[SB] update pedido:', e.message);
+      console.error('[SB] update factura:', e.message);
       toast('⚠ Error al actualizar: '+e.message,'err');
     }
     const idx = DB.orders.findIndex(o=>o.id===editingId);
     if(idx>=0) DB.orders[idx] = {...DB.orders[idx], ...data, id:editingId};
   } else {
-    const row = buildPedidoRow(data);
+    const row = buildFacturaRow(data);
     const newId = row.id;
     try{
-      await sbPOST('pedidos', row, 'return=minimal');
+      await sbPOST('facturas', row, 'return=minimal');
       editingId = newId;
       DB.orders.unshift({...data, id:newId});
       toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
     }catch(e){
-      console.error('[SB] insert pedido:', e.message);
+      console.error('[SB] insert factura:', e.message);
       toast('⚠ Error BD: '+e.message,'err');
       editingId = newId;
       DB.orders.unshift({...data, id:newId});
@@ -1505,7 +1505,7 @@ async function confirmVoid(){
   };
 
   try{
-    await sbPATCH('pedidos','id=eq.'+encodeURIComponent(id), voidData);
+    await sbPATCH('facturas','id=eq.'+encodeURIComponent(id), voidData);
   }catch(e){ console.error('[SB] voidInvoice:', e.message); }
 
   Object.assign(DB.orders[idx], voidData, {invoice_status:'cancelado'});
