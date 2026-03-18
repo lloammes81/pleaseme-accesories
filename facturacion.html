@@ -1267,10 +1267,18 @@ async function saveOnly(){
       shipping_address: d.address           || '',
       payment_method:   d.payment_method    || '',
       items_count:      (d.items||[]).length,
+      tracking_num:     d.trackingNum       || '',
       invoice_num:      d.invoice_num       || '',
       invoice_status:   d.status            || 'pendiente',
       currency:         'USD',
+      discount_value:   Number(d.discountValue  || d.discountAmount || 0),
+      discount_type:    d.discountType      || 'fixed',
       discount_amount:  Number(d.discountAmount || 0),
+      payment_type:     d.paymentType       || 'contado',
+      credit_days:      Number(d.creditDays || 0),
+      due_date:         d.dueDate           || null,
+      deposit:          Number(d.deposit    || 0),
+      balance_due:      Number(d.balanceDue || 0),
       notes:            d.notes             || '',
       updated_at:       new Date().toISOString(),
       created_at:       d.created_at        || new Date().toISOString(),
@@ -1300,7 +1308,9 @@ async function saveOnly(){
       toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
     }catch(e){
       console.error('[SB] insert pedido:', e.message);
-      toast('⚠ Error BD: '+e.message,'err');
+      // Mostrar el error real de Supabase en pantalla para facilitar diagnóstico
+      const errMsg = e.message.length > 120 ? e.message.slice(0,120)+'…' : e.message;
+      toast('⚠ Error Supabase: '+errMsg,'err');
       const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
       editingId = localId;
       DB.orders.unshift({...data, id:localId});
