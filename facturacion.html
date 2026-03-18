@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>✦ Facturación — Pleaseme</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --gold:#d4af37; --gold2:#e8c56e; --goldf:#f0d880;
@@ -470,19 +469,35 @@
 // ══════════════════════════════════════════════════════
 //  SUPABASE CONFIG — reemplaza con tus credenciales
 // ══════════════════════════════════════════════════════
-const SUPABASE_URL  = 'https://sqcggascnbcnfkymqcql.supabase.co';
-const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY2dnYXNjbmJjbmZreW1xY3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODQ2NzIsImV4cCI6MjA4NzI2MDY3Mn0.q0C_q3gOZZzcr6dWPrIhWS63gst5OBYIg9FDxThaKt4';
+// ── REST API directa (igual que admin.html) ──
+const SB_URL = 'https://sqcggascnbcnfkymqcql.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY2dnYXNjbmJjbmZreW1xY3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODQ2NzIsImV4cCI6MjA4NzI2MDY3Mn0.q0C_q3gOZZzcr6dWPrIhWS63gst5OBYIg9FDxThaKt4';
+const SB_H   = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
+const SB = true; // Siempre disponible via REST
 
-// ── Inicializar cliente Supabase ──
-let SB = null;
-try{
-  if(SUPABASE_URL !== 'TU_SUPABASE_URL' && window.supabase){
-    SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    console.log('[Supabase] Conectado ✓');
-  } else {
-    console.warn('[Supabase] Credenciales no configuradas — usando localStorage');
-  }
-}catch(e){ console.error('[Supabase] Error init:', e.message); }
+async function sbGET(path){
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/'+path, {headers:SB_H});
+    if(!r.ok) throw new Error(await r.text());
+    return await r.json();
+  }catch(e){ console.warn('[SB GET]',path,e.message); return null; }
+}
+
+async function sbPOST(table, body, prefer='return=representation'){
+  const r = await fetch(SB_URL+'/rest/v1/'+table, {
+    method:'POST', headers:{...SB_H,'Prefer':prefer}, body:JSON.stringify(body)
+  });
+  if(!r.ok) throw new Error(await r.text());
+  const ct = r.headers.get('content-type')||'';
+  return ct.includes('json') ? await r.json() : null;
+}
+
+async function sbPATCH(table, filter, body){
+  const r = await fetch(SB_URL+'/rest/v1/'+table+'?'+filter, {
+    method:'PATCH', headers:{...SB_H,'Prefer':'return=minimal'}, body:JSON.stringify(body)
+  });
+  if(!r.ok) throw new Error(await r.text());
+}
 
 // ══════════════════════════════════════════════════════
 //  CONSTANTES localStorage (fallback / cache)
@@ -510,23 +525,18 @@ let items = [];
   renderList();
   updateKPIs();
   loadCompanyFromSupabase();
-  if(!SB){
+  sbGET('company?select=id&limit=1').then(data=>{
     const sb=g('sbStatusBar');
-    if(sb){ sb.style.display='flex'; }
-  } else {
-    SB.from('company').select('id').limit(1).then(({error})=>{
-      const sb=g('sbStatusBar');
-      if(!sb) return;
-      if(error){
-        sb.style.cssText='display:flex;background:rgba(255,85,85,.1);border-bottom:1px solid rgba(255,85,85,.3);padding:8px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
-        sb.innerHTML='<span>❌</span><span>Error Supabase: '+error.message+'</span>';
-      } else {
-        sb.style.cssText='display:flex;background:rgba(47,227,181,.08);border-bottom:1px solid rgba(47,227,181,.2);padding:8px 24px;font-size:12px;color:#2fe3b5;align-items:center;gap:10px';
-        sb.innerHTML='<span>✅</span><span>Supabase conectado — pleaseme-store</span>';
-        setTimeout(()=>{ sb.style.display='none'; }, 3500);
-      }
-    });
-  }
+    if(!sb) return;
+    if(data===null){
+      sb.style.cssText='display:flex;background:rgba(255,85,85,.1);border-bottom:1px solid rgba(255,85,85,.3);padding:8px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
+      sb.innerHTML='<span>❌</span><span>Error conectando con Supabase</span>';
+    } else {
+      sb.style.cssText='display:flex;background:rgba(47,227,181,.08);border-bottom:1px solid rgba(47,227,181,.2);padding:8px 24px;font-size:12px;color:#2fe3b5;align-items:center;gap:10px';
+      sb.innerHTML='<span>✅</span><span>Supabase conectado — pleaseme-store</span>';
+      setTimeout(()=>{ sb.style.display='none'; }, 3500);
+    }
+  });
   window.addEventListener('storage', e=>{
     if([LS_ORDERS,LS_PRODS,LS_CLIENTS].includes(e.key)){
       loadAll().then(()=>{ renderList(); updateKPIs(); });
@@ -555,8 +565,8 @@ function loadLocal(){
 
 async function loadOrders(){
   try{
-    const {data,error} = await SB.from('pedidos').select('*').order('created_at',{ascending:false});
-    if(error) throw error;
+    const data = await sbGET('pedidos?select=*&order=created_at.desc');
+    if(data === null) throw new Error('null response');
     // Normalizar columnas de pedidos al formato interno del app
     // Muchos campos (items, invoice_num, notes, etc.) están guardados dentro
     // de la columna "record" (JSON blob) — hay que extraerlos de ahí también.
@@ -593,8 +603,8 @@ async function loadOrders(){
 
 async function loadProducts(){
   try{
-    const {data,error} = await SB.from('productos').select('*').order('name');
-    if(error) throw error;
+    const data = await sbGET('productos?select=*&order=name');
+    if(data === null) throw new Error('null response');
     DB.products = data||[];
     localStorage.setItem(LS_PRODS, JSON.stringify(DB.products));
     console.log('[SB] Productos cargados:', DB.products.length);
@@ -606,8 +616,8 @@ async function loadProducts(){
 
 async function loadClients(){
   try{
-    const {data,error} = await SB.from('clientes').select('*').order('name');
-    if(error) throw error;
+    const data = await sbGET('clientes?select=*&order=name');
+    if(data === null) throw new Error('null response');
     // Normalizar columnas de clientes
     DB.clients = (data||[]).map(cl=>({
       ...cl,
@@ -648,10 +658,10 @@ function getCompanyInfo(){
 }
 
 async function loadCompanyFromSupabase(){
-  if(!SB) return;
   try{
-    const {data,error} = await SB.from('company').select('*').limit(1).single();
-    if(error && error.code !== 'PGRST116') throw error;
+    const rows = await sbGET('company?select=*&limit=1');
+    if(!rows || !rows.length) return;
+    const data = rows[0];
     if(data){
       const co = getCompanyInfo();
       co.id        = data.id;
@@ -799,38 +809,29 @@ async function saveCompany(){
   // Guardar siempre en localStorage
   try{ localStorage.setItem(LS_COMPANY, JSON.stringify(co)); }catch(e){ console.warn(e); }
 
-  if(SB){
-    try{
-      // logo_data guarda el base64 directamente en la tabla (columna text)
-      const sbData = {
-        name:      co.name,
-        email:     co.email,
-        whatsapp:  co.whatsapp,
-        updated_at: new Date().toISOString(),
-      };
-      if(co._logoB64 && co._logoB64.startsWith('data:image')){
-        sbData.logo_data = co._logoB64;   // columna logo_data en tabla company
-      }
-
-      // Siempre hay una sola fila en company (id=1)
-      const {data:existing} = await SB.from('company').select('id').limit(1).single();
-      if(existing){
-        const {error} = await SB.from('company').update(sbData).eq('id', existing.id);
-        if(error) throw error;
-        co.id = existing.id;
-      } else {
-        const {data:ins,error} = await SB.from('company').insert([sbData]).select().single();
-        if(error) throw error;
-        co.id = ins.id;
-      }
-      localStorage.setItem(LS_COMPANY, JSON.stringify(co));
-      toast('✅ Configuración guardada en Supabase','ok');
-    }catch(e){
-      console.error('[SB] saveCompany:', e.message);
-      toast('⚠ Guardado solo localmente: '+e.message,'warn');
+  try{
+    const sbData = {
+      name:       co.name,
+      email:      co.email,
+      whatsapp:   co.whatsapp,
+      updated_at: new Date().toISOString(),
+    };
+    if(co._logoB64 && co._logoB64.startsWith('data:image')){
+      sbData.logo_data = co._logoB64;
     }
-  } else {
-    toast('✅ Configuración guardada','ok');
+    const rows = await sbGET('company?select=id&limit=1');
+    if(rows && rows.length){
+      co.id = rows[0].id;
+      await sbPATCH('company','id=eq.'+encodeURIComponent(rows[0].id), sbData);
+    } else {
+      const ins = await sbPOST('company', sbData);
+      if(ins && ins.length) co.id = ins[0].id;
+    }
+    localStorage.setItem(LS_COMPANY, JSON.stringify(co));
+    toast('✅ Configuración guardada en Supabase','ok');
+  }catch(e){
+    console.error('[SB] saveCompany:', e.message);
+    toast('⚠ Guardado solo localmente: '+e.message,'warn');
   }
   setTimeout(()=>{ g('companyPanel').style.display='none'; }, 800);
 }
@@ -891,16 +892,15 @@ async function generateInvNum(){
   const year = new Date().getFullYear();
   let next = 1;
   try{
-    if(SB){
-      // Leer contador actual
-      const {data, error} = await SB.from('config').select('value').eq('key','invoice_counter').single();
-      if(!error && data && data.value){
-        const val = typeof data.value === 'number' ? data.value : Number(data.value);
+    {
+      const rows = await sbGET('config?select=value&key=eq.invoice_counter&limit=1');
+      if(rows && rows.length && rows[0].value){
+        const val = typeof rows[0].value === 'number' ? rows[0].value : Number(rows[0].value);
         next = (isNaN(val) ? 0 : val) + 1;
       }
-      // Guardar nuevo valor (optimistic — sin transacción atómica)
-      await SB.from('config').upsert({key:'invoice_counter', value: next}, {onConflict:'key'});
-    } else {
+      await sbPOST('config', {key:'invoice_counter', value:next}, 'resolution=merge-duplicates,return=minimal');
+    }
+    if(false){
       // Fallback local: máximo de los registros existentes
       const nums = DB.orders.map(o=>{ const m=(o.invoice_num||'').match(/(\d+)$/); return m?parseInt(m[1]):0; });
       next = (Math.max(0,...nums) + 1);
@@ -1228,109 +1228,79 @@ async function saveOnly(){
       address:    data.address||'',
       created_at: new Date().toISOString(),
     };
-    if(SB){
-      try{
-        // Insertar en tabla clientes con columnas reales
-        const clienteSB = {
-          name:       nuevoCliente.name,
-          email:      nuevoCliente.email,
-          phone:      nuevoCliente.phone,
-          address:    nuevoCliente.address,
-          created_at: nuevoCliente.created_at,
-        };
-        const {data:ins,error} = await SB.from('clientes').insert([clienteSB]).select().single();
-        if(error) throw error;
-        nuevoCliente.id = ins.id;
-        DB.clients.push(nuevoCliente);
-        localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
-        toast('👤 Cliente guardado: '+data.clientName,'ok');
-      }catch(e){
-        console.error('[SB] insert cliente:', e.message);
-        nuevoCliente.id = 'cli-'+Date.now();
-        DB.clients.push(nuevoCliente);
-        localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
-        toast('👤 Cliente guardado localmente: '+data.clientName,'ok');
-      }
-    } else {
-      nuevoCliente.id = 'cli-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
+    try{
+      const clienteSB = {
+        name:       nuevoCliente.name,
+        email:      nuevoCliente.email,
+        phone:      nuevoCliente.phone,
+        address:    nuevoCliente.address,
+        created_at: nuevoCliente.created_at,
+      };
+      const ins = await sbPOST('clientes', clienteSB);
+      nuevoCliente.id = (ins && ins.length) ? ins[0].id : 'cli-'+Date.now();
       DB.clients.push(nuevoCliente);
       localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
       toast('👤 Cliente guardado: '+data.clientName,'ok');
+    }catch(e){
+      console.error('[SB] insert cliente:', e.message);
+      nuevoCliente.id = 'cli-'+Date.now();
+      DB.clients.push(nuevoCliente);
+      localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
     }
   }
 
-  // ── Guardar/actualizar factura (con artículos en campo items JSON, NO en tabla products) ──
+  // ── Guardar/actualizar factura ──
+  // Columnas exactas de la tabla pedidos (igual que admin.html toRow + sbSaveOrder)
+  function buildPedidoRow(d, existingId){
+    const row = {
+      status:           d.status            || 'pendiente',
+      client_name:      d.clientName        || '',
+      client_email:     d.clientEmail       || '',
+      client_phone:     d.clientPhone       || '',
+      total:            Number(d.total      || 0),
+      subtotal:         Number(d.subtotal   || 0),
+      shipping_cost:    Number(d.shipping   || 0),
+      shipping_address: d.address           || '',
+      payment_method:   d.payment_method    || '',
+      items_count:      (d.items||[]).length,
+      invoice_num:      d.invoice_num       || '',
+      invoice_status:   d.status            || 'pendiente',
+      currency:         'USD',
+      discount_amount:  Number(d.discountAmount || 0),
+      notes:            d.notes             || '',
+      updated_at:       new Date().toISOString(),
+      created_at:       d.created_at        || new Date().toISOString(),
+      record:           d,
+    };
+    if(existingId) row.id = existingId;
+    return row;
+  }
+
   if(editingId){
-    if(SB){
-      try{
-        const {error} = await SB.from('pedidos').update({
-          invoice_num:      data.invoice_num,
-          client_name:      data.clientName,
-          client_email:     data.clientEmail,
-          client_phone:     data.clientPhone,
-          shipping_address: data.address,
-          status:           data.status,
-          invoice_status:   data.status,
-          payment_method:   data.payment_method,
-          notes:            data.notes,
-          items_count:      (data.items||[]).length,
-          subtotal:         data.subtotal,
-          shipping_cost:    data.shipping||0,
-          discount_amount:  data.discountAmount||0,
-          total:            data.total,
-          updated_at:       new Date().toISOString(),
-          record:           data,
-        }).eq('id', editingId);
-        if(error) throw error;
-        toast('✅ Factura actualizada en Supabase — '+data.invoice_num,'ok');
-      }catch(e){
-        console.error('[SB] update order:', e.message);
-        toast('✅ Factura actualizada localmente','ok');
-      }
+    try{
+      await sbPATCH('pedidos','id=eq.'+encodeURIComponent(editingId), buildPedidoRow(data));
+      toast('✅ Factura actualizada — '+data.invoice_num,'ok');
+    }catch(e){
+      console.error('[SB] update pedido:', e.message);
+      toast('⚠ Error al actualizar: '+e.message,'err');
     }
     const idx = DB.orders.findIndex(o=>o.id===editingId);
     if(idx>=0) DB.orders[idx] = {...DB.orders[idx], ...data, id:editingId};
   } else {
-    // Columnas reales de la tabla pedidos en Supabase
-    const orderData = {
-      invoice_num:      data.invoice_num,
-      client_name:      data.clientName,
-      client_email:     data.clientEmail,
-      client_phone:     data.clientPhone,
-      shipping_address: data.address,
-      status:           data.status,
-      invoice_status:   data.status,
-      payment_method:   data.payment_method,
-      notes:            data.notes,
-      items_count:      (data.items||[]).length,
-      subtotal:         data.subtotal,
-      shipping_cost:    data.shipping||0,
-      discount_amount:  data.discountAmount||0,
-      total:            data.total,
-      created_at:       data.created_at,
-      updated_at:       new Date().toISOString(),
-      record:           data,
-    };
-    if(SB){
-      try{
-        const {data:ins,error} = await SB.from('pedidos').insert([orderData]).select().single();
-        if(error) throw error;
-        editingId = ins.id;
-        DB.orders.unshift({...data, id:ins.id});
-        toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
-      }catch(e){
-        console.error('[SB] insert pedido:', e.message);
-        toast('⚠ Error BD: '+e.message,'err');
-        const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
-        editingId = localId;
-        DB.orders.unshift({...data, id:localId});
-        toast('⚠ Factura guardada solo localmente — '+data.invoice_num,'warn');
-      }
-    } else {
+    try{
+      const ins = await sbPOST('pedidos', buildPedidoRow(data));
+      const newId = (ins && ins.length) ? ins[0].id : null;
+      if(!newId) throw new Error('Sin ID retornado');
+      editingId = newId;
+      DB.orders.unshift({...data, id:newId});
+      toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
+    }catch(e){
+      console.error('[SB] insert pedido:', e.message);
+      toast('⚠ Error BD: '+e.message,'err');
       const localId = 'ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
       editingId = localId;
       DB.orders.unshift({...data, id:localId});
-      toast('✅ Factura guardada — '+data.invoice_num,'ok');
+      toast('⚠ Guardado solo localmente — '+data.invoice_num,'warn');
     }
   }
 
@@ -1531,12 +1501,9 @@ async function confirmVoid(){
     updated_at:   new Date().toISOString(),
   };
 
-  if(SB){
-    try{
-      const {error} = await SB.from('pedidos').update(voidData).eq('id', id);
-      if(error) throw error;
-    }catch(e){ console.error('[SB] voidInvoice:', e.message); }
-  }
+  try{
+    await sbPATCH('pedidos','id=eq.'+encodeURIComponent(id), voidData);
+  }catch(e){ console.error('[SB] voidInvoice:', e.message); }
 
   Object.assign(DB.orders[idx], voidData, {invoice_status:'cancelado'});
   persist();
