@@ -308,9 +308,10 @@
           <label class="lbl">Teléfono</label>
           <input id="f_phone" type="tel" placeholder="+1 (000) 000-0000" />
         </div>
-        <div class="field">
+        <div class="field" style="position:relative">
           <label class="lbl">Dirección</label>
-          <input id="f_address" placeholder="Dirección de envío" />
+          <input id="f_address" placeholder="Escribe para buscar dirección..." autocomplete="off" oninput="addrSearch(this.value)" onkeydown="addrKeydown(event)" />
+          <div id="addrDropdown" style="display:none;position:absolute;top:calc(100% + 3px);left:0;right:0;background:#0f0d08;border:1px solid var(--border);border-radius:8px;z-index:250;max-height:200px;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.7)"></div>
         </div>
       </div>
 
@@ -478,25 +479,89 @@ const SB = true; // Siempre disponible via REST
 async function sbGET(path){
   try{
     const r = await fetch(SB_URL+'/rest/v1/'+path, {headers:SB_H});
-    if(!r.ok) throw new Error(await r.text());
-    return await r.json();
-  }catch(e){ console.warn('[SB GET]',path,e.message); return null; }
+    if(!r.ok){
+      const errText = await r.text();
+      console.error('[SB GET] '+r.status+' '+path, errText);
+      throw new Error('HTTP '+r.status+': '+errText);
+    }
+    const data = await r.json();
+    console.log('[SB GET OK]', path, Array.isArray(data)?data.length+' rows':data);
+    return data;
+  }catch(e){
+    console.error('[SB GET FAIL]', path, e.message);
+    return null;
+  }
 }
 
 async function sbPOST(table, body, prefer='return=representation'){
-  const r = await fetch(SB_URL+'/rest/v1/'+table, {
-    method:'POST', headers:{...SB_H,'Prefer':prefer}, body:JSON.stringify(body)
-  });
-  if(!r.ok) throw new Error(await r.text());
-  const ct = r.headers.get('content-type')||'';
-  return ct.includes('json') ? await r.json() : null;
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/'+table, {
+      method:'POST', headers:{...SB_H,'Prefer':prefer}, body:JSON.stringify(body)
+    });
+    if(!r.ok){
+      const errText = await r.text();
+      console.error('[SB POST] '+r.status+' '+table, errText);
+      throw new Error('HTTP '+r.status+': '+errText);
+    }
+    const ct = r.headers.get('content-type')||'';
+    const result = ct.includes('json') ? await r.json() : null;
+    console.log('[SB POST OK]', table, result);
+    return result;
+  }catch(e){
+    console.error('[SB POST FAIL]', table, e.message);
+    throw e;
+  }
 }
 
 async function sbPATCH(table, filter, body){
-  const r = await fetch(SB_URL+'/rest/v1/'+table+'?'+filter, {
-    method:'PATCH', headers:{...SB_H,'Prefer':'return=minimal'}, body:JSON.stringify(body)
-  });
-  if(!r.ok) throw new Error(await r.text());
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/'+table+'?'+filter, {
+      method:'PATCH', headers:{...SB_H,'Prefer':'return=minimal'}, body:JSON.stringify(body)
+    });
+    if(!r.ok){
+      const errText = await r.text();
+      console.error('[SB PATCH] '+r.status+' '+table, errText);
+      throw new Error('HTTP '+r.status+': '+errText);
+    }
+    console.log('[SB PATCH OK]', table, filter);
+  }catch(e){
+    console.error('[SB PATCH FAIL]', table, e.message);
+    throw e;
+  }
+}
+
+// Test de conexión al iniciar — muestra error detallado en pantalla si falla
+async function sbTest(){
+  const sb = document.getElementById('sbStatusBar');
+  if(!sb) return;
+  try{
+    const r = await fetch(SB_URL+'/rest/v1/facturas?select=id&limit=1', {headers:SB_H});
+    if(r.status === 401){
+      sb.style.cssText='display:flex;background:rgba(255,85,85,.15);border-bottom:1px solid rgba(255,85,85,.4);padding:10px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
+      sb.innerHTML='<span>🔑</span><span>Error 401 — API Key inválida o RLS bloqueando acceso anónimo</span>';
+      console.error('[SB] 401 Unauthorized — verifica SB_KEY y RLS policies en Supabase');
+      return;
+    }
+    if(r.status === 404){
+      sb.style.cssText='display:flex;background:rgba(255,85,85,.15);border-bottom:1px solid rgba(255,85,85,.4);padding:10px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
+      sb.innerHTML='<span>🗄️</span><span>Error 404 — Tabla "facturas" no encontrada en Supabase</span>';
+      return;
+    }
+    if(!r.ok){
+      const txt = await r.text();
+      sb.style.cssText='display:flex;background:rgba(255,85,85,.15);border-bottom:1px solid rgba(255,85,85,.4);padding:10px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
+      sb.innerHTML='<span>❌</span><span>Error '+r.status+' — '+txt+'</span>';
+      return;
+    }
+    sb.style.cssText='display:flex;background:rgba(47,227,181,.08);border-bottom:1px solid rgba(47,227,181,.2);padding:8px 24px;font-size:12px;color:#2fe3b5;align-items:center;gap:10px';
+    sb.innerHTML='<span>✅</span><span>Supabase conectado — pleaseme-store</span>';
+    setTimeout(()=>{ sb.style.display='none'; }, 3000);
+    console.log('[SB] Conexión OK');
+  }catch(e){
+    sb.style.cssText='display:flex;background:rgba(255,85,85,.15);border-bottom:1px solid rgba(255,85,85,.4);padding:10px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
+    sb.innerHTML='<span>🌐</span><span>Sin conexión a Supabase — '+e.message+'</span>';
+    console.error('[SB] Test falló:', e.message);
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -525,18 +590,7 @@ let items = [];
   renderList();
   updateKPIs();
   loadCompanyFromSupabase();
-  sbGET('company?select=id&limit=1').then(data=>{
-    const sb=g('sbStatusBar');
-    if(!sb) return;
-    if(data===null){
-      sb.style.cssText='display:flex;background:rgba(255,85,85,.1);border-bottom:1px solid rgba(255,85,85,.3);padding:8px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
-      sb.innerHTML='<span>❌</span><span>Error conectando con Supabase</span>';
-    } else {
-      sb.style.cssText='display:flex;background:rgba(47,227,181,.08);border-bottom:1px solid rgba(47,227,181,.2);padding:8px 24px;font-size:12px;color:#2fe3b5;align-items:center;gap:10px';
-      sb.innerHTML='<span>✅</span><span>Supabase conectado — pleaseme-store</span>';
-      setTimeout(()=>{ sb.style.display='none'; }, 3500);
-    }
-  });
+  sbTest();
   window.addEventListener('storage', e=>{
     if([LS_ORDERS,LS_PRODS,LS_CLIENTS].includes(e.key)){
       loadAll().then(()=>{ renderList(); updateKPIs(); });
@@ -611,15 +665,18 @@ async function loadProducts(){
 
 async function loadClients(){
   try{
-    const data = await sbGET('clientes?select=*&order=name');
+    const data = await sbGET('clientes?select=id,name,email,phone,shipping_address,billing_address,preferred_payment,orders_count&order=name');
     if(data === null) throw new Error('null response');
-    // Normalizar columnas de clientes
     DB.clients = (data||[]).map(cl=>({
-      ...cl,
-      name:    cl.name    || cl.nombre  || '',
-      email:   cl.email   || cl.correo  || '',
-      phone:   cl.phone   || cl.telefono|| '',
-      address: cl.address || cl.direccion|| '',
+      id:                cl.id                || '',
+      name:              cl.name              || '',
+      email:             cl.email             || '',
+      phone:             cl.phone             || '',
+      address:           cl.shipping_address  || '',
+      shipping_address:  cl.shipping_address  || '',
+      billing_address:   cl.billing_address   || '',
+      preferred_payment: cl.preferred_payment || '',
+      orders_count:      cl.orders_count      || 0,
     }));
     localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
     console.log('[SB] Clientes cargados:', DB.clients.length);
@@ -1089,7 +1146,7 @@ function clientSearch(q){
   // Mostrar clientes existentes + opción de cliente nuevo si no hay match exacto
   const exactMatch = DB.clients.some(c=>(c.name||'').toLowerCase()===q.toLowerCase());
   let html = results.map(c=>`
-    <div class="prod-option" onclick="fillClient('${esc(c.name)}','${esc(c.email||'')}','${esc(c.phone||'')}','${esc(c.address||'')}')">
+    <div class="prod-option" onclick="fillClient('${esc(c.name)}','${esc(c.email||'')}','${esc(c.phone||'')}','${esc(c.shipping_address||c.address||'')}')">
       <div>
         <div class="pname">${esc(c.name)}</div>
         <div style="font-size:11px;color:var(--muted)">${c.email||''} ${c.phone?'· '+c.phone:''}</div>
@@ -1131,7 +1188,7 @@ function renderPicker(q=''){
   const list = q ? DB.clients.filter(c=>(c.name||'').toLowerCase().includes(q.toLowerCase())) : DB.clients;
   const el = g('pickerList');
   let html = list.map(c=>`
-    <div class="picker-item" onclick="fillClient('${esc(c.name)}','${esc(c.email||'')}','${esc(c.phone||'')}','${esc(c.address||'')}');closeClientPicker()">
+    <div class="picker-item" onclick="fillClient('${esc(c.name)}','${esc(c.email||'')}','${esc(c.phone||'')}','${esc(c.shipping_address||c.address||'')}');closeClientPicker()">
       <div>
         <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
         <div style="font-size:11px;color:var(--muted)">${c.email||''} ${c.phone?'· '+c.phone:''}</div>
@@ -1212,38 +1269,47 @@ async function saveOnly(){
     g('f_status').value = 'procesando';
   }
 
-  // ── Solo guardar cliente si NO existe (nunca guardar artículos) ──
+  // ── Cliente: buscar existente o crear nuevo ──
   const clientNameLower = (data.clientName||'').toLowerCase().trim();
-  const clienteExiste = DB.clients.some(c=>(c.name||'').toLowerCase().trim()===clientNameLower);
-  if(!clienteExiste && data.clientName){
-    const nuevoCliente = {
-      name:       data.clientName,
-      email:      data.clientEmail||'',
-      phone:      data.clientPhone||'',
-      address:    data.address||'',
-      created_at: new Date().toISOString(),
-    };
+  const clienteExistente = DB.clients.find(c=>(c.name||'').toLowerCase().trim()===clientNameLower);
+
+  if(clienteExistente){
+    // Cliente existente — linkear id y completar campos vacíos con los datos guardados
+    data.client_id    = clienteExistente.id;
+    data.clientEmail  = data.clientEmail  || clienteExistente.email             || '';
+    data.clientPhone  = data.clientPhone  || clienteExistente.phone             || '';
+    data.address      = data.address      || clienteExistente.shipping_address  || clienteExistente.address || '';
+    console.log('[Cliente] Existente encontrado:', clienteExistente.id, '| email:', data.clientEmail, '| address:', data.address);
+  } else if(data.clientName){
+    // Cliente nuevo — guardar en tabla clientes
     try{
       const cliId = 'cli-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
       const clienteSB = {
         id:               cliId,
-        name:             nuevoCliente.name,
-        email:            nuevoCliente.email || null,
-        phone:            nuevoCliente.phone,
-        shipping_address: nuevoCliente.address,
-        record:           nuevoCliente,
-        created_at:       nuevoCliente.created_at,
+        name:             data.clientName,
+        email:            data.clientEmail  || null,
+        phone:            data.clientPhone  || null,
+        shipping_address: data.address      || null,
+        billing_address:  null,
+        preferred_payment:data.payment_method || null,
+        orders_count:     1,
+        created_at:       new Date().toISOString(),
+        updated_at:       new Date().toISOString(),
       };
+      console.log('[Cliente] Guardando nuevo:', clienteSB);
       await sbPOST('clientes', clienteSB, 'return=minimal');
-      nuevoCliente.id = cliId;
-      DB.clients.push(nuevoCliente);
+      data.client_id = cliId;
+      DB.clients.push({
+        id: cliId, name: data.clientName,
+        email: data.clientEmail||'', phone: data.clientPhone||'',
+        address: data.address||'', shipping_address: data.address||'',
+        billing_address:'', preferred_payment: data.payment_method||'', orders_count:1,
+      });
       localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
       toast('👤 Cliente guardado: '+data.clientName,'ok');
     }catch(e){
       console.error('[SB] insert cliente:', e.message);
-      nuevoCliente.id = 'cli-'+Date.now();
-      DB.clients.push(nuevoCliente);
-      localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
+      toast('⚠ Error guardando cliente: '+e.message,'err');
     }
   }
 
@@ -1633,7 +1699,7 @@ function openPrintWindow(o){
     <div class="totals-box">
       <div class="total-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
       ${ship>0?`<div class="total-row"><span>Envío</span><span>$${ship.toFixed(2)}</span></div>`:''}
-      ${disc>0?`<div class="total-row" style="color:#c0392b"><span>Descuento</span><span>− $${disc.toFixed(2)}</span></div>`:''}
+      ${disc>0?`<div class="total-row" style="color:#c0392b;font-size:10px;opacity:.85;padding-bottom:1px"><span></span><span style="padding-right:0">${sub>0?Math.round((disc/sub)*10000)/100:0}%</span></div><div class="total-row" style="color:#c0392b"><span>Descuento</span><span>(-$${disc.toFixed(2)})</span></div>`:''}
       <div class="total-final"><span>TOTAL</span><span>$${Number(total).toFixed(2)}</span></div>
     </div>
   </div>
@@ -1888,9 +1954,17 @@ function buildInvoicePDF(o){
     var sub2=o.subtotal||((o.items||[]).reduce(function(s,i){return s+Number(i.price||0)*Number(i.qty||1);},0));
     var ship2=Number(o.shipping||o.shipping_cost||0);
     var disc2=Number(o.discountAmount||o.discountValue||o.discount_amount||0);
+    var discPct = sub2>0 ? Math.round((disc2/sub2)*100*100)/100 : 0;
     addTotRow('Subtotal:',fmtMoney(sub2));
+    if(disc2>0){
+      // % alineado a la derecha debajo del monto del subtotal
+      y=checkY(y,4);
+      doc.setFont('helvetica','italic'); doc.setFontSize(7); tr.apply(null,[160,60,60]);
+      doc.text(discPct+'%',W-M-2,y,{align:'right'});
+      y+=5;
+    }
     if(ship2>0) addTotRow('Envío:',fmtMoney(ship2));
-    if(disc2>0) addTotRow('Descuento:','- '+fmtMoney(disc2),false,[200,50,50]);
+    if(disc2>0) addTotRow('Descuento:','(-'+fmtMoney(disc2)+')',false,[200,50,50]);
     dr.apply(null,GOLD); doc.line(totX,y,W-M,y); y+=4;
     y=checkY(y,13);
     fr.apply(null,DARK); doc.roundedRect(totX-4,y-4,W-M-totX+8,12,2,2,'F');
@@ -1938,6 +2012,102 @@ function openEtiqueta(id){
     toast('Abre esta ventana desde el panel Admin para generar etiquetas','warn');
   }
 }
+
+// ══════════════════════════════════════════════════════
+//  AUTOCOMPLETADO DE DIRECCIÓN — OpenStreetMap Nominatim
+// ══════════════════════════════════════════════════════
+let _addrTimer = null;
+let _addrResults = [];
+let _addrIdx = -1;
+
+function addrSearch(q){
+  clearTimeout(_addrTimer);
+  const dd = document.getElementById('addrDropdown');
+  if(!q || q.length < 4){ dd.style.display='none'; return; }
+  dd.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:var(--muted)">🔍 Buscando...</div>';
+  dd.style.display = 'block';
+  _addrTimer = setTimeout(()=> fetchAddr(q), 420);
+}
+
+async function fetchAddr(q){
+  const dd = document.getElementById('addrDropdown');
+  try{
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&q='+encodeURIComponent(q);
+    const r = await fetch(url, { headers:{ 'Accept-Language':'es', 'User-Agent':'Pleaseme-Facturacion/1.0' } });
+    const data = await r.json();
+    _addrResults = data || [];
+    _addrIdx = -1;
+    if(!_addrResults.length){
+      dd.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:var(--muted);text-align:center">Sin resultados — escribe la dirección manualmente</div>';
+      return;
+    }
+    dd.innerHTML = _addrResults.map((item, i)=>{
+      const main = item.display_name.split(',').slice(0,3).join(',');
+      const rest = item.display_name.split(',').slice(3,6).join(',');
+      return `<div class="addr-option" data-idx="${i}" onmousedown="selectAddr(${i})" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);transition:.15s">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(main)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px">${esc(rest)}</div>
+      </div>`;
+    }).join('');
+    // Hover effect
+    dd.querySelectorAll('.addr-option').forEach(el=>{
+      el.addEventListener('mouseover', ()=> el.style.background='rgba(212,175,55,.1)');
+      el.addEventListener('mouseout',  ()=> el.style.background='');
+    });
+  }catch(e){
+    dd.innerHTML = '<div style="padding:10px 12px;font-size:11px;color:var(--red)">Error buscando dirección</div>';
+  }
+}
+
+function selectAddr(idx){
+  const item = _addrResults[idx];
+  if(!item) return;
+  // Construir dirección limpia: calle + ciudad + país
+  const a = item.address || {};
+  const parts = [
+    a.road || a.pedestrian || a.footway || '',
+    a.house_number ? a.house_number : '',
+    a.suburb || a.neighbourhood || '',
+    a.city || a.town || a.village || a.county || '',
+    a.state || '',
+    a.country || '',
+    a.postcode || '',
+  ].filter(Boolean);
+  const addr = parts.length ? parts.join(', ') : item.display_name;
+  document.getElementById('f_address').value = addr;
+  document.getElementById('addrDropdown').style.display = 'none';
+  _addrResults = [];
+}
+
+function addrKeydown(e){
+  const dd = document.getElementById('addrDropdown');
+  const opts = dd.querySelectorAll('.addr-option');
+  if(!opts.length) return;
+  if(e.key === 'ArrowDown'){
+    e.preventDefault();
+    _addrIdx = Math.min(_addrIdx+1, opts.length-1);
+    opts.forEach((o,i)=> o.style.background = i===_addrIdx ? 'rgba(212,175,55,.15)' : '');
+    opts[_addrIdx]?.scrollIntoView({block:'nearest'});
+  } else if(e.key === 'ArrowUp'){
+    e.preventDefault();
+    _addrIdx = Math.max(_addrIdx-1, 0);
+    opts.forEach((o,i)=> o.style.background = i===_addrIdx ? 'rgba(212,175,55,.15)' : '');
+    opts[_addrIdx]?.scrollIntoView({block:'nearest'});
+  } else if(e.key === 'Enter' && _addrIdx >= 0){
+    e.preventDefault();
+    selectAddr(_addrIdx);
+  } else if(e.key === 'Escape'){
+    dd.style.display = 'none';
+  }
+}
+
+// Cerrar dropdown de dirección al hacer click fuera
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#f_address') && !e.target.closest('#addrDropdown')){
+    const dd = document.getElementById('addrDropdown');
+    if(dd) dd.style.display = 'none';
+  }
+});
 
 </script>
 </body>
