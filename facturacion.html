@@ -426,25 +426,50 @@
     </div>
   </div>
 
-  <!-- ═══ COLUMNA DERECHA — LISTA FACTURAS ═══ -->
+  <!-- ═══ COLUMNA DERECHA — ÚLTIMAS FACTURAS ═══ -->
   <div class="right-panel">
     <div class="card" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
-      <div class="card-title">Facturas</div>
-      <div class="search-wrap">
-        <input id="searchQ" placeholder="Buscar cliente, No. factura..." oninput="renderList()" />
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">Últimas Facturas</div>
+        <button class="btn btn-outline btn-sm" onclick="openInvoicesModal()" style="font-size:11px;gap:5px">
+          📋 Ver todas
+        </button>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:10px">
-        <select id="filterStatus" onchange="renderList()" style="flex:1;padding:7px 10px;font-size:12px">
-          <option value="">Todos los estados</option>
+      <div class="invoice-list" id="invoiceList" style="flex:1;overflow-y:auto;min-height:0">
+        <div class="items-empty">Cargando facturas...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL — TODAS LAS FACTURAS ═══ -->
+  <div id="invoicesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:min(900px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.8)">
+      <!-- Modal header -->
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-family:Georgia,serif;font-size:17px;color:var(--gold);font-weight:700">📋 Facturas</span>
+          <span id="modalCount" style="font-size:11px;color:var(--muted);background:rgba(212,175,55,.1);padding:2px 8px;border-radius:20px"></span>
+        </div>
+        <button onclick="closeInvoicesModal()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0 4px">✕</button>
+      </div>
+      <!-- Filtros -->
+      <div style="padding:12px 22px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
+        <div class="search-wrap" style="flex:1;min-width:180px;margin-bottom:0">
+          <input id="modalSearchQ" placeholder="Buscar cliente, No. factura..." oninput="renderModal()" style="padding-left:34px"/>
+        </div>
+        <select id="modalFilterStatus" onchange="renderModal()" style="padding:9px 12px;font-size:12px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:8px;color:var(--text);min-width:150px">
+          <option value="active">Activas</option>
+          <option value="">Todas</option>
           <option value="pendiente">Pendiente</option>
           <option value="procesando">Procesando</option>
           <option value="enviado">Enviado</option>
           <option value="entregado">Entregado</option>
-          <option value="cancelado">Cancelado</option>
+          <option value="cancelado">Canceladas/Anuladas</option>
         </select>
       </div>
-      <div class="invoice-list" id="invoiceList" style="flex:1;overflow-y:auto;min-height:0">
-        <div class="items-empty">Cargando facturas...</div>
+      <!-- Lista modal -->
+      <div id="modalInvoiceList" style="flex:1;overflow-y:auto;padding:12px 22px;display:flex;flex-direction:column;gap:8px">
+        <div class="items-empty">Cargando...</div>
       </div>
     </div>
   </div>
@@ -1427,59 +1452,137 @@ function loadForEdit(id){
 }
 
 // ══════════════════════════════════════════════════════
-//  LISTA DE FACTURAS
+//  LISTA LATERAL — solo 4 últimas activas
 // ══════════════════════════════════════════════════════
 function renderList(){
-  const q  = (g('searchQ').value||'').toLowerCase().trim();
-  const st = g('filterStatus').value;
-  let list = [...DB.orders];
-
-  if(q) list = list.filter(o=>(
-    (o.clientName||'').toLowerCase().includes(q) ||
-    (o.invoice_num||o.invoiceNum||'').toLowerCase().includes(q) ||
-    (o.id||'').toLowerCase().includes(q)
-  ));
-  if(st) list = list.filter(o=>(o.status||o.invoice_status)===st);
-
-  // Ordenar por más reciente
-  list.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+  // Excluir canceladas/anuladas, mostrar solo las 4 más recientes
+  const active = DB.orders
+    .filter(o=>{ const st=o.status||o.invoice_status||''; return st!=='cancelado'&&st!=='anulado'; })
+    .sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0))
+    .slice(0,4);
 
   const el = g('invoiceList');
-  if(!list.length){
-    el.innerHTML='<div class="items-empty">Sin facturas que coincidan</div>';
+  if(!active.length){
+    el.innerHTML='<div class="items-empty" style="padding:20px;text-align:center;color:var(--muted);font-size:12px">Sin facturas activas</div>';
     return;
   }
-  el.innerHTML = list.map(o=>{
-    const invNum  = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
-    const status  = o.status||o.invoice_status||'pendiente';
-    const date    = o.created_at ? new Date(o.created_at).toLocaleDateString('es') : '—';
-    const active  = editingId===o.id ? 'active' : '';
+  el.innerHTML = active.map(o=>{
+    const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
+    const status = o.status||o.invoice_status||'pendiente';
+    const date   = o.created_at ? new Date(o.created_at).toLocaleDateString('es') : '—';
+    const active = editingId===o.id ? 'active' : '';
     return `
     <div class="invoice-card ${active}" data-id="${o.id}" onclick="loadForEdit('${o.id}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div class="inv-num">${invNum}</div>
           <div class="inv-client">${esc(o.clientName||'Sin nombre')}</div>
-          <div class="inv-meta">
-            <span>${date}</span>
-            <span class="status-badge s-${status}">${status}</span>
-          </div>
+          <div class="inv-meta"><span>${date}</span><span class="status-badge s-${status}">${status}</span></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
           <div class="inv-total">$${Number(o.total||0).toFixed(2)}</div>
+          <button class="btn btn-sm btn-green" onclick="event.stopPropagation();quickPDF('${o.id}')" title="Ver PDF">🧾</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Enlace al modal si hay más
+  const total = DB.orders.filter(o=>{ const st=o.status||o.invoice_status||''; return st!=='cancelado'&&st!=='anulado'; }).length;
+  if(total > 4){
+    el.innerHTML += `<div style="text-align:center;padding:10px 0">
+      <button class="btn btn-outline btn-sm" onclick="openInvoicesModal()" style="width:100%;font-size:11px">
+        Ver ${total-4} factura${total-4!==1?'s':''} más →
+      </button>
+    </div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  MODAL — TODAS LAS FACTURAS
+// ══════════════════════════════════════════════════════
+function openInvoicesModal(){
+  g('modalSearchQ').value = '';
+  g('modalFilterStatus').value = 'active';
+  g('invoicesModal').style.display = 'flex';
+  renderModal();
+}
+
+function closeInvoicesModal(){
+  g('invoicesModal').style.display = 'none';
+}
+
+// Cerrar modal al click fuera del box
+document.addEventListener('click', e=>{
+  const modal = document.getElementById('invoicesModal');
+  if(modal && e.target===modal) closeInvoicesModal();
+});
+
+function renderModal(){
+  const q  = (g('modalSearchQ').value||'').toLowerCase().trim();
+  const st = g('modalFilterStatus').value;
+  let list = [...DB.orders].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+
+  // Filtro de estado
+  if(st==='active'){
+    list = list.filter(o=>{ const s=o.status||o.invoice_status||''; return s!=='cancelado'&&s!=='anulado'; });
+  } else if(st==='cancelado'){
+    list = list.filter(o=>{ const s=o.status||o.invoice_status||''; return s==='cancelado'||s==='anulado'; });
+  } else if(st){
+    list = list.filter(o=>(o.status||o.invoice_status)===st);
+  }
+
+  // Búsqueda
+  if(q) list = list.filter(o=>(
+    (o.clientName||'').toLowerCase().includes(q)||
+    (o.invoice_num||'').toLowerCase().includes(q)
+  ));
+
+  const countEl = g('modalCount');
+  if(countEl) countEl.textContent = list.length+' factura'+(list.length!==1?'s':'');
+
+  const el = g('modalInvoiceList');
+  if(!list.length){
+    el.innerHTML='<div class="items-empty" style="padding:30px;text-align:center;color:var(--muted)">Sin facturas que coincidan</div>';
+    return;
+  }
+
+  el.innerHTML = list.map(o=>{
+    const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
+    const status = o.status||o.invoice_status||'pendiente';
+    const date   = o.created_at ? new Date(o.created_at).toLocaleDateString('es') : '—';
+    const voided = status==='cancelado'||status==='anulado';
+    return `
+    <div class="invoice-card" data-id="${o.id}" onclick="modalOpenPDF('${o.id}')" style="cursor:pointer;${voided?'opacity:.6':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="inv-num">${invNum}</div>
+            <span class="status-badge s-${status}">${status}</span>
+          </div>
+          <div class="inv-client" style="margin:3px 0 2px">${esc(o.clientName||'Sin nombre')}</div>
+          <div class="inv-meta"><span>${date}</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <div class="inv-total">$${Number(o.total||0).toFixed(2)}</div>
           <div style="display:flex;gap:4px">
-            <button class="btn btn-sm btn-green" onclick="event.stopPropagation();quickPDF('${o.id}')" title="Generar PDF">🧾</button>
-            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();printInvoice('${o.id}')" title="Imprimir">🖨</button>
-            <button class="btn btn-sm" onclick="event.stopPropagation();openEtiqueta('${o.id}')" title="Etiqueta de envío" style="background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.3);color:#2fe3b5">📦</button>
-            ${status==='cancelado'||status==='anulado'
-              ? `<span class="status-badge s-cancelado" style="display:flex;align-items:center;padding:2px 8px">ANULADA</span>`
-              : `<button class="btn btn-sm btn-red" onclick="event.stopPropagation();voidInvoice('${o.id}')" title="Anular factura">🚫 Anular</button>`
-            }
+            <button class="btn btn-sm btn-green" onclick="event.stopPropagation();modalOpenPDF('${o.id}')" title="Ver PDF">🧾 PDF</button>
+            ${!voided?`<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();closeInvoicesModal();loadForEdit('${o.id}')" title="Editar">✏️</button>`:''}
+            ${!voided?`<button class="btn btn-sm btn-red" onclick="event.stopPropagation();voidInvoice('${o.id}')" title="Anular">🚫</button>`:''}
           </div>
         </div>
       </div>
     </div>`;
   }).join('');
+}
+
+function modalOpenPDF(id){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o){ toast('Factura no encontrada','err'); return; }
+  try{
+    const doc = buildInvoicePDF(o);
+    if(doc) showPDFInTab(doc, 'Factura-'+(o.invoice_num||o.id));
+  }catch(e){ toast('Error PDF: '+e.message,'err'); console.error(e); }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1694,6 +1797,13 @@ function openPrintWindow(o){
   <table>
     <thead><tr><th>Artículo</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th></tr></thead>
     <tbody>${itemsHtml}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="padding:6px 10px;font-size:11px;color:#888;font-style:italic;border-top:1px solid #e8e0d0">
+          Total artículos: ${(o.items||[]).reduce((s,i)=>s+Number(i.qty||1),0)} unidad${ (o.items||[]).reduce((s,i)=>s+Number(i.qty||1),0)!==1?'es':'' }
+        </td>
+      </tr>
+    </tfoot>
   </table>
   <div class="totals-section">
     <div class="totals-box">
@@ -1910,13 +2020,15 @@ function buildInvoicePDF(o){
     y+=INFO_H+6;
 
     // Tabla header
-    var TH=7, COLS=[M,M+82,M+122,M+158,M+188];
+    // W=215.9 M=14 → tabla de M(14) a W-M(201.9) = 187.9mm
+    // C0=14 artículo(95) | C1=109 cant.(22) | C2=131 precio(30) | C3=161 subtotal(ends 201.9)
+    var TH=7, COLS=[M, M+95, M+117, M+147];
     fr.apply(null,DARK); doc.rect(M,y,W-M*2,TH+2,'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(7); tr.apply(null,GOLDF);
-    doc.text('ARTÍCULO',COLS[0]+3,y+TH/2+2);
-    doc.text('CANT.',COLS[2]-2,y+TH/2+2,{align:'right'});
-    doc.text('PRECIO',COLS[3]-2,y+TH/2+2,{align:'right'});
-    doc.text('SUBTOTAL',COLS[4]-2,y+TH/2+2,{align:'right'});
+    doc.text('ARTÍCULO',   COLS[0]+3,    y+TH/2+2);
+    doc.text('CANT.',      COLS[1]+11,   y+TH/2+2, {align:'center'});
+    doc.text('PRECIO',     COLS[2]+15,   y+TH/2+2, {align:'center'});
+    doc.text('SUBTOTAL',   W-M-2,        y+TH/2+2, {align:'right'});
     y+=TH+2;
 
     (o.items||[]).forEach(function(item,idx){
@@ -1926,19 +2038,25 @@ function buildInvoicePDF(o){
       if(idx%2===0){ fr.apply(null,BG); doc.rect(M,y,W-M*2,rowH,'F'); }
       doc.setFont('helvetica','normal'); doc.setFontSize(8); tr.apply(null,[30,24,12]);
       var nm=String(item.name||'Artículo');
-      var parts=doc.splitTextToSize(nm,78);
-      doc.text(parts[0],COLS[0]+3,y+5.5);
-      doc.text(String(item.qty||1),COLS[2]-2,y+5.5,{align:'right'});
-      doc.text(fmtMoney(item.price),COLS[3]-2,y+5.5,{align:'right'});
-      doc.text(fmtMoney(Number(item.price||0)*Number(item.qty||1)),COLS[4]-2,y+5.5,{align:'right'});
+      var parts=doc.splitTextToSize(nm,90);
+      doc.text(parts[0],           COLS[0]+3,  y+5.5);
+      doc.text(String(item.qty||1),COLS[1]+11, y+5.5, {align:'center'});
+      doc.text(fmtMoney(item.price),COLS[2]+15, y+5.5, {align:'center'});
+      doc.text(fmtMoney(Number(item.price||0)*Number(item.qty||1)), W-M-2, y+5.5, {align:'right'});
       if(hasSize){
         doc.setFontSize(6.5); tr.apply(null,LGRAY);
-        doc.text('Talla: '+item.size,COLS[0]+3,y+9.5);
+        doc.text('Talla: '+item.size, COLS[0]+3, y+9.5);
       }
       y+=rowH;
     });
 
-    dr.apply(null,LINE); doc.line(M,y,W-M,y); y+=5;
+    dr.apply(null,LINE); doc.line(M,y,W-M,y); y+=4;
+
+    // Total de artículos
+    var totalUnits = (o.items||[]).reduce(function(s,i){ return s+Number(i.qty||1); }, 0);
+    doc.setFont('helvetica','italic'); doc.setFontSize(7.5); tr.apply(null,GRAY);
+    doc.text('Total artículos: '+totalUnits+' unidad'+(totalUnits!==1?'es':''), M+2, y+3);
+    y+=8;
 
     // Totales
     var totW=75, totX=W-M-totW;
