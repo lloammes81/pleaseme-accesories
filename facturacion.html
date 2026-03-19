@@ -565,36 +565,31 @@ function loadLocal(){
 
 async function loadOrders(){
   try{
-    const data = await sbGET('pedidos?select=*&order=created_at.desc');
+    const data = await sbGET('facturas?select=*&order=created_at.desc');
     if(data === null) throw new Error('null response');
-    // Normalizar columnas de pedidos al formato interno del app
-    // Muchos campos (items, invoice_num, notes, etc.) están guardados dentro
-    // de la columna "record" (JSON blob) — hay que extraerlos de ahí también.
     DB.orders = (data||[]).map(o=>{
-      const rec = (o.record && typeof o.record === 'object') ? o.record : {};
       let parsedItems = [];
       if(Array.isArray(o.items))       parsedItems = o.items;
-      else if(Array.isArray(rec.items)) parsedItems = rec.items;
       else if(o.items)                 try{ parsedItems = JSON.parse(o.items); }catch{}
       return {
         ...o,
-        clientName:    o.client_name     || rec.clientName    || rec.name    || '',
-        clientEmail:   o.client_email    || rec.clientEmail   || rec.email   || '',
-        clientPhone:   o.client_phone    || rec.clientPhone   || rec.phone   || '',
-        invoice_num:   o.invoice_num     || rec.invoice_num   || rec.invoiceNum || '',
-        status:        o.status          || o.invoice_status  || rec.status   || 'pendiente',
-        invoice_status:o.invoice_status  || o.status          || rec.status   || 'pendiente',
-        payment_method:o.payment_method  || rec.method        || rec.payment_method || '',
-        shipping:      Number(o.shipping_cost || o.shipping   || rec.shipping || 0),
-        shipping_cost: Number(o.shipping_cost || o.shipping   || rec.shipping || 0),
-        address:       o.shipping_address || rec.shippingAddress || rec.address || o.address || '',
-        discountAmount:Number(o.discount_amount || o.discount || o.discountAmount || rec.discountAmount || 0),
-        notes:         o.notes           || rec.notes         || '',
+        clientName:    o.client_name    || '',
+        clientEmail:   o.client_email   || '',
+        clientPhone:   o.client_phone   || '',
+        address:       o.client_address || '',
+        invoice_num:   o.invoice_num    || '',
+        status:        o.status         || 'pendiente',
+        invoice_status:o.status         || 'pendiente',
+        payment_method:o.payment_method || '',
+        shipping:      Number(o.shipping        || 0),
+        shipping_cost: Number(o.shipping        || 0),
+        discountAmount:Number(o.discount_amount || 0),
+        notes:         o.notes          || '',
         items:         parsedItems,
       };
     });
     localStorage.setItem(LS_ORDERS, JSON.stringify(DB.orders));
-    console.log('[SB] Pedidos cargados:', DB.orders.length);
+    console.log('[SB] Facturas cargadas:', DB.orders.length);
   }catch(e){
     console.error('[SB] loadOrders:', e.message);
     try{ DB.orders=JSON.parse(localStorage.getItem(LS_ORDERS)||'[]'); }catch{}
@@ -887,7 +882,7 @@ function setDefaultDate(){
 }
 
 // Genera el siguiente número de factura usando el contador global en Supabase config.
-// El contador es independiente de los pedidos online (usa clave 'invoice_counter').
+// El contador usa la clave 'invoice_counter' en la tabla config de Supabase.
 async function generateInvNum(){
   const year = new Date().getFullYear();
   let next = 1;
@@ -1253,56 +1248,55 @@ async function saveOnly(){
   }
 
   // ── Guardar/actualizar factura ──
-  // Columnas exactas de la tabla pedidos
-  function buildPedidoRow(d, existingId){
-    const row = {
-      id:               existingId || ('ord-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)),
+  // Columnas exactas de la tabla "facturas" en Supabase
+  function buildFacturaRow(d, existingId){
+    return {
+      id:               existingId || ('fac-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)),
+      invoice_num:      d.invoice_num       || '',
+      invoice_date:     (d.created_at||new Date().toISOString()).slice(0,10),
       status:           d.status            || 'pendiente',
+      client_id:        d.client_id         || null,
       client_name:      d.clientName        || '',
       client_email:     d.clientEmail       || '',
       client_phone:     d.clientPhone       || '',
-      total:            Number(d.total      || 0),
+      client_address:   d.address           || '',
+      items:            d.items             || [],
       subtotal:         Number(d.subtotal   || 0),
-      shipping_cost:    Number(d.shipping   || 0),
-      shipping_address: d.address           || '',
-      payment_method:   d.payment_method    || '',
-      items_count:      (d.items||[]).length,
-      invoice_num:      d.invoice_num       || '',
-      invoice_status:   d.status            || 'pendiente',
-      currency:         'USD',
+      shipping:         Number(d.shipping   || 0),
       discount_amount:  Number(d.discountAmount || 0),
+      total:            Number(d.total      || 0),
+      payment_method:   d.payment_method    || '',
+      currency:         d.currency          || 'USD',
       notes:            d.notes             || '',
       updated_at:       new Date().toISOString(),
       created_at:       d.created_at        || new Date().toISOString(),
-      record:           d,
     };
-    return row;
   }
 
   if(editingId){
     try{
-      await sbPATCH('pedidos','id=eq.'+encodeURIComponent(editingId), buildPedidoRow(data, editingId));
+      await sbPATCH('facturas','id=eq.'+encodeURIComponent(editingId), buildFacturaRow(data, editingId));
+      const idx = DB.orders.findIndex(o=>o.id===editingId);
+      if(idx>=0) DB.orders[idx] = {...DB.orders[idx], ...data, id:editingId};
       toast('✅ Factura actualizada — '+data.invoice_num,'ok');
     }catch(e){
-      console.error('[SB] update pedido:', e.message);
+      console.error('[SB] update factura:', e.message);
       toast('⚠ Error al actualizar: '+e.message,'err');
     }
-    const idx = DB.orders.findIndex(o=>o.id===editingId);
-    if(idx>=0) DB.orders[idx] = {...DB.orders[idx], ...data, id:editingId};
   } else {
-    const row = buildPedidoRow(data);
+    const row = buildFacturaRow(data);
     const newId = row.id;
     try{
-      await sbPOST('pedidos', row, 'return=minimal');
+      await sbPOST('facturas', row, 'return=minimal');
       editingId = newId;
       DB.orders.unshift({...data, id:newId});
-      toast('✅ Factura guardada en Supabase — '+data.invoice_num,'ok');
+      toast('✅ Factura guardada — '+data.invoice_num,'ok');
     }catch(e){
-      console.error('[SB] insert pedido:', e.message);
-      toast('⚠ Error BD: '+e.message,'err');
+      console.error('[SB] insert factura:', e.message);
+      // Mostrar el error real de Supabase sin sobreescribirlo
+      toast('⚠ Error Supabase: '+e.message,'err');
       editingId = newId;
       DB.orders.unshift({...data, id:newId});
-      toast('⚠ Guardado solo localmente — '+data.invoice_num,'warn');
     }
   }
 
@@ -1496,16 +1490,15 @@ async function confirmVoid(){
   if(idx<0){ toast('Factura no encontrada','err'); return; }
 
   const voidData = {
-    status:         'cancelado',
-    invoice_status: 'cancelada',
-    void_reason:    reason,
-    void_note:      note,
-    void_at:        new Date().toISOString(),
-    updated_at:     new Date().toISOString(),
+    status:      'cancelado',
+    void_reason: reason,
+    void_note:   note,
+    void_at:     new Date().toISOString(),
+    updated_at:  new Date().toISOString(),
   };
 
   try{
-    await sbPATCH('pedidos','id=eq.'+encodeURIComponent(id), voidData);
+    await sbPATCH('facturas','id=eq.'+encodeURIComponent(id), voidData);
   }catch(e){ console.error('[SB] voidInvoice:', e.message); }
 
   Object.assign(DB.orders[idx], voidData, {invoice_status:'cancelado'});
