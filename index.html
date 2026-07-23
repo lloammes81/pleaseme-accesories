@@ -52,6 +52,8 @@
       color:var(--text);font-size:13px;outline:none;transition:border-color .2s;
     }
     input:focus,select:focus,textarea:focus{border-color:var(--gold)}
+    input:disabled,select:disabled,textarea:disabled{opacity:.6;cursor:not-allowed;background:rgba(0,0,0,.2)}
+    #formPanel button:disabled{opacity:.35;cursor:not-allowed}
     select option{background:#1a1608}
     textarea{resize:vertical;min-height:60px}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -828,6 +830,7 @@ async function readLocalDatabase(){
 let DB = { orders:[], products:[], clients:[] };
 let editingId = null;
 let items = [];
+let formReadOnly = false;
 
 // ══════════════════════════════════════════════════════
 //  INIT
@@ -1243,6 +1246,7 @@ async function generateInvNum(){
 async function resetForm(){
   editingId = null;
   items = [];
+  formReadOnly = false;
   g('formTitle').textContent = 'Nueva Factura';
   g('f_clientName').value = '';
   g('f_email').value = '';
@@ -1263,7 +1267,7 @@ async function resetForm(){
   renderItems();
   recalc();
   document.querySelectorAll('.invoice-card').forEach(c=>c.classList.remove('active'));
-  g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=false);
+  applyFormLockState();
   const vb = g('voidBanner'); if(vb) vb.style.display='none';
 }
 
@@ -1292,19 +1296,23 @@ function renderItems(){
   el.innerHTML = items.map((it, i) => {
     const lineTotal = (Number(it.price||0) * Number(it.qty||1)).toFixed(2);
     const sizeLabel = it.size && it.size !== '—' ? `<div class="lb-size">${esc(it.size)}</div>` : '';
-    return `
-    <div class="listbox-row" id="lbrow-${i}" onclick="selectListboxRow(${i})">
-      <div><div class="lb-name" title="${esc(it.name)}">${esc(it.name)}</div>${sizeLabel}</div>
-      <div class="lb-qty">
+    const qtyCell = formReadOnly
+      ? `<div class="lb-qty">${it.qty||1}</div>`
+      : `<div class="lb-qty">
         <input type="number" value="${it.qty||1}" min="1"
           style="width:44px;padding:3px 4px;text-align:center;font-size:12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:5px;color:var(--text)"
           oninput="items[${i}].qty=Number(this.value)||1;renderItems()"
           onclick="event.stopPropagation()"
         />
-      </div>
+      </div>`;
+    const delBtn = formReadOnly ? '' : `<button class="lb-del" onclick="event.stopPropagation();items.splice(${i},1);renderItems()" title="Eliminar">✕</button>`;
+    return `
+    <div class="listbox-row" id="lbrow-${i}" onclick="selectListboxRow(${i})">
+      <div><div class="lb-name" title="${esc(it.name)}">${esc(it.name)}</div>${sizeLabel}</div>
+      ${qtyCell}
       <div class="lb-price">$${Number(it.price||0).toFixed(2)}</div>
       <div class="lb-total">$${lineTotal}</div>
-      <button class="lb-del" onclick="event.stopPropagation();items.splice(${i},1);renderItems()" title="Eliminar">✕</button>
+      ${delBtn}
     </div>`;
   }).join('');
 
@@ -1678,7 +1686,14 @@ async function saveOnly(){
 // ══════════════════════════════════════════════════════
 //  CARGAR PARA EDITAR
 // ══════════════════════════════════════════════════════
-function loadForEdit(id){
+function applyFormLockState(){
+  g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=formReadOnly);
+  ['addItem','openClientPicker','openCourierPicker','saveOnly'].forEach(fn=>{
+    document.querySelectorAll(`#formPanel button[onclick*="${fn}("]`).forEach(b=>b.disabled=formReadOnly);
+  });
+}
+
+function loadForEdit(id, readOnly){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Factura no encontrada','err'); return; }
   editingId = id;
@@ -1698,18 +1713,20 @@ function loadForEdit(id){
   g('f_method').value       = o.payment_method||o.method||'card';
   g('f_status').value       = o.status||o.invoice_status||'pendiente';
   g('f_notes').value        = o.notes||'';
-  g('formTitle').textContent = 'Editando: '+(o.invoice_num||id);
+  g('formTitle').textContent = (readOnly?'Viendo: ':'Editando: ')+(o.invoice_num||id);
 
   // Descuento
   const rawDisc = Number(o.discountAmount||o.discount_amount||o.discountValue||0);
   g('f_discVal').value = rawDisc;
   g('f_discType').value = 'fixed';
 
+  // Si está anulada — mostrar aviso y bloquear campos; si no, respeta el modo solo-lectura pedido
+  const isVoided = o.status==='cancelado'||o.status==='anulado';
+  formReadOnly = !!readOnly || isVoided;
+
   renderItems();
   recalc();
 
-  // Si está anulada — mostrar aviso y bloquear campos
-  const isVoided = o.status==='cancelado'||o.status==='anulado';
   const voidBanner = g('voidBanner') || (() => {
     const el = document.createElement('div');
     el.id = 'voidBanner';
@@ -1721,11 +1738,10 @@ function loadForEdit(id){
     const reasonLabel = {error_datos:'Error en datos del cliente',error_productos:'Error en productos/precios',duplicada:'Factura duplicada',cliente_cancelo:'Cliente canceló',devolucion:'Devolución',otro:'Otro'}[o.void_reason]||o.void_reason||'';
     voidBanner.style.display = 'block';
     voidBanner.innerHTML = `🚫 FACTURA ANULADA${reasonLabel?' — '+reasonLabel:''}${o.void_note?' · '+o.void_note:''}`;
-    g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
   } else {
     voidBanner.style.display = 'none';
-    g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=false);
   }
+  applyFormLockState();
 
   // Highlight en lista
   document.querySelectorAll('.invoice-card').forEach(c=>c.classList.toggle('active', c.dataset.id===id));
@@ -1737,9 +1753,9 @@ function loadForEdit(id){
 // ══════════════════════════════════════════════════════
 let _invClickTimer = null;
 function invoiceCardClick(id){
-  // Espera a ver si viene un segundo clic (doble clic); si no, recién carga la factura para editar.
+  // Espera a ver si viene un segundo clic (doble clic); si no, carga la factura solo para ver (no editable).
   if(_invClickTimer) clearTimeout(_invClickTimer);
-  _invClickTimer = setTimeout(()=>{ _invClickTimer=null; loadForEdit(id); }, 400);
+  _invClickTimer = setTimeout(()=>{ _invClickTimer=null; loadForEdit(id, true); }, 400);
 }
 function invoiceCardDblClick(id){
   // Doble clic: solo ver el PDF, nunca cargar la factura en el formulario.
