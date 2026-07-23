@@ -203,6 +203,101 @@
 </head>
 <body>
 
+<!-- ── PIN LOCK ── -->
+<div id="pinLockOverlay" style="position:fixed;inset:0;background:var(--bg);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div id="pinLockCard" style="width:100%;max-width:320px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 28px;text-align:center">
+    <div style="width:48px;height:48px;margin:0 auto 14px;border-radius:12px;background:linear-gradient(135deg,#b48226,#e8c56e);display:grid;place-items:center;font-size:22px;font-weight:900;color:#13100a">✦</div>
+    <div style="font-family:var(--fd);font-size:19px;color:var(--gold);font-weight:700">Facturación</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:24px">Ingresa el PIN para continuar</div>
+    <div id="pinLockDots" style="display:flex;justify-content:center;gap:14px;margin-bottom:10px">
+      <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+    </div>
+    <div id="pinLockError" style="font-size:11px;color:var(--red);min-height:16px;margin-bottom:10px">&nbsp;</div>
+    <div id="pinLockPad" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      <button type="button" class="pin-key" data-k="1">1</button>
+      <button type="button" class="pin-key" data-k="2">2</button>
+      <button type="button" class="pin-key" data-k="3">3</button>
+      <button type="button" class="pin-key" data-k="4">4</button>
+      <button type="button" class="pin-key" data-k="5">5</button>
+      <button type="button" class="pin-key" data-k="6">6</button>
+      <button type="button" class="pin-key" data-k="7">7</button>
+      <button type="button" class="pin-key" data-k="8">8</button>
+      <button type="button" class="pin-key" data-k="9">9</button>
+      <button type="button" class="pin-key" data-k="clear" style="font-size:11px">Borrar</button>
+      <button type="button" class="pin-key" data-k="0">0</button>
+      <button type="button" class="pin-key" data-k="back">⌫</button>
+    </div>
+  </div>
+</div>
+<style>
+  .pin-dot{width:13px;height:13px;border-radius:50%;border:1px solid var(--border2);background:transparent;transition:.15s}
+  .pin-dot.filled{background:var(--gold);border-color:var(--gold)}
+  #pinLockCard.shake{animation:pinShake .35s}
+  @keyframes pinShake{
+    10%,90%{transform:translateX(-2px)}
+    20%,80%{transform:translateX(4px)}
+    30%,50%,70%{transform:translateX(-8px)}
+    40%,60%{transform:translateX(8px)}
+  }
+  .pin-key{
+    padding:14px 0;border:1px solid var(--border);border-radius:10px;background:rgba(212,175,55,.06);
+    color:var(--text);font-size:16px;font-weight:600;cursor:pointer;transition:.15s;
+  }
+  .pin-key:hover{background:rgba(212,175,55,.16);border-color:var(--border2)}
+  .pin-key:active{transform:scale(.95)}
+</style>
+<script>
+(function(){
+  const CORRECT_PIN = '2424';
+  let entered = '';
+  const overlay = document.getElementById('pinLockOverlay');
+  const card = document.getElementById('pinLockCard');
+  const dots = document.querySelectorAll('#pinLockDots .pin-dot');
+  const errorEl = document.getElementById('pinLockError');
+
+  function renderDots(){
+    dots.forEach((d,i)=> d.classList.toggle('filled', i < entered.length));
+  }
+
+  function unlock(){
+    overlay.style.display = 'none';
+  }
+
+  function wrongPin(){
+    errorEl.textContent = 'PIN incorrecto';
+    card.classList.remove('shake');
+    void card.offsetWidth;
+    card.classList.add('shake');
+    entered = '';
+    renderDots();
+  }
+
+  function pressKey(k){
+    if(k === 'clear'){ entered=''; errorEl.textContent=' '; renderDots(); return; }
+    if(k === 'back'){ entered = entered.slice(0,-1); renderDots(); return; }
+    if(entered.length >= 4) return;
+    entered += k;
+    renderDots();
+    if(entered.length === 4){
+      if(entered === CORRECT_PIN) unlock();
+      else setTimeout(wrongPin, 120);
+    }
+  }
+
+  document.getElementById('pinLockPad').addEventListener('click', e=>{
+    const btn = e.target.closest('.pin-key');
+    if(btn) pressKey(btn.dataset.k);
+  });
+
+  document.addEventListener('keydown', e=>{
+    if(overlay.style.display === 'none') return;
+    if(e.key >= '0' && e.key <= '9') pressKey(e.key);
+    else if(e.key === 'Backspace') pressKey('back');
+    else if(e.key === 'Escape') pressKey('clear');
+  });
+})();
+</script>
+
 <!-- ── HEADER ── -->
 <header class="header">
   <div class="header-brand">
