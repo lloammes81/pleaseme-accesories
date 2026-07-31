@@ -1545,6 +1545,9 @@ async function syncAddressUsaBestEffort(id, addressUsa, casillero){
     await sbPATCH('facturas','id=eq.'+encodeURIComponent(id), {shipping_address_usa: addressUsa||'', casillero_number: casillero||''});
   }catch(e){
     console.warn('[SB] shipping_address_usa/casillero_number no sincronizados (¿faltan las columnas en Supabase?):', e.message);
+    if(addressUsa || casillero){
+      toast('⚠ La dirección de envío (USA) no se pudo sincronizar con la base de datos: '+e.message,'warn');
+    }
   }
 }
 
@@ -2186,12 +2189,14 @@ function printInvoice(id){
 }
 
 async function printCurrentInvoice(){
-  if(!editingId){
+  // Guarda siempre los cambios del formulario (incl. Dirección de envío USA / Casillero)
+  // antes de imprimir — salvo en modo "Viendo" (solo lectura), donde no hay nada que guardar.
+  if(!formReadOnly){
     await saveOnly();
-    if(!editingId){ toast('Guarda la factura primero','warn'); return; }
   }
+  if(!editingId){ toast('Guarda la factura primero','warn'); return; }
   const o = DB.orders.find(x=>x.id===editingId);
-  if(!o){ await saveOnly(); setTimeout(()=>printCurrentInvoice(),400); return; }
+  if(!o){ toast('Factura no encontrada','err'); return; }
   openPrintWindow(o);
   openPirateShipLabel(o);
 }
