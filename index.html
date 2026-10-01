@@ -490,7 +490,7 @@
         </div>
         <div>
           <label class="lbl" style="margin-bottom:3px">Precio</label>
-          <input id="newItemPrice" type="number" step="0.01" placeholder="0.00"/>
+          <input id="newItemPrice" type="text" inputmode="decimal" class="money-input" autocomplete="off" placeholder="0.00"/>
         </div>
         <div>
           <label class="lbl" style="margin-bottom:3px">Talla/Color</label>
@@ -513,12 +513,12 @@
       <div class="grid-3" style="margin-bottom:12px">
         <div class="field">
           <label class="lbl">Envío ($)</label>
-          <input id="f_shipping" type="number" step="0.01" value="0" oninput="recalc()" />
+          <input id="f_shipping" type="text" inputmode="decimal" class="money-input" autocomplete="off" value="0.00" oninput="recalc()" />
         </div>
         <div class="field">
           <label class="lbl">Descuento</label>
           <div style="display:flex;gap:6px">
-            <input id="f_discVal" type="number" step="0.01" min="0" value="0" oninput="recalc()" />
+            <input id="f_discVal" type="text" inputmode="decimal" class="money-input" autocomplete="off" value="0" oninput="recalc()" />
             <select id="f_discType" onchange="recalc()" style="width:58px;padding:9px 6px">
               <option value="pct">%</option>
               <option value="fixed">$</option>
@@ -1263,7 +1263,7 @@ async function resetForm(){
   g('f_address_usa').value = '';
   g('f_casillero').value = '';
   checkCourierBadge();
-  g('f_shipping').value = 0;
+  g('f_shipping').value = '0.00';
   g('f_discVal').value = 0;
   g('f_discType').value = 'pct';
   g('f_method').value = 'card';
@@ -1317,7 +1317,7 @@ function renderItems(){
     const priceCell = formReadOnly
       ? `<div class="lb-price">$${Number(it.price||0).toFixed(2)}</div>`
       : `<div class="lb-price">
-        <input class="lb-input" type="number" value="${Number(it.price||0).toFixed(2)}" min="0" step="0.01" style="text-align:right" title="Editar precio"
+        <input class="lb-input money-input" type="text" inputmode="decimal" autocomplete="off" value="${Number(it.price||0).toFixed(2)}" style="text-align:right" title="Editar precio"
           oninput="updateItemField(${i},'price',this.value)"
           onchange="this.value=Number(items[${i}].price||0).toFixed(2)"
           onclick="event.stopPropagation()"
@@ -1354,7 +1354,7 @@ function updateItemField(i, field, value){
   const it = items[i];
   if(!it || formReadOnly) return;
   if(field === 'qty')   it.qty   = Math.max(1, Math.floor(Number(value)) || 1);
-  if(field === 'price') it.price = Math.max(0, Number(value) || 0);
+  if(field === 'price') it.price = Math.max(0, parseMoney(value));
   const totEl = g('lbtotal-'+i);
   if(totEl) totEl.textContent = '$' + (Number(it.price||0) * Number(it.qty||1)).toFixed(2);
   if(i === editingItemIdx){
@@ -1416,7 +1416,7 @@ function cancelItemEdit(){
 function addItem(){
   const name  = g('newItemName').value.trim();
   const qty   = Number(g('newItemQty').value)||1;
-  const price = Number(g('newItemPrice').value)||0;
+  const price = parseMoney(g('newItemPrice').value);
   const size  = g('newItemSize').value.trim()||'—';
   if(!name){ toast('Escribe el nombre del producto','warn'); g('newItemName').focus(); return; }
   if(editingItemIdx >= 0 && items[editingItemIdx]){
@@ -1497,10 +1497,31 @@ itemFieldOrder.forEach((id, idx) => {
 // ══════════════════════════════════════════════════════
 //  CÁLCULO
 // ══════════════════════════════════════════════════════
+// ── Montos: siempre con punto decimal (4.00), aunque el sistema use coma (4,00) ──
+function parseMoney(v){
+  const n = parseFloat(String(v ?? '').replace(/\s/g,'').replace(',', '.'));
+  return isFinite(n) ? n : 0;
+}
+// Mientras se escribe: la coma se convierte en punto y solo se permiten dígitos y un punto
+document.addEventListener('input', e => {
+  const el = e.target;
+  if(!el.classList || !el.classList.contains('money-input')) return;
+  let v = el.value.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+  const dot = v.indexOf('.');
+  if(dot >= 0) v = v.slice(0, dot+1) + v.slice(dot+1).replace(/\./g, '');
+  if(v !== el.value) el.value = v;
+}, true);
+// Al salir del campo: formato 0.00
+document.addEventListener('blur', e => {
+  const el = e.target;
+  if(!el.classList || !el.classList.contains('money-input') || el.value.trim() === '') return;
+  el.value = parseMoney(el.value).toFixed(2);
+}, true);
+
 function recalc(){
   const sub   = items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
-  const ship  = Number(g('f_shipping').value||0);
-  const dv    = Number(g('f_discVal').value||0);
+  const ship  = parseMoney(g('f_shipping').value);
+  const dv    = parseMoney(g('f_discVal').value);
   const dt    = g('f_discType').value;
   const disc  = dt==='pct' ? sub*(dv/100) : dv;
   const total = Math.max(0, sub+ship-disc);
@@ -1593,8 +1614,8 @@ function renderPicker(q=''){
 // ══════════════════════════════════════════════════════
 function collectData(){
   const sub   = items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
-  const ship  = Number(g('f_shipping').value||0);
-  const dv    = Number(g('f_discVal').value||0);
+  const ship  = parseMoney(g('f_shipping').value);
+  const dv    = parseMoney(g('f_discVal').value);
   const dt    = g('f_discType').value;
   const disc  = dt==='pct' ? sub*(dv/100) : dv;
   const total = Math.max(0,sub+ship-disc);
@@ -1801,7 +1822,7 @@ function loadForEdit(id, readOnly){
   g('f_address_usa').value  = o.address_usa||o.shipping_address_usa||'';
   g('f_casillero').value    = o.casillero||o.casillero_number||'';
   checkCourierBadge();
-  g('f_shipping').value     = Number(o.shipping||o.shipping_cost||0);
+  g('f_shipping').value     = Number(o.shipping||o.shipping_cost||0).toFixed(2);
   g('f_method').value       = o.payment_method||o.method||'card';
   g('f_status').value       = o.status||o.invoice_status||'pendiente';
   g('f_notes').value        = o.notes||'';
