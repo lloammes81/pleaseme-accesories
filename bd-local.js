@@ -262,6 +262,9 @@
       const headers = new Headers((init && init.headers) || (input && input.headers) || {});
       const bodyText = init && typeof init.body === 'string' ? init.body : null;
       if(!u.pathname.startsWith('/rest/v1/')) return respond(404, { message: 'Ruta no encontrada' });
+      // Nunca responder antes de recuperar los datos: una base vacía haría que las
+      // páginas sobrescriban sus copias locales (así se perdían las facturas).
+      await ready;
       return await handleRest(u.pathname.slice('/rest/v1/'.length).replace(/\/+$/, ''), u.searchParams, method, headers, bodyText);
     }catch(e){
       console.error('[BD local]', e);
@@ -302,12 +305,16 @@
     return { nuevos, actualizados };
   }
 
+  function timeoutSignal(ms){
+    try{ return AbortSignal.timeout(ms); }catch{ const c = new AbortController(); setTimeout(() => c.abort(), ms); return c.signal; }
+  }
+
   // Supabase
   async function readLegacyTable(table){
     const H = { apikey: LEGACY_SB_KEY, Authorization: 'Bearer ' + LEGACY_SB_KEY };
     const rows = [], PAGE = 1000;
     for(let from = 0; ; from += PAGE){
-      const r = await realFetch(LEGACY_SB_URL + '/rest/v1/' + table + '?select=*', { headers: { ...H, Range: from + '-' + (from + PAGE - 1) } });
+      const r = await realFetch(LEGACY_SB_URL + '/rest/v1/' + table + '?select=*', { headers: { ...H, Range: from + '-' + (from + PAGE - 1) }, signal: timeoutSignal(20000) });
       if(r.status === 404 || r.status === 400) return null;     // la tabla no existe
       if(!r.ok) throw new Error('HTTP ' + r.status);
       const page = await r.json();
@@ -320,7 +327,7 @@
   async function collectFromSupabase(log){
     const names = new Set(LEGACY_TABLES);
     try{
-      const r = await realFetch(LEGACY_SB_URL + '/rest/v1/', { headers: { apikey: LEGACY_SB_KEY, Authorization: 'Bearer ' + LEGACY_SB_KEY } });
+      const r = await realFetch(LEGACY_SB_URL + '/rest/v1/', { headers: { apikey: LEGACY_SB_KEY, Authorization: 'Bearer ' + LEGACY_SB_KEY }, signal: timeoutSignal(10000) });
       if(r.ok){ const spec = await r.json(); Object.keys(spec.definitions || (spec.components && spec.components.schemas) || {}).forEach(n => names.add(n)); }
     }catch{}
     const out = {};
@@ -400,6 +407,63 @@
     return ops.length;
   }
 
+  // Traer datos de Supabase + navegador a la base local (lo usa el botón y el arranque automático)
+  async function runMigration(log){
+    const first = !(await getMeta('migracion_supabase'));
+    log('\n1. Descargando los datos de Supabase…');
+    const sb = await collectFromSupabase(log);
+    log('\n2. Leyendo los registros guardados en este navegador…');
+    const br = await collectFromBrowser(log);
+    log('\n3. Guardando en la base local…');
+    const demo = await removeDemo();
+    if(demo) log('  · se quitaron ' + demo + ' registros de demostración');
+    const total = {};
+    const add = (t, r) => { total[t] = total[t] || { nuevos: 0, actualizados: 0 }; total[t].nuevos += r.nuevos; total[t].actualizados += r.actualizados; };
+    // La primera vez Supabase manda (datos principales); después solo completa
+    for(const [t, rows] of Object.entries(sb.tablas)) add(t, await importRows(t, rows, first ? 'reemplazar' : 'completar'));
+    for(const [t, rows] of Object.entries(br)) add(t, await importRows(t, rows, 'completar'));
+    Object.entries(total).forEach(([t, r]) => log('  · ' + t + ': ' + r.nuevos + ' nuevos, ' + r.actualizados + ' actualizados'));
+    const gotSupabase = Object.keys(sb.tablas).length > 0 && sb.ok;
+    if(gotSupabase) await setMeta('migracion_supabase', new Date().toISOString());
+    return { gotSupabase, total };
+  }
+
+  // Al abrir el sistema por primera vez (o mientras Supabase no se haya podido copiar),
+  // recupera los datos automáticamente ANTES de que las páginas lean la base.
+  function banner(text, color){
+    const show = () => {
+      let el = document.getElementById('pmBDBanner');
+      if(!el){
+        el = document.createElement('div'); el.id = 'pmBDBanner';
+        el.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:100001;padding:10px 18px;border-radius:10px;font:13px system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:90vw;text-align:center';
+        document.body.appendChild(el);
+      }
+      el.style.background = color || '#15120a'; el.style.color = '#f3e9c9'; el.style.border = '1px solid rgba(212,175,55,.45)';
+      el.textContent = text;
+      return el;
+    };
+    if(document.body) return show();
+    document.addEventListener('DOMContentLoaded', show, { once: true });
+  }
+
+  async function autoMigrate(){
+    try{
+      if(await getMeta('migracion_supabase')) return;
+      banner('🗄 Recuperando tus facturas, clientes y artículos en la base local…');
+      const logs = [];
+      const res = await runMigration(m => logs.push(m));
+      console.log('[BD local] recuperación automática' + logs.join('\n'));
+      const el = banner(res.gotSupabase
+        ? '✓ Tus datos se recuperaron en la base local. Descarga un respaldo desde 🗄 BD local.'
+        : '⚠ No se pudo conectar con Supabase para recuperar tus datos. Conéctate a internet y recarga la página.',
+        res.gotSupabase ? '#10261d' : '#3a1414');
+      if(el) setTimeout(() => el.remove(), res.gotSupabase ? 8000 : 20000);
+    }catch(e){
+      console.error('[BD local] recuperación automática falló:', e);
+    }
+  }
+  const ready = autoMigrate();
+
   // ── Respaldo ────────────────────────────────────────────────
   async function exportBackup(){
     const db = await openDB();
@@ -475,24 +539,10 @@
 
     ov.querySelector('[data-a="migrar"]').onclick = () => run(async () => {
       if(!confirm('Se copiarán todas las facturas, clientes, artículos, pedidos y ajustes de Supabase y de este navegador a la base de datos local.\n\nNo se borra nada. ¿Continuar?')) return;
-      const first = !(await getMeta('migracion_supabase'));
-      log('\n1. Descargando los datos de Supabase…');
-      const sb = await collectFromSupabase(log);
-      log('\n2. Leyendo los registros guardados en este navegador…');
-      const br = await collectFromBrowser(log);
-      log('\n3. Guardando en la base local…');
-      const demo = await removeDemo();
-      if(demo) log('  · se quitaron ' + demo + ' registros de demostración');
-      const total = {};
-      const add = (t, r) => { total[t] = total[t] || { nuevos: 0, actualizados: 0 }; total[t].nuevos += r.nuevos; total[t].actualizados += r.actualizados; };
-      // La primera vez Supabase manda (datos principales); después solo completa
-      for(const [t, rows] of Object.entries(sb.tablas)) add(t, await importRows(t, rows, first ? 'reemplazar' : 'completar'));
-      for(const [t, rows] of Object.entries(br)) add(t, await importRows(t, rows, 'completar'));
-      Object.entries(total).forEach(([t, r]) => log('  · ' + t + ': ' + r.nuevos + ' nuevos, ' + r.actualizados + ' actualizados'));
-      if(Object.keys(sb.tablas).length && sb.ok) await setMeta('migracion_supabase', new Date().toISOString());
+      const { gotSupabase } = await runMigration(log);
       changed = true;
       await showTotals('\nTotal en la base local:');
-      log(Object.keys(sb.tablas).length
+      log(gotSupabase
         ? '\n✓ Listo. Te recomendamos descargar un respaldo ahora.'
         : '\n⚠ No se pudo leer Supabase (¿sin internet?). Se guardó lo que había en el navegador; vuelve a intentarlo con internet.');
     });
