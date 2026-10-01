@@ -198,6 +198,10 @@
     .lb-size{font-size:10px;color:var(--muted)}
     .lb-qty,.lb-price{font-size:12px;text-align:center;color:var(--text)}
     .lb-total{font-size:12px;font-weight:700;text-align:right;color:var(--gold)}
+    .listbox-row.editable{cursor:pointer}
+    .listbox-row.editing{background:rgba(47,227,181,.08);border-left:2px solid #2fe3b5}
+    .lb-input{width:100%;box-sizing:border-box;padding:3px 4px;font-size:12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:5px;color:var(--text)}
+    .lb-input:focus{border-color:var(--gold);outline:none}
     .lb-del{background:none;border:none;color:rgba(255,85,85,.5);cursor:pointer;font-size:14px;padding:0;display:flex;align-items:center;justify-content:center;transition:.15s}
     .lb-del:hover{color:#ff5555}
     .listbox-count{padding:5px 10px;font-size:10px;color:var(--muted);background:rgba(0,0,0,.2);border-top:1px solid var(--border);display:flex;justify-content:space-between}
@@ -492,8 +496,9 @@
           <label class="lbl" style="margin-bottom:3px">Talla/Color</label>
           <input id="newItemSize" placeholder="Ej: L, Rojo"/>
         </div>
-        <div style="display:flex;align-items:flex-end">
-          <button class="btn btn-gold btn-icon" onclick="addItem()" title="Agregar (Enter en último campo)" style="width:38px;height:38px;font-size:18px">＋</button>
+        <div style="display:flex;align-items:flex-end;gap:4px">
+          <button class="btn btn-gold btn-icon" id="addItemBtn" onclick="addItem()" title="Agregar (Enter en último campo)" style="width:38px;height:38px;font-size:18px">＋</button>
+          <button class="btn btn-icon" id="cancelItemEditBtn" onclick="cancelItemEdit()" title="Cancelar edición" style="display:none;width:38px;height:38px;font-size:14px">✕</button>
         </div>
       </div>
     </div>
@@ -831,6 +836,7 @@ let DB = { orders:[], products:[], clients:[] };
 let editingId = null;
 let items = [];
 let formReadOnly = false;
+let editingItemIdx = -1;   // índice del artículo que se está editando en la fila inferior (-1 = agregando)
 
 // ══════════════════════════════════════════════════════
 //  INIT
@@ -1247,6 +1253,7 @@ async function resetForm(){
   editingId = null;
   items = [];
   formReadOnly = false;
+  cancelItemEdit();
   g('formTitle').textContent = 'Nueva Factura';
   g('f_clientName').value = '';
   g('f_email').value = '';
@@ -1293,44 +1300,117 @@ function renderItems(){
     return;
   }
 
+  if(editingItemIdx >= items.length) cancelItemEdit();
+
   el.innerHTML = items.map((it, i) => {
     const lineTotal = (Number(it.price||0) * Number(it.qty||1)).toFixed(2);
     const sizeLabel = it.size && it.size !== '—' ? `<div class="lb-size">${esc(it.size)}</div>` : '';
     const qtyCell = formReadOnly
       ? `<div class="lb-qty">${it.qty||1}</div>`
       : `<div class="lb-qty">
-        <input type="number" value="${it.qty||1}" min="1"
-          style="width:44px;padding:3px 4px;text-align:center;font-size:12px;background:rgba(0,0,0,.3);border:1px solid rgba(212,175,55,.2);border-radius:5px;color:var(--text)"
-          oninput="items[${i}].qty=Number(this.value)||1;renderItems()"
+        <input class="lb-input" type="number" value="${it.qty||1}" min="1" step="1" style="text-align:center" title="Editar cantidad"
+          oninput="updateItemField(${i},'qty',this.value)"
+          onchange="this.value=items[${i}].qty"
           onclick="event.stopPropagation()"
         />
       </div>`;
-    const delBtn = formReadOnly ? '' : `<button class="lb-del" onclick="event.stopPropagation();items.splice(${i},1);renderItems()" title="Eliminar">✕</button>`;
+    const priceCell = formReadOnly
+      ? `<div class="lb-price">$${Number(it.price||0).toFixed(2)}</div>`
+      : `<div class="lb-price">
+        <input class="lb-input" type="number" value="${Number(it.price||0).toFixed(2)}" min="0" step="0.01" style="text-align:right" title="Editar precio"
+          oninput="updateItemField(${i},'price',this.value)"
+          onchange="this.value=Number(items[${i}].price||0).toFixed(2)"
+          onclick="event.stopPropagation()"
+        />
+      </div>`;
+    const delBtn = formReadOnly ? '' : `<button class="lb-del" onclick="event.stopPropagation();removeItem(${i})" title="Eliminar">✕</button>`;
+    const rowCls = 'listbox-row' + (formReadOnly ? '' : ' editable') + (i === editingItemIdx ? ' editing' : '');
     return `
-    <div class="listbox-row" id="lbrow-${i}" onclick="selectListboxRow(${i})">
+    <div class="${rowCls}" id="lbrow-${i}" onclick="selectListboxRow(${i})" ${formReadOnly ? '' : 'title="Clic para editar este artículo"'}>
       <div><div class="lb-name" title="${esc(it.name)}">${esc(it.name)}</div>${sizeLabel}</div>
       ${qtyCell}
-      <div class="lb-price">$${Number(it.price||0).toFixed(2)}</div>
-      <div class="lb-total">$${lineTotal}</div>
+      ${priceCell}
+      <div class="lb-total" id="lbtotal-${i}">$${lineTotal}</div>
       ${delBtn}
     </div>`;
   }).join('');
 
-  // Footer con conteo y subtotal
-  const sub = items.reduce((s, i) => s + Number(i.price||0)*Number(i.qty||1), 0);
-  if(footerEl){
-    footerEl.style.display = 'flex';
-    countEl.textContent = items.length + ' artículo' + (items.length !== 1 ? 's' : '');
-    subtotalEl.textContent = '$' + sub.toFixed(2);
-  }
-
+  updateListboxFooter();
   recalc();
 }
 
+// Footer con conteo y subtotal
+function updateListboxFooter(){
+  const footerEl = g('listboxFooter');
+  if(!footerEl || !items.length) return;
+  const sub = items.reduce((s, i) => s + Number(i.price||0)*Number(i.qty||1), 0);
+  footerEl.style.display = 'flex';
+  g('listboxCount').textContent = items.length + ' artículo' + (items.length !== 1 ? 's' : '');
+  g('listboxSubtotal').textContent = '$' + sub.toFixed(2);
+}
+
+// Edición en línea de cantidad/precio — actualiza totales sin redibujar la lista (no se pierde el foco)
+function updateItemField(i, field, value){
+  const it = items[i];
+  if(!it || formReadOnly) return;
+  if(field === 'qty')   it.qty   = Math.max(1, Math.floor(Number(value)) || 1);
+  if(field === 'price') it.price = Math.max(0, Number(value) || 0);
+  const totEl = g('lbtotal-'+i);
+  if(totEl) totEl.textContent = '$' + (Number(it.price||0) * Number(it.qty||1)).toFixed(2);
+  if(i === editingItemIdx){
+    if(field === 'qty')   g('newItemQty').value   = it.qty;
+    if(field === 'price') g('newItemPrice').value = Number(it.price||0).toFixed(2);
+  }
+  updateListboxFooter();
+  recalc();
+}
+
+function removeItem(i){
+  items.splice(i, 1);
+  if(editingItemIdx === i) cancelItemEdit();
+  else if(editingItemIdx > i) editingItemIdx--;
+  renderItems();
+}
+
+// Clic en un artículo: lo carga en la fila de abajo para editar nombre, cantidad, precio y talla
 function selectListboxRow(i){
   document.querySelectorAll('.listbox-row').forEach(r => r.classList.remove('selected'));
   const row = document.getElementById('lbrow-'+i);
   if(row) row.classList.add('selected');
+  if(formReadOnly || !items[i]) return;
+  const it = items[i];
+  editingItemIdx = i;
+  g('newItemName').value  = it.name || '';
+  g('newItemQty').value   = it.qty || 1;
+  g('newItemPrice').value = Number(it.price||0).toFixed(2);
+  g('newItemSize').value  = it.size && it.size !== '—' ? it.size : '';
+  setItemEditMode(true);
+  document.querySelectorAll('.listbox-row').forEach(r => r.classList.toggle('editing', r.id === 'lbrow-'+i));
+  g('newItemPrice').focus();
+  g('newItemPrice').select();
+}
+
+function setItemEditMode(on){
+  const btn = g('addItemBtn'), cancelBtn = g('cancelItemEditBtn');
+  if(btn){
+    btn.textContent = on ? '✓' : '＋';
+    btn.title = on ? 'Guardar cambios del artículo (Enter en último campo)' : 'Agregar (Enter en último campo)';
+  }
+  if(cancelBtn) cancelBtn.style.display = on ? '' : 'none';
+}
+
+function clearItemInputs(){
+  g('newItemName').value=''; g('newItemQty').value=1; g('newItemPrice').value=''; g('newItemSize').value='';
+  g('newItemSize').placeholder='Ej: L, Rojo';
+  g('prodDropdown').style.display='none';
+}
+
+function cancelItemEdit(){
+  const wasEditing = editingItemIdx >= 0;
+  editingItemIdx = -1;
+  setItemEditMode(false);
+  document.querySelectorAll('.listbox-row').forEach(r => r.classList.remove('editing','selected'));
+  if(wasEditing) clearItemInputs();
 }
 
 function addItem(){
@@ -1339,12 +1419,19 @@ function addItem(){
   const price = Number(g('newItemPrice').value)||0;
   const size  = g('newItemSize').value.trim()||'—';
   if(!name){ toast('Escribe el nombre del producto','warn'); g('newItemName').focus(); return; }
+  if(editingItemIdx >= 0 && items[editingItemIdx]){
+    // Editando un artículo existente — se reemplazan sus datos
+    Object.assign(items[editingItemIdx], {name, qty, price, size});
+    cancelItemEdit();
+    renderItems();
+    toast('Artículo actualizado');
+    g('newItemName').focus();
+    return;
+  }
   // ⚠️ Solo se agrega al arreglo temporal de la factura — NO se guarda en DB.products
   items.push({name, qty, price, size, color:'—'});
   renderItems();
-  g('newItemName').value=''; g('newItemQty').value=1; g('newItemPrice').value=''; g('newItemSize').value='';
-  g('newItemSize').placeholder='Talla/Color';
-  g('prodDropdown').style.display='none';
+  clearItemInputs();
   g('newItemName').focus();
 }
 
@@ -1391,6 +1478,7 @@ document.addEventListener('click', e=>{
 const itemFieldOrder = ['newItemName','newItemQty','newItemPrice','newItemSize'];
 itemFieldOrder.forEach((id, idx) => {
   g(id)?.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && editingItemIdx >= 0){ e.preventDefault(); cancelItemEdit(); return; }
     if(e.key === 'Enter'){
       e.preventDefault();
       g('prodDropdown').style.display = 'none';
@@ -1701,6 +1789,7 @@ function loadForEdit(id, readOnly){
   if(!o){ toast('Factura no encontrada','err'); return; }
   editingId = id;
   items = (o.items||[]).map(i=>({...i}));
+  cancelItemEdit();
 
   g('f_invNum').value       = o.invoice_num||o.invoiceNum||'';
   g('f_date').value         = (o.created_at||'').slice(0,10) || new Date().toISOString().slice(0,10);
