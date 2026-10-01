@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
+<script src="migracion.js"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>✦ Facturación — Pleaseme</title>
@@ -314,6 +315,7 @@
     </div>
   </div>
   <div class="header-actions">
+    <button class="btn btn-outline" onclick="pmMigrarABaseLocal()" title="Enviar todas las facturas, clientes y artículos guardados a la base de datos local del equipo" style="border-color:rgba(47,227,181,.4);color:#2fe3b5">⇪ Enviar a BD local</button>
     <button class="btn btn-outline" onclick="toggleCompanyPanel()" title="Información de la compañía & logo">ℹ️ Información Compañía</button>
     <button class="btn btn-outline" onclick="openNewInvoice()">＋ Nueva Factura</button>
     <button class="btn btn-green" onclick="exportCSV()">⬇ CSV</button>
@@ -366,11 +368,10 @@
   </div>
 </div>
 
-<!-- ── SUPABASE STATUS BAR ── -->
+<!-- ── ESTADO DE LA BASE DE DATOS LOCAL ── -->
 <div id="sbStatusBar" style="display:none;background:rgba(255,200,0,.1);border-bottom:1px solid rgba(255,200,0,.3);padding:8px 24px;font-size:12px;color:#ffc800;display:flex;align-items:center;gap:10px">
   <span>⚠</span>
-  <span>Supabase no configurado — los datos se guardan solo en este navegador. Agrega tu URL y clave en el código.</span>
-  <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-size:11px">SUPABASE_URL / SUPABASE_KEY</code>
+  <span>Verificando la base de datos local…</span>
 </div>
 
 <!-- ── KPI BAR ── -->
@@ -490,7 +491,7 @@
         </div>
         <div>
           <label class="lbl" style="margin-bottom:3px">Precio</label>
-          <input id="newItemPrice" type="number" step="0.01" placeholder="0.00"/>
+          <input id="newItemPrice" type="text" inputmode="decimal" class="money-input" autocomplete="off" placeholder="0.00"/>
         </div>
         <div>
           <label class="lbl" style="margin-bottom:3px">Talla/Color</label>
@@ -513,12 +514,12 @@
       <div class="grid-3" style="margin-bottom:12px">
         <div class="field">
           <label class="lbl">Envío ($)</label>
-          <input id="f_shipping" type="number" step="0.01" value="0" oninput="recalc()" />
+          <input id="f_shipping" type="text" inputmode="decimal" class="money-input" autocomplete="off" value="0.00" oninput="recalc()" />
         </div>
         <div class="field">
           <label class="lbl">Descuento</label>
           <div style="display:flex;gap:6px">
-            <input id="f_discVal" type="number" step="0.01" min="0" value="0" oninput="recalc()" />
+            <input id="f_discVal" type="text" inputmode="decimal" class="money-input" autocomplete="off" value="0" oninput="recalc()" />
             <select id="f_discType" onchange="recalc()" style="width:58px;padding:9px 6px">
               <option value="pct">%</option>
               <option value="fixed">$</option>
@@ -683,8 +684,9 @@
 //  SUPABASE CONFIG — reemplaza con tus credenciales
 // ══════════════════════════════════════════════════════
 // ── REST API directa (igual que admin.html) ──
-const SB_URL = 'https://sqcggascnbcnfkymqcql.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY2dnYXNjbmJjbmZreW1xY3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODQ2NzIsImV4cCI6MjA4NzI2MDY3Mn0.q0C_q3gOZZzcr6dWPrIhWS63gst5OBYIg9FDxThaKt4';
+// Base de datos LOCAL (servidor/server.js) — reemplaza a Supabase
+const SB_URL = window.PM_DB_URL || 'http://localhost:3000';
+const SB_KEY = 'local';
 const SB_H   = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
 const SB = true; // Siempre disponible via REST
 
@@ -750,13 +752,13 @@ async function sbTest(){
     const r = await fetch(SB_URL+'/rest/v1/facturas?select=id&limit=1', {headers:SB_H});
     if(r.status === 401){
       sb.style.cssText='display:flex;background:rgba(255,85,85,.15);border-bottom:1px solid rgba(255,85,85,.4);padding:10px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
-      sb.innerHTML='<span>🔑</span><span>Error 401 — API Key inválida o RLS bloqueando acceso anónimo</span>';
+      sb.innerHTML='<span>🔑</span><span>Error 401 — acceso denegado por la base de datos local</span>';
       console.error('[SB] 401 Unauthorized — verifica SB_KEY y RLS policies en Supabase');
       return;
     }
     if(r.status === 404){
       sb.style.cssText='display:flex;background:rgba(255,85,85,.15);border-bottom:1px solid rgba(255,85,85,.4);padding:10px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
-      sb.innerHTML='<span>🗄️</span><span>Error 404 — Tabla "facturas" no encontrada en Supabase</span>';
+      sb.innerHTML='<span>🗄️</span><span>Error 404 — no se encontró la base de datos local en '+SB_URL+'</span>';
       return;
     }
     if(!r.ok){
@@ -766,12 +768,12 @@ async function sbTest(){
       return;
     }
     sb.style.cssText='display:flex;background:rgba(47,227,181,.08);border-bottom:1px solid rgba(47,227,181,.2);padding:8px 24px;font-size:12px;color:#2fe3b5;align-items:center;gap:10px';
-    sb.innerHTML='<span>✅</span><span>Supabase conectado — pleaseme-store</span>';
+    sb.innerHTML='<span>✅</span><span>Base de datos local conectada — '+SB_URL+'</span>';
     setTimeout(()=>{ sb.style.display='none'; }, 3000);
     console.log('[SB] Conexión OK');
   }catch(e){
     sb.style.cssText='display:flex;background:rgba(255,85,85,.15);border-bottom:1px solid rgba(255,85,85,.4);padding:10px 24px;font-size:12px;color:#ff5555;align-items:center;gap:10px';
-    sb.innerHTML='<span>🌐</span><span>Sin conexión a Supabase — '+e.message+'</span>';
+    sb.innerHTML='<span>🌐</span><span>Sin conexión con la base de datos local ('+SB_URL+'). Abre el servidor con <b>iniciar-servidor</b> y recarga. Si tienes datos en este navegador, usa <b>⇪ Enviar a BD local</b>.</span>';
     console.error('[SB] Test falló:', e.message);
   }
 }
@@ -1163,7 +1165,7 @@ async function saveCompany(){
       if(ins && ins.length) co.id = ins[0].id;
     }
     localStorage.setItem(LS_COMPANY, JSON.stringify(co));
-    toast('✅ Configuración guardada en Supabase','ok');
+    toast('✅ Configuración guardada en la base de datos local','ok');
   }catch(e){
     console.error('[SB] saveCompany:', e.message);
     toast('⚠ Guardado solo localmente: '+e.message,'warn');
@@ -1263,7 +1265,7 @@ async function resetForm(){
   g('f_address_usa').value = '';
   g('f_casillero').value = '';
   checkCourierBadge();
-  g('f_shipping').value = 0;
+  g('f_shipping').value = '0.00';
   g('f_discVal').value = 0;
   g('f_discType').value = 'pct';
   g('f_method').value = 'card';
@@ -1317,7 +1319,7 @@ function renderItems(){
     const priceCell = formReadOnly
       ? `<div class="lb-price">$${Number(it.price||0).toFixed(2)}</div>`
       : `<div class="lb-price">
-        <input class="lb-input" type="number" value="${Number(it.price||0).toFixed(2)}" min="0" step="0.01" style="text-align:right" title="Editar precio"
+        <input class="lb-input money-input" type="text" inputmode="decimal" autocomplete="off" value="${Number(it.price||0).toFixed(2)}" style="text-align:right" title="Editar precio"
           oninput="updateItemField(${i},'price',this.value)"
           onchange="this.value=Number(items[${i}].price||0).toFixed(2)"
           onclick="event.stopPropagation()"
@@ -1354,7 +1356,7 @@ function updateItemField(i, field, value){
   const it = items[i];
   if(!it || formReadOnly) return;
   if(field === 'qty')   it.qty   = Math.max(1, Math.floor(Number(value)) || 1);
-  if(field === 'price') it.price = Math.max(0, Number(value) || 0);
+  if(field === 'price') it.price = Math.max(0, parseMoney(value));
   const totEl = g('lbtotal-'+i);
   if(totEl) totEl.textContent = '$' + (Number(it.price||0) * Number(it.qty||1)).toFixed(2);
   if(i === editingItemIdx){
@@ -1416,7 +1418,7 @@ function cancelItemEdit(){
 function addItem(){
   const name  = g('newItemName').value.trim();
   const qty   = Number(g('newItemQty').value)||1;
-  const price = Number(g('newItemPrice').value)||0;
+  const price = parseMoney(g('newItemPrice').value);
   const size  = g('newItemSize').value.trim()||'—';
   if(!name){ toast('Escribe el nombre del producto','warn'); g('newItemName').focus(); return; }
   if(editingItemIdx >= 0 && items[editingItemIdx]){
@@ -1497,10 +1499,31 @@ itemFieldOrder.forEach((id, idx) => {
 // ══════════════════════════════════════════════════════
 //  CÁLCULO
 // ══════════════════════════════════════════════════════
+// ── Montos: siempre con punto decimal (4.00), aunque el sistema use coma (4,00) ──
+function parseMoney(v){
+  const n = parseFloat(String(v ?? '').replace(/\s/g,'').replace(',', '.'));
+  return isFinite(n) ? n : 0;
+}
+// Mientras se escribe: la coma se convierte en punto y solo se permiten dígitos y un punto
+document.addEventListener('input', e => {
+  const el = e.target;
+  if(!el.classList || !el.classList.contains('money-input')) return;
+  let v = el.value.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+  const dot = v.indexOf('.');
+  if(dot >= 0) v = v.slice(0, dot+1) + v.slice(dot+1).replace(/\./g, '');
+  if(v !== el.value) el.value = v;
+}, true);
+// Al salir del campo: formato 0.00
+document.addEventListener('blur', e => {
+  const el = e.target;
+  if(!el.classList || !el.classList.contains('money-input') || el.value.trim() === '') return;
+  el.value = parseMoney(el.value).toFixed(2);
+}, true);
+
 function recalc(){
   const sub   = items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
-  const ship  = Number(g('f_shipping').value||0);
-  const dv    = Number(g('f_discVal').value||0);
+  const ship  = parseMoney(g('f_shipping').value);
+  const dv    = parseMoney(g('f_discVal').value);
   const dt    = g('f_discType').value;
   const disc  = dt==='pct' ? sub*(dv/100) : dv;
   const total = Math.max(0, sub+ship-disc);
@@ -1593,8 +1616,8 @@ function renderPicker(q=''){
 // ══════════════════════════════════════════════════════
 function collectData(){
   const sub   = items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
-  const ship  = Number(g('f_shipping').value||0);
-  const dv    = Number(g('f_discVal').value||0);
+  const ship  = parseMoney(g('f_shipping').value);
+  const dv    = parseMoney(g('f_discVal').value);
   const dt    = g('f_discType').value;
   const disc  = dt==='pct' ? sub*(dv/100) : dv;
   const total = Math.max(0,sub+ship-disc);
@@ -1801,7 +1824,7 @@ function loadForEdit(id, readOnly){
   g('f_address_usa').value  = o.address_usa||o.shipping_address_usa||'';
   g('f_casillero').value    = o.casillero||o.casillero_number||'';
   checkCourierBadge();
-  g('f_shipping').value     = Number(o.shipping||o.shipping_cost||0);
+  g('f_shipping').value     = Number(o.shipping||o.shipping_cost||0).toFixed(2);
   g('f_method').value       = o.payment_method||o.method||'card';
   g('f_status').value       = o.status||o.invoice_status||'pendiente';
   g('f_notes').value        = o.notes||'';

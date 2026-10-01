@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script src="migracion.js"></script>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Pleaseme — Oro Laminado</title>
@@ -682,8 +683,9 @@ footer{position:relative;z-index:1;border-top:1px solid var(--ln);margin-top:40p
 // ════════════════════════════════════════════════
 //  SUPABASE — REST API directa (sin SDK, sin workers)
 // ════════════════════════════════════════════════
-const SB_URL = 'https://sqcggascnbcnfkymqcql.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY2dnYXNjbmJjbmZreW1xY3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODQ2NzIsImV4cCI6MjA4NzI2MDY3Mn0.q0C_q3gOZZzcr6dWPrIhWS63gst5OBYIg9FDxThaKt4';
+// Base de datos LOCAL (servidor/server.js) — reemplaza a Supabase
+const SB_URL = window.PM_DB_URL || 'http://localhost:3000';
+const SB_KEY = 'local';
 const SB_H   = {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY, 'Content-Type': 'application/json'};
 
 async function sbGET(path){
