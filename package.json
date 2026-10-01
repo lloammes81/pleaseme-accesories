@@ -1,9 +1,0 @@
-{
-  "name": "pleaseme-accesories",
-  "private": true,
-  "description": "Pleaseme — sistema con base de datos local (SQLite) por equipo",
-  "engines": { "node": ">=22.13" },
-  "scripts": {
-    "start": "node servidor/server.js"
-  }
-}
