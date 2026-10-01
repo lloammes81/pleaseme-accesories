@@ -1675,9 +1675,12 @@ function validate(data){
   return true;
 }
 
-async function saveOnly(){
+// opts.noPrompt: no preguntar por el envío al cliente (lo maneja quien llama, ej. printCurrentInvoice)
+// Devuelve true si se creó una factura NUEVA.
+async function saveOnly(opts={}){
   const data = collectData();
-  if(!validate(data)) return;
+  if(!validate(data)) return false;
+  const wasNew = !editingId;
 
   // Al procesar la factura, pasar automáticamente de "pendiente" → "procesando"
   if(data.status === 'pendiente'){
@@ -1794,6 +1797,98 @@ async function saveOnly(){
   renderList();
   updateKPIs();
   g('formTitle').textContent = 'Editando: '+data.invoice_num;
+
+  // Factura nueva → preguntar si se envía copia al cliente; si no, se imprime
+  if(wasNew && editingId && !opts.noPrompt){
+    const o = DB.orders.find(x=>x.id===editingId);
+    if(o) await askSendInvoiceToClient(o, {printOnNo:true});
+  }
+  return wasNew;
+}
+
+// ══════════════════════════════════════════════════════
+//  ENVIAR COPIA DE LA FACTURA AL CLIENTE (WhatsApp)
+// ══════════════════════════════════════════════════════
+// Número para wa.me: solo dígitos con código de país (10 dígitos → se asume +1: EE.UU./RD)
+function whatsappNumber(phone){
+  let d = String(phone||'').replace(/\D/g,'');
+  if(d.startsWith('00')) d = d.slice(2);
+  if(d.length === 10) d = '1' + d;
+  return d.length >= 8 ? d : '';
+}
+
+function invoiceWhatsAppText(o){
+  const co = getCompanyInfo();
+  const money = n => '$' + Number(n||0).toFixed(2);
+  const lines = (o.items||[]).map(i => '• ' + (i.qty||1) + ' x ' + i.name + (i.size && i.size!=='—' ? ' (' + i.size + ')' : '') + ' — ' + money(Number(i.price||0)*Number(i.qty||1)));
+  return [
+    'Hola ' + (o.clientName||'') + ', gracias por tu compra en ' + (co.name||'Pleaseme') + ' ✨',
+    '',
+    '🧾 Factura ' + (o.invoice_num||'') + ' — ' + new Date(o.created_at||Date.now()).toLocaleDateString('es'),
+    ...lines,
+    '',
+    Number(o.shipping||0) ? 'Envío: ' + money(o.shipping) : '',
+    Number(o.discountAmount||0) ? 'Descuento: −' + money(o.discountAmount) : '',
+    '*Total: ' + money(o.total) + '*',
+    '',
+    'Te adjuntamos la factura en PDF.',
+  ].filter((l, i, a) => l !== '' || (a[i-1] !== '' && i > 0)).join('\n');
+}
+
+function sendInvoiceToClient(o){
+  const num = whatsappNumber(o.clientPhone || o.phone);
+  if(!num){ toast('La factura no tiene un teléfono válido','warn'); return false; }
+  // PDF descargado para adjuntarlo en el chat
+  try{
+    const doc = buildInvoicePDF(o);
+    if(doc) doc.save('Factura-' + (o.invoice_num||o.id) + '.pdf');
+  }catch(e){ console.error('PDF para WhatsApp:', e); }
+  const url = 'https://wa.me/' + num + '?text=' + encodeURIComponent(invoiceWhatsAppText(o));
+  const win = window.open(url, '_blank');
+  if(!win) location.href = url;
+  toast('📲 WhatsApp abierto — adjunta el PDF descargado de la factura','ok');
+  return true;
+}
+
+// Muestra la pregunta. Sí → envía por WhatsApp. No → imprime (si printOnNo).
+function askSendInvoiceToClient(o, {printOnNo=true}={}){
+  return new Promise(resolve => {
+    const num = whatsappNumber(o.clientPhone || o.phone);
+    if(!num){
+      toast('La factura no tiene teléfono del cliente — se imprimirá','warn');
+      if(printOnNo) openPrintWindow(o);
+      return resolve(false);
+    }
+    document.getElementById('sendClientModal')?.remove();
+    const m = document.createElement('div');
+    m.id = 'sendClientModal';
+    m.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px';
+    m.innerHTML = `
+      <div style="background:var(--card,#15120a);border:1px solid rgba(212,175,55,.35);border-radius:14px;max-width:420px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+        <div style="font-size:16px;font-weight:700;color:var(--gold,#d4af37);margin-bottom:10px">📲 ¿Enviar copia de la factura al cliente?</div>
+        <div style="font-size:13px;color:var(--text,#e8e0cc);line-height:1.6;margin-bottom:18px">
+          Factura <b>${esc(o.invoice_num||'')}</b> para <b>${esc(o.clientName||'')}</b><br>
+          Se enviará por WhatsApp al <b>${esc(o.clientPhone||o.phone||'')}</b>.
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn btn-outline" data-ans="no">${printOnNo ? '🖨 No, imprimir' : 'No'}</button>
+          <button class="btn btn-gold" data-ans="si" autofocus>Sí, enviar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    const done = yes => {
+      m.remove();
+      document.removeEventListener('keydown', onKey, true);
+      if(yes) sendInvoiceToClient(o);
+      else if(printOnNo) openPrintWindow(o);
+      resolve(yes);
+    };
+    const onKey = e => { if(e.key === 'Escape'){ e.preventDefault(); done(false); } };
+    document.addEventListener('keydown', onKey, true);
+    m.querySelector('[data-ans="si"]').onclick = () => done(true);
+    m.querySelector('[data-ans="no"]').onclick = () => done(false);
+    m.querySelector('[data-ans="si"]').focus();
+  });
 }
 
 
@@ -2303,12 +2398,15 @@ function printInvoice(id){
 async function printCurrentInvoice(){
   // Guarda siempre los cambios del formulario (incl. Dirección de envío USA / Casillero)
   // antes de imprimir — salvo en modo "Viendo" (solo lectura), donde no hay nada que guardar.
+  let wasNew = false;
   if(!formReadOnly){
-    await saveOnly();
+    wasNew = await saveOnly({noPrompt:true});
   }
   if(!editingId){ toast('Guarda la factura primero','warn'); return; }
   const o = DB.orders.find(x=>x.id===editingId);
   if(!o){ toast('Factura no encontrada','err'); return; }
+  // Factura nueva: preguntar si se envía al cliente (la impresión sigue porque se pidió imprimir)
+  if(wasNew) await askSendInvoiceToClient(o, {printOnNo:false});
   openPrintWindow(o);
   openPirateShipLabel(o);
 }
