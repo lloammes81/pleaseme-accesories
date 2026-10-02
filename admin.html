@@ -6040,17 +6040,35 @@ async function saveAndPrintInvoice(){
 // ══════════════════════════════════════════════════════════════
 let _ventanaFacturacion = null;
 
-function abrirVentanaFacturacion(orderId){
+async function abrirVentanaFacturacion(orderId){
   const url = 'index.html' + (orderId ? '?edit='+encodeURIComponent(orderId) : '');
   if(_ventanaFacturacion && !_ventanaFacturacion.closed){
     _ventanaFacturacion.focus();
     if(orderId){
       try{ _ventanaFacturacion.loadForEdit(orderId); }catch(e){}
     }
-  } else {
-    _ventanaFacturacion = window.open(url, 'FacturacionPM',
-      'width=1200,height=820,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no');
+    return;
   }
+  // Aunque este panel se haya recargado (y perdido la referencia), si la ventana de Facturación
+  // sigue abierta en cualquier pestaña no se abre otra: se le avisa y se trae al frente.
+  let abierta = false;
+  try{
+    if(navigator.locks && navigator.locks.query && window.BroadcastChannel){
+      const q = await navigator.locks.query();
+      abierta = (q.held||[]).some(l=>l.name==='pm-facturacion');
+    }
+  }catch(e){}
+  if(abierta){
+    try{
+      const ch = new BroadcastChannel('pm-facturacion');
+      ch.postMessage({ tipo: orderId ? 'editar' : 'enfocar', id: orderId||null });
+      setTimeout(()=>ch.close(), 500);
+    }catch(e){}
+    toast('La ventana de Facturación ya está abierta'+(orderId?' — se abrió ahí la factura':''), 'warn');
+    return;
+  }
+  _ventanaFacturacion = window.open(url, 'FacturacionPM',
+    'width=1200,height=820,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no');
 }
 window.abrirVentanaFacturacion = abrirVentanaFacturacion;
 

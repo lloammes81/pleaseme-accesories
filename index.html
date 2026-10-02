@@ -259,6 +259,58 @@
   .pin-key:active{transform:scale(.95)}
 </style>
 <script>
+// ══════════════════════════════════════════════════════════════
+//  UNA SOLA VENTANA DE FACTURACIÓN
+//  Si ya hay una ventana de Facturación abierta (en cualquier pestaña o ventana
+//  del mismo navegador), esta no se deja usar: se avisa, se trae la otra al frente
+//  y, si se abrió para editar una factura (?edit=), esa factura se abre en la otra.
+// ══════════════════════════════════════════════════════════════
+(function(){
+  if(!(navigator.locks && window.BroadcastChannel)) return;   // navegador sin soporte: sin restricción
+  const canal = new BroadcastChannel('pm-facturacion');
+  let principal = false;
+  const editId = new URLSearchParams(location.search).get('edit');
+
+  function avisoDuplicada(){
+    const ov = document.createElement('div');
+    ov.id = 'pmVentanaDuplicada';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#0b0905;display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,Segoe UI,sans-serif';
+    ov.innerHTML = '<div style="max-width:420px;text-align:center;color:#e8e0cc;background:#15120a;border:1px solid rgba(212,175,55,.45);border-radius:14px;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.6)">'+
+      '<div style="font-size:34px;margin-bottom:8px">🪟</div>'+
+      '<div style="font-weight:700;color:#d4af37;font-size:17px;margin-bottom:8px">La ventana de Facturación ya está abierta</div>'+
+      '<div style="font-size:13px;color:#a59c86;line-height:1.5;margin-bottom:18px">Solo puede haber una a la vez para que los cambios no se pisen entre sí. '+
+      (editId ? 'La factura que querías abrir ya se envió a la otra ventana.' : 'Busca la otra ventana y sigue trabajando ahí.')+'</div>'+
+      '<button id="pmDupCerrar" style="padding:10px 18px;border-radius:8px;border:none;background:#d4af37;color:#000;font-weight:700;cursor:pointer;font-size:13px">Cerrar esta ventana</button>'+
+      '<div id="pmDupNota" style="font-size:11px;color:#a59c86;margin-top:10px;display:none">Tu navegador no deja cerrarla desde aquí: ciérrala con la X de la pestaña.</div></div>';
+    const poner = () => {
+      document.body.appendChild(ov);
+      ov.querySelector('#pmDupCerrar').onclick = () => { window.close(); setTimeout(()=>{ ov.querySelector('#pmDupNota').style.display='block'; }, 300); };
+    };
+    if(document.body) poner(); else document.addEventListener('DOMContentLoaded', poner);
+    // La capa tapa toda la página: no se puede editar nada desde esta ventana
+    canal.postMessage({ tipo: editId ? 'editar' : 'enfocar', id: editId });
+  }
+
+  navigator.locks.request('pm-facturacion', { ifAvailable: true }, lock => {
+    if(!lock){ avisoDuplicada(); return; }
+    principal = true;
+    return new Promise(() => {});    // se conserva mientras esta ventana esté abierta
+  });
+
+  canal.onmessage = e => {
+    const m = e.data || {};
+    if(!principal) return;
+    try{ window.focus(); }catch(err){}
+    if(m.tipo === 'editar' && m.id){
+      try{ loadForEdit(m.id); }catch(err){ console.warn('[Ventana única]', err && err.message); }
+    }
+    try{ toast('Ya tenías esta ventana abierta', 'ok'); }catch(err){}
+    document.title = '● ' + document.title.replace(/^● /,'');
+    setTimeout(()=>{ document.title = document.title.replace(/^● /,''); }, 4000);
+  };
+})();
+</script>
+<script>
 (function(){
   const CORRECT_PIN = '2424';
   let entered = '';
