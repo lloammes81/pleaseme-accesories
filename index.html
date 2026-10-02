@@ -66,6 +66,14 @@
     .btn-gold{background:linear-gradient(135deg,#b48226,#d4af37);border:none;color:#13100a}
     .btn-gold:hover{filter:brightness(1.1)}
     .btn-outline{background:rgba(212,175,55,.08);color:var(--gold)}
+    /* Parpadeo suave para llamar la atención (se detiene al pasar el mouse) */
+    @keyframes pmParpadeo{
+      0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,0);border-color:rgba(212,175,55,.4)}
+      50%{box-shadow:0 0 0 4px rgba(212,175,55,.22),0 0 14px rgba(212,175,55,.45);border-color:#e8c56e;color:#ffe08a}
+    }
+    .btn-parpadeo{animation:pmParpadeo 1.8s ease-in-out infinite}
+    .btn-parpadeo:hover,.btn-parpadeo:focus-visible{animation:none}
+    @media (prefers-reduced-motion:reduce){.btn-parpadeo{animation:none}}
     .btn-outline:hover{background:rgba(212,175,55,.18)}
     .btn-green{background:rgba(47,227,181,.1);border-color:rgba(47,227,181,.35);color:var(--green)}
     .btn-green:hover{background:rgba(47,227,181,.2)}
@@ -374,7 +382,7 @@
   <div class="header-actions">
     <button class="btn btn-outline" onclick="pmAbrirBDLocal()" title="Base de datos local: traer tus datos, descargar o restaurar respaldo" style="border-color:rgba(47,227,181,.4);color:#2fe3b5">🗄 BD local</button>
     <button class="btn btn-outline" onclick="toggleCompanyPanel()" title="Información de la compañía & logo">ℹ️ Información Compañía</button>
-    <button class="btn btn-outline" onclick="openNewInvoice()">＋ Nueva Factura</button>
+    <button class="btn btn-outline btn-parpadeo" onclick="openNewInvoice()">＋ Nueva Factura</button>
     <button class="btn btn-green" onclick="exportCSV()" title="Descargar el registro completo de facturas (con artículos) en Excel">⬇ Excel</button>
     <button class="btn btn-outline" onclick="pmRestaurarArchivo()" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json">📂 Restaurar</button>
     <button class="btn btn-outline" onclick="openPrintHistory()" title="Ver todas las facturas impresas y abrirlas en PDF">🖨 Historial</button>
@@ -639,7 +647,7 @@
         <button class="btn btn-outline" onclick="resetForm()" style="flex:1;min-width:100px">✕ Nuevo</button>
         <button class="btn btn-outline" onclick="saveOnly()" style="flex:1.5;min-width:120px">💾 Guardar</button>
         <button class="btn btn-gold" onclick="printCurrentInvoice()" style="flex:2;min-width:150px" id="btnPrint" title="Guardar, imprimir factura y abrir PirateShip para el label">🖨 Imprimir factura</button>
-        <button class="btn btn-outline" onclick="openPirateShipLabel()" style="flex:1;min-width:140px" title="Abrir PirateShip para crear el label de envío">🏷️ Label (PirateShip)</button>
+        <button class="btn btn-outline" onclick="enviarFacturaWhatsApp()" style="flex:2;min-width:230px;white-space:nowrap;border-color:rgba(47,227,181,.45);color:#2fe3b5" title="Guardar la factura y enviarla en PDF por WhatsApp" id="btnWhatsApp">💬 Enviar factura por WhatsApp</button>
       </div>
     </div>
   </div>
@@ -2004,8 +2012,8 @@ function invoiceWhatsAppText(o){
   ].filter((l, i, a) => l !== '' || (a[i-1] !== '' && i > 0)).join('\n');
 }
 
-function sendInvoiceToClient(o){
-  const num = whatsappNumber(o.clientPhone || o.phone);
+function sendInvoiceToClient(o, telefono){
+  const num = whatsappNumber(telefono || o.clientPhone || o.phone);
   if(!num){ toast('La factura no tiene un teléfono válido','warn'); return false; }
   // PDF descargado para adjuntarlo en el chat
   try{
@@ -2020,6 +2028,77 @@ function sendInvoiceToClient(o){
 }
 
 // Muestra la pregunta. Sí → envía por WhatsApp. No → imprime (si printOnNo).
+// ══════════════════════════════════════════════════════
+//  ENVIAR LA FACTURA EN PDF POR WHATSAPP (botón del formulario)
+// ══════════════════════════════════════════════════════
+async function enviarFacturaWhatsApp(){
+  // Igual que imprimir: primero se guardan los cambios del formulario (salvo en modo "Viendo")
+  if(!formReadOnly) await saveOnly({noPrompt:true});
+  if(!editingId){ toast('Guarda la factura primero','warn'); return; }
+  const o = DB.orders.find(x=>x.id===editingId);
+  if(!o){ toast('Factura no encontrada','err'); return; }
+  abrirEnvioWhatsApp(o);
+}
+
+function abrirEnvioWhatsApp(o){
+  document.getElementById('waEnvioModal')?.remove();
+  const nombre = 'Factura-' + (o.invoice_num||o.id) + '.pdf';
+  const pdfBlob = () => { const doc = buildInvoicePDF(o); return doc ? doc.output('blob') : null; };
+  // ¿El navegador puede compartir un archivo PDF directamente a WhatsApp?
+  let puedeCompartir = false;
+  try{ puedeCompartir = !!(navigator.canShare && navigator.share && navigator.canShare({files:[new File(['%PDF'],'a.pdf',{type:'application/pdf'})]})); }catch(e){}
+  const tel = o.clientPhone || o.phone || '';
+  const m = document.createElement('div');
+  m.id = 'waEnvioModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML = `
+    <div style="background:var(--card,#15120a);border:1px solid rgba(47,227,181,.4);border-radius:14px;max-width:440px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="font-size:16px;font-weight:700;color:#2fe3b5">💬 Enviar factura por WhatsApp</div>
+        <button data-a="x" style="background:none;border:none;color:var(--muted,#a59c86);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div style="font-size:13px;color:var(--text,#e8e0cc);line-height:1.6;margin-bottom:12px">
+        Factura <b>${esc(o.invoice_num||'')}</b> · <b>${esc(o.clientName||'')}</b> · <b>$${Number(o.total||0).toFixed(2)}</b>
+      </div>
+      <label class="lbl" style="display:block;margin-bottom:4px">Enviar al número</label>
+      <input id="waTel" value="${esc(tel)}" placeholder="Ej: 829-578-6444" autocomplete="off" inputmode="tel" style="margin-bottom:6px"/>
+      <div id="waTelAviso" style="font-size:11px;color:#ffc800;min-height:15px;margin-bottom:10px"></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-gold" data-a="chat" title="Descarga el PDF y abre el chat del cliente con el mensaje listo">💬 Enviar por WhatsApp al cliente</button>
+        ${puedeCompartir ? '<button class="btn btn-outline" data-a="share" title="Abre las opciones de compartir de tu equipo con el PDF adjunto">📎 Compartir el PDF adjunto…</button>' : ''}
+        <button class="btn btn-outline" data-a="pdf">⬇ Solo descargar el PDF</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted,#a59c86);margin-top:12px;line-height:1.5">
+        Al elegir <b>Enviar por WhatsApp</b> se descarga el PDF y se abre el chat con el mensaje; arrastra o adjunta el PDF descargado y envía.
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const tIn = m.querySelector('#waTel'), aviso = m.querySelector('#waTelAviso');
+  const cerrar = () => { m.remove(); document.removeEventListener('keydown', onKey, true); };
+  const onKey = e => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); cerrar(); } };   // stopPropagation: que Esc no limpie el formulario
+  document.addEventListener('keydown', onKey, true);
+  m.addEventListener('click', e => { if(e.target === m) cerrar(); });
+  m.querySelector('[data-a="x"]').onclick = cerrar;
+
+  m.querySelector('[data-a="chat"]').onclick = () => {
+    if(!whatsappNumber(tIn.value)){ aviso.textContent = '⚠ Escribe un número de teléfono válido (con código de país si no es de EE.UU./RD)'; tIn.focus(); return; }
+    if(sendInvoiceToClient(o, tIn.value)) cerrar();
+  };
+  m.querySelector('[data-a="pdf"]').onclick = () => {
+    try{ const doc = buildInvoicePDF(o); if(doc){ doc.save(nombre); toast('⬇ PDF descargado','ok'); } }
+    catch(e){ toast('Error PDF: '+e.message,'err'); console.error(e); }
+  };
+  const bs = m.querySelector('[data-a="share"]');
+  if(bs) bs.onclick = async () => {
+    try{
+      const blob = pdfBlob(); if(!blob) return;
+      await navigator.share({ files:[new File([blob], nombre, {type:'application/pdf'})], title: nombre, text: invoiceWhatsAppText(o) });
+      cerrar();
+    }catch(e){ if(e && e.name !== 'AbortError'){ toast('No se pudo compartir: '+e.message,'err'); console.error(e); } }
+  };
+  setTimeout(()=>{ (whatsappNumber(tIn.value) ? m.querySelector('[data-a="chat"]') : tIn).focus(); }, 50);
+}
+
 function askSendInvoiceToClient(o, {printOnNo=true}={}){
   return new Promise(resolve => {
     const num = whatsappNumber(o.clientPhone || o.phone);
@@ -2052,7 +2131,7 @@ function askSendInvoiceToClient(o, {printOnNo=true}={}){
       else if(printOnNo) openPrintWindow(o);
       resolve(yes);
     };
-    const onKey = e => { if(e.key === 'Escape'){ e.preventDefault(); done(false); } };
+    const onKey = e => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); done(false); } };   // stopPropagation: que Esc no limpie el formulario
     document.addEventListener('keydown', onKey, true);
     m.querySelector('[data-ans="si"]').onclick = () => done(true);
     m.querySelector('[data-ans="no"]').onclick = () => done(false);
