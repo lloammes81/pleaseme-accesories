@@ -166,6 +166,37 @@ las facturas que no los tienen y se agregan las facturas que falten.
 📂 Restaurar reconoce cada archivo por su contenido, así que funciona aunque el
 navegador lo haya guardado con otro nombre o sin extensión.
 
+## Abonos, saldo pendiente y cuentas por cobrar
+
+En cada factura, el botón **💳 Abonos…** (debajo del total) permite registrar
+pagos parciales o marcar la factura como "a crédito". Se muestra el abonado y el
+saldo, y la factura lleva una etiqueta *Debe $X*. Una factura con saldo no se
+marca "pagado" al imprimirla. El indicador **Por cobrar** y el filtro de la lista
+suman todos los saldos. Los abonos se guardan en la tabla `pagos` (solo en la
+base local, salvo que la crees en Supabase:
+`create table pagos (id text primary key, factura_id text, monto numeric, tipo text, fecha text, metodo text, nota text, created_at timestamptz default now());`).
+Las facturas sin abonos se comportan igual que antes.
+
+## Tasa de cambio USD/DOP
+
+El botón **💱 Tasa** guarda la tasa del día (con historial y calculadora). Las
+facturas muestran "Equivale a …" en la otra moneda usando la tasa vigente en la
+fecha de la factura; al imprimir se guarda la tasa usada. Al cambiar el país de
+una factura se pregunta si se convierten los precios.
+
+## Ficha de cliente
+
+El botón **📇 Clientes** lista a los clientes (buscar y ordenar). Cada ficha
+muestra facturas, total comprado, saldo pendiente, lo que más compra, WhatsApp,
+"Recordar el saldo" y **＋ Nueva factura** con los datos ya llenos. También se
+abre con el 📇 junto al nombre en el formulario.
+
+## Aviso si pasan días sin respaldo
+
+Si pasan 2 días (configurable en **🗄 BD local → Avisar tras N días**; 0 lo
+apaga) sin guardar un archivo de respaldo, aparece un aviso con **Respaldar
+ahora** o **Más tarde** (6 horas).
+
 ## Ten en cuenta
 
 - La **tienda online** y **Mi cuenta** también usan la base local. Solo ven los
