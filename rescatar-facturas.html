@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rescatar facturas</title>
+<style>
+  :root{--bg:#0f0d08;--card:#17140c;--border:rgba(212,175,55,.3);--gold:#d4af37;--text:#e8e0cc;--muted:#a59c86;--ok:#2fe3b5;--warn:#e8c56e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;padding:24px 16px}
+  main{max-width:820px;margin:0 auto}
+  h1{color:var(--gold);font-size:20px;margin:0 0 6px}
+  p{color:var(--muted);margin:6px 0}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:16px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.06)}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .si{color:var(--ok);font-weight:700}
+  button{padding:10px 16px;border-radius:8px;border:none;background:var(--gold);color:#000;font-weight:700;cursor:pointer;font-size:14px}
+  button:disabled{opacity:.4;cursor:default}
+  #resumen{font-size:15px;margin:0 0 12px}
+  .wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+  <h1>Rescatar facturas con sus artículos</h1>
+  <p>Busca en <b>este navegador</b> todas las facturas guardadas (también las del sistema anterior) y descarga un respaldo con sus artículos.</p>
+  <p>Ábrela en el mismo navegador y desde la misma carpeta o dirección donde abrías el archivo anterior de Facturación.</p>
+
+  <div class="card">
+    <div id="resumen">Buscando…</div>
+    <div class="wrap"><table>
+      <thead><tr><th>Dónde está guardado</th><th class="n">Registros</th><th class="n">Con artículos</th></tr></thead>
+      <tbody id="fuentes"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <button id="descargar" disabled>💾 Descargar respaldo de facturas (.json)</button>
+    <p style="margin-top:10px">Después abre Facturación, pulsa <b>🗄 BD local → 📂 Restaurar</b> y elige este archivo. Solo se completan los artículos que faltan y se agregan las facturas que no están; no se cambia nada más.</p>
+  </div>
+</main>
+<script>
+(async function(){
+  const parse = v => { try{ return JSON.parse(v); }catch{ return null; } };
+  const itemsOf = o => {
+    let v = o && (o.items ?? (o.record && o.record.items));
+    if(typeof v === 'string') v = parse(v);
+    return Array.isArray(v) ? v : [];
+  };
+  const pick = (...v) => v.find(x => x !== undefined && x !== null && x !== '');
+  const esFactura = o => o && typeof o === 'object' && o.id != null &&
+    (String(o.id).startsWith('fac-') || 'invoice_num' in o || 'invoiceNum' in o || 'invoice_date' in o || 'client_address' in o);
+
+  const fuentes = [];
+
+  // localStorage: cualquier lista de facturas
+  for(let i = 0; i < localStorage.length; i++){
+    const k = localStorage.key(i);
+    const v = parse(localStorage.getItem(k));
+    const list = Array.isArray(v) ? v : (v && Array.isArray(v.orders) ? v.orders : null);
+    if(list && list.some(esFactura)) fuentes.push({ nombre: 'localStorage "' + k + '"', filas: list.filter(esFactura) });
+  }
+
+  // IndexedDB: todas las bases de este navegador
+  const leerIDB = name => new Promise(resolve => {
+    let req;
+    try{ req = indexedDB.open(name); }catch{ return resolve([]); }
+    req.onupgradeneeded = () => { try{ req.transaction.abort(); }catch{} };
+    req.onerror = () => resolve([]);
+    req.onsuccess = () => {
+      const db = req.result, out = [];
+      const stores = [...db.objectStoreNames];
+      if(!stores.length){ db.close(); return resolve([]); }
+      const tx = db.transaction(stores, 'readonly');
+      stores.forEach(s => { const g = tx.objectStore(s).getAll(); g.onsuccess = () => {
+        // base local nueva: { tabla, id, datos }
+        const rows = (g.result || []).map(r => r && r.tabla && r.datos ? (r.tabla === 'facturas' ? r.datos : null) : r).filter(esFactura);
+        if(rows.length) out.push({ nombre: 'IndexedDB "' + name + '" → ' + s, filas: rows });
+      }; });
+      tx.oncomplete = () => { db.close(); resolve(out); };
+      tx.onerror = () => { db.close(); resolve(out); };
+    };
+  });
+  let nombres = ['pleaseme_facturacion', 'pleaseme_bd_local'];
+  try{ if(indexedDB.databases) nombres = [...new Set([...nombres, ...(await indexedDB.databases()).map(d => d.name).filter(Boolean)])]; }catch{}
+  for(const n of nombres) fuentes.push(...await leerIDB(n));
+
+  // Unir: por ID; se queda la versión con artículos
+  const porId = new Map();
+  fuentes.forEach(f => f.filas.forEach(o => {
+    const prev = porId.get(String(o.id));
+    if(!prev || (!itemsOf(prev).length && itemsOf(o).length)) porId.set(String(o.id), o);
+  }));
+  const facturas = [...porId.values()].map(o => {
+    const f = { ...o,
+      invoice_num: pick(o.invoice_num, o.invoiceNum), client_name: pick(o.client_name, o.clientName),
+      client_email: pick(o.client_email, o.clientEmail), client_phone: pick(o.client_phone, o.clientPhone),
+      client_address: pick(o.client_address, o.address), invoice_date: pick(o.invoice_date, String(o.created_at || '').slice(0, 10)),
+      shipping_address_usa: pick(o.shipping_address_usa, o.address_usa), casillero_number: pick(o.casillero_number, o.casillero),
+      discount_amount: pick(o.discount_amount, o.discountAmount), shipping: pick(o.shipping, o.shipping_cost), items: itemsOf(o) };
+    delete f.pending_sync;
+    Object.keys(f).forEach(k => f[k] === undefined && delete f[k]);
+    return f;
+  });
+  const conArt = facturas.filter(f => f.items.length).length;
+
+  document.getElementById('fuentes').innerHTML = fuentes.length ? fuentes.map(f => {
+    const c = f.filas.filter(o => itemsOf(o).length).length;
+    return '<tr><td>' + f.nombre.replace(/</g, '&lt;') + '</td><td class="n">' + f.filas.length + '</td><td class="n' + (c ? ' si' : '') + '">' + c + '</td></tr>';
+  }).join('') : '<tr><td colspan="3">No hay facturas guardadas en este navegador desde esta dirección.</td></tr>';
+
+  const res = document.getElementById('resumen');
+  res.innerHTML = conArt
+    ? '<span class="si">✓ Se encontraron ' + conArt + ' facturas con artículos</span> (de ' + facturas.length + ' facturas en total).'
+    : '<span style="color:var(--warn)">⚠ No hay artículos guardados aquí.</span> Prueba abriendo esta página en el otro navegador, o desde la carpeta o dirección donde abrías el archivo anterior.';
+
+  const btn = document.getElementById('descargar');
+  btn.disabled = !facturas.length;
+  btn.onclick = () => {
+    const blob = new Blob([JSON.stringify({ app: 'pleaseme', tipo: 'rescate', exportado: new Date().toISOString(), origen: location.href, tablas: { facturas } }, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'pleaseme-rescate-facturas-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+})();
+</script>
+</body>
+</html>

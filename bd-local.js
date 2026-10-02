@@ -889,7 +889,7 @@
       if(log) log('  · ' + s.nombre + ': ' + s.filas.length + ' registros, ' + con.length + ' con artículos' + (sirven ? ' → ' + sirven + ' sirven para completar' : ''));
     }
     await write([...found.values()].map(f => ({ put: ['facturas', f] })));
-    return { sin: sin.length, completadas: found.size };
+    return { sin: sin.length, completadas: found.size, filas: [...found.values()] };
   }
 
   // Al abrir la página se completan solas con lo que haya en este navegador
@@ -920,6 +920,23 @@
     if(/\.json$/i.test(file.name)){
       const data = JSON.parse(await file.text());
       if(!data || typeof data.tablas !== 'object') throw new Error('El archivo no es un respaldo de Pleaseme');
+      if(data.tipo === 'rescate'){
+        // Archivo de rescatar-facturas.html: completa artículos y agrega solo lo que no está
+        const lista = (Array.isArray(data.tablas.facturas) ? data.tablas.facturas : []).filter(f => f && f.id != null);
+        log('\nRestaurando ' + file.name + ' (' + lista.length + ' facturas, ' + lista.filter(hasItems).length + ' con artículos)…');
+        const r = await fillItems([{ nombre: file.name, filas: lista }], log);
+        const actuales = await allRows('facturas');
+        const ids = new Set(actuales.map(f => String(f.id))), nums = new Set(actuales.map(numOf).filter(Boolean));
+        const nuevas = lista.filter(f => !ids.has(String(f.id)) && !(numOf(f) && nums.has(numOf(f))));
+        await write(nuevas.map(f => ({ put: ['facturas', f] })));
+        for(const f of r.filas) await encolar({ tabla: 'facturas', pq: '/rest/v1/facturas?id=eq.' + encodeURIComponent(f.id), method: 'PATCH', prefer: 'return=minimal', body: { items: itemsOf(f) } });
+        for(const f of nuevas) await encolar({ tabla: 'facturas', pq: '/rest/v1/facturas', method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: f });
+        enviarPendientes();
+        log('  · ' + r.completadas + ' facturas completadas con sus artículos, ' + nuevas.length + ' facturas agregadas');
+        if(r.sin > r.completadas) log('⚠ ' + (r.sin - r.completadas) + ' facturas siguen sin artículos (no estaban en ese archivo).');
+        log('\n✓ Rescate restaurado.');
+        return true;
+      }
       const reemplazar = confirm('¿Reemplazar los registros existentes con los del respaldo?\n\nAceptar = el respaldo manda\nCancelar = solo agregar lo que falte');
       log('\nRestaurando ' + file.name + '…');
       for(const [t, rows] of Object.entries(data.tablas)){
