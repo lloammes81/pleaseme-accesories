@@ -814,10 +814,16 @@ async function saveLocalDatabase(){
     const db = await openLocalDB();
     if(!db) return;
     const tx = db.transaction(['facturas','clientes','productos'], 'readwrite');
+    // No se vacía: esta copia sirve para recuperar datos (bd-local.js). Una factura
+    // que llega sin artículos conserva los que ya estaban guardados aquí.
+    const hasItems = r => Array.isArray(r && r.items) && r.items.length > 0;
     [['facturas', DB.orders], ['clientes', DB.clients], ['productos', DB.products]].forEach(([store, records]) => {
       const objectStore = tx.objectStore(store);
-      objectStore.clear();
-      records.filter(record => record && record.id).forEach(record => objectStore.put(record));
+      records.filter(record => record && record.id).forEach(record => {
+        if(store !== 'facturas' || hasItems(record)) return objectStore.put(record);
+        const prev = objectStore.get(record.id);
+        prev.onsuccess = () => objectStore.put(hasItems(prev.result) ? {...record, items: prev.result.items} : record);
+      });
     });
     await new Promise((resolve, reject) => { tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); tx.onabort=()=>reject(tx.error); });
   }catch(error){ console.warn('No se pudo guardar la base local:', error); }

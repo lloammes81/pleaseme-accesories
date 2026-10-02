@@ -67,6 +67,23 @@ recuperar esas facturas completas usa **🗄 BD local → ⇪ Traer mis datos**
 guardadas en el navegador, y reemplaza las copias resumidas sin duplicarlas.
 Abrir un archivo `.xlsx` necesita internet; un `.csv` funciona sin internet.
 
+## Facturas sin artículos
+
+Antes, los artículos de cada factura se guardaban en estos lugares:
+
+1. **Supabase** (en la nube): tabla `facturas`, columna `items`.
+2. **Este navegador**: IndexedDB `pleaseme_facturacion` (tabla `facturas`) y
+   localStorage `pm_orders_v1` (también `pm_orders` y `pm_orders_v2`).
+
+Ahora se guardan en la base local `pleaseme_bd_local`.
+
+Si una factura muestra el cliente y el total pero no sus artículos, pulsa
+**🗄 BD local → 🔎 Recuperar artículos**. El sistema busca en todos esos
+lugares (para Supabase necesita internet), te dice cuántos artículos encontró
+en cada uno y completa solo las facturas que no tienen artículos. Las que ya
+los tienen no cambian. Al abrir Facturación también se completan solas con lo
+que haya en el navegador.
+
 ## Ten en cuenta
 
 - La **tienda online** y **Mi cuenta** también usan la base local. Solo ven los
