@@ -224,9 +224,26 @@
 <body>
 
 <!-- ── PIN LOCK ── -->
-<div id="pinLockOverlay" style="position:fixed;inset:0;background:var(--bg);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px">
+<div id="pinLockOverlay" style="position:fixed;inset:0;background:var(--bg);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden">
+  <!-- Fondo decorativo: símbolos de facturas y joyería (se dibujan con el script de abajo) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="pi-inv" viewBox="0 0 48 48"><path d="M12 5h17l9 9v29H12z"/><path d="M29 5v9h9"/><path d="M18 22h14M18 28h14M18 34h8"/></symbol>
+    <symbol id="pi-rec" viewBox="0 0 48 48"><path d="M13 5h22v38l-3.7-3-3.6 3-3.7-3-3.7 3-3.6-3-3.7 3z"/><path d="M19 14h10M19 21h10M19 28h5"/><path d="M28 29.5l1.8 1.8 3-3.4"/></symbol>
+    <symbol id="pi-ring" viewBox="0 0 48 48"><circle cx="24" cy="31" r="11"/><path d="M18.5 15l3-5h5l3 5-5.5 6z"/><path d="M18.5 15h11M21.5 10l2.5 11M26.5 10L24 21"/></symbol>
+    <symbol id="pi-gem" viewBox="0 0 48 48"><path d="M10 18l6-8h16l6 8-14 21z"/><path d="M10 18h28M16 10l8 29M32 10l-8 29"/></symbol>
+    <symbol id="pi-neck" viewBox="0 0 48 48"><path d="M8 7c0 17 8 27 16 27s16-10 16-27"/><path d="M24 34l-5 6 5 7 5-7z"/></symbol>
+    <symbol id="pi-ear" viewBox="0 0 48 48"><circle cx="14" cy="11" r="3"/><path d="M14 14v6M14 20l-5 8 5 9 5-9z"/><circle cx="34" cy="11" r="3"/><path d="M34 14v6M34 20l-5 8 5 9 5-9z"/></symbol>
+    <symbol id="pi-crown" viewBox="0 0 48 48"><path d="M8 36V15l10 10 6-13 6 13 10-10v21z"/><path d="M8 41h32"/></symbol>
+    <symbol id="pi-pearl" viewBox="0 0 48 48"><circle cx="24" cy="24" r="15" stroke-width="5" stroke-dasharray="0.01 11.78"/><circle cx="24" cy="24" r="9" stroke-width="1" opacity=".6"/></symbol>
+    <symbol id="pi-tag" viewBox="0 0 48 48"><path d="M6 24L24 6h17v17L23 41z"/><circle cx="33" cy="15" r="2.5"/></symbol>
+    <symbol id="pi-coin" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><path d="M29 19c-1-2-3-3-5-3s-5 1.5-5 4 2 3.3 5 4 5 1.5 5 4-2.3 4-5 4-4.2-1-5-3M24 10.5v5M24 32.5v5"/></symbol>
+    <symbol id="pi-calc" viewBox="0 0 48 48"><rect x="12" y="6" width="24" height="36" rx="3"/><rect x="16" y="10" width="16" height="8" rx="1"/><path d="M17 25h2M24 25h2M31 25h.1M17 31h2M24 31h2M17 37h2M24 37h2M31 31v6"/></symbol>
+    <symbol id="pi-spark" viewBox="0 0 48 48"><path d="M24 5l4.5 14.5L43 24l-14.5 4.5L24 43l-4.5-14.5L5 24l14.5-4.5z"/></symbol>
+    <symbol id="pi-bag" viewBox="0 0 48 48"><path d="M10 16h28l-2 26H12z"/><path d="M18 16c0-6 3-9 6-9s6 3 6 9"/></symbol>
+  </defs></svg>
+  <div id="pinLockBg" aria-hidden="true"></div>
   <div id="pinLockCard" style="width:100%;max-width:320px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 28px;text-align:center">
-    <div style="width:48px;height:48px;margin:0 auto 14px;border-radius:12px;background:linear-gradient(135deg,#b48226,#e8c56e);display:grid;place-items:center;font-size:22px;font-weight:900;color:#13100a">✦</div>
+    <div class="pin-logo" style="width:48px;height:48px;margin:0 auto 14px;border-radius:12px;background:linear-gradient(135deg,#b48226,#e8c56e);display:grid;place-items:center;font-size:22px;font-weight:900;color:#13100a">✦</div>
     <div style="font-family:var(--fd);font-size:19px;color:var(--gold);font-weight:700">Facturación</div>
     <div style="font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:24px">Ingresa el PIN para continuar</div>
     <div id="pinLockDots" style="display:flex;justify-content:center;gap:14px;margin-bottom:10px">
@@ -248,6 +265,7 @@
       <button type="button" class="pin-key" data-k="back">⌫</button>
     </div>
   </div>
+  <div id="pinLockFoot" aria-hidden="true">✦ Pleaseme Accessories · Oro laminado 14k ✦</div>
 </div>
 <style>
   .pin-dot{width:13px;height:13px;border-radius:50%;border:1px solid var(--border2);background:transparent;transition:.15s}
@@ -265,7 +283,81 @@
   }
   .pin-key:hover{background:rgba(212,175,55,.16);border-color:var(--border2)}
   .pin-key:active{transform:scale(.95)}
+
+  /* ── Mejoras visuales de la pantalla de inicio ── */
+  #pinLockOverlay{
+    background:
+      radial-gradient(ellipse 55% 48% at 50% 46%, rgba(212,175,55,.16), transparent 70%),
+      radial-gradient(ellipse 80% 40% at 50% 115%, rgba(212,175,55,.10), transparent 70%),
+      linear-gradient(180deg,#0e0b06 0%,#070503 100%) !important;
+    transition:opacity .4s ease;
+  }
+  #pinLockOverlay::after{            /* viñeta: oscurece los bordes */
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%);
+  }
+  #pinLockBg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+  .pin-ico{
+    position:absolute;color:#d4af37;stroke:currentColor;fill:none;stroke-width:1.5;
+    stroke-linecap:round;stroke-linejoin:round;
+    transform:rotate(var(--r,0deg));
+    animation:pinFloat var(--t,9s) ease-in-out var(--d,0s) infinite alternate;
+  }
+  .pin-ico.brillo{animation:pinFloat var(--t,9s) ease-in-out var(--d,0s) infinite alternate, pinBrillo 4.5s ease-in-out var(--d,0s) infinite}
+  @keyframes pinFloat{
+    from{transform:translateY(0) rotate(var(--r,0deg))}
+    to{transform:translateY(-12px) rotate(calc(var(--r,0deg) + 7deg))}
+  }
+  @keyframes pinBrillo{0%,100%{filter:none}50%{filter:drop-shadow(0 0 6px rgba(232,197,110,.9))}}
+  #pinLockCard{
+    position:relative;z-index:1;
+    background:rgba(21,18,10,.78) !important;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    border-color:rgba(212,175,55,.38) !important;
+    box-shadow:0 0 0 1px rgba(212,175,55,.08), 0 26px 70px rgba(0,0,0,.7), 0 0 70px rgba(212,175,55,.10);
+    animation:pinEntra .6s cubic-bezier(.2,.8,.2,1) both;
+  }
+  #pinLockCard.shake{animation:pinShake .35s}
+  @keyframes pinEntra{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+  .pin-logo{box-shadow:0 0 0 0 rgba(232,197,110,.5);animation:pinLatido 2.6s ease-in-out infinite}
+  @keyframes pinLatido{0%,100%{box-shadow:0 0 0 0 rgba(232,197,110,.0)}50%{box-shadow:0 0 22px 3px rgba(232,197,110,.45)}}
+  .pin-dot.filled{box-shadow:0 0 10px rgba(232,197,110,.7);transform:scale(1.12)}
+  .pin-key{background:linear-gradient(180deg,rgba(212,175,55,.10),rgba(212,175,55,.04))}
+  .pin-key:hover{box-shadow:0 0 14px rgba(212,175,55,.18)}
+  #pinLockFoot{
+    position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:1;
+    font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(212,175,55,.55);
+  }
+  @media (prefers-reduced-motion:reduce){
+    .pin-ico,.pin-ico.brillo,.pin-logo,#pinLockCard{animation:none !important}
+  }
 </style>
+<script>
+// Dibuja los símbolos de facturas y joyería del fondo (posiciones repartidas y repetibles)
+(function(){
+  const bg = document.getElementById('pinLockBg'); if(!bg) return;
+  const ids = ['inv','ring','rec','gem','neck','coin','crown','ear','tag','pearl','calc','spark','bag'];
+  function dibujar(){
+    const W = window.innerWidth, H = window.innerHeight;
+    const cell = Math.max(118, Math.sqrt(W*H/58));       // ~58 símbolos como máximo
+    let seed = 11; const rnd = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+    let html = '', n = 0;
+    for(let r=-1; r*cell < H+cell; r++){
+      for(let c=-1; c*cell < W+cell; c++){
+        const x = c*cell + (r%2 ? cell/2 : 0) + (rnd()-.5)*cell*.55;
+        const y = r*cell + (rnd()-.5)*cell*.55;
+        const size = 34 + rnd()*34;
+        const id = ids[(n++ + Math.floor(rnd()*4)) % ids.length];
+        const op = (.14 + rnd()*.20).toFixed(2);
+        html += '<svg class="pin-ico'+(id==='spark'||id==='gem'||id==='ring' ? ' brillo' : '')+'" viewBox="0 0 48 48" style="left:'+x.toFixed(0)+'px;top:'+y.toFixed(0)+'px;width:'+size.toFixed(0)+'px;height:'+size.toFixed(0)+'px;opacity:'+op+';--r:'+((rnd()-.5)*50).toFixed(0)+'deg;--t:'+(7+rnd()*7).toFixed(1)+'s;--d:-'+(rnd()*9).toFixed(1)+'s"><use href="#pi-'+id+'"/></svg>';
+      }
+    }
+    bg.innerHTML = html;
+  }
+  dibujar();
+  let tm; window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(dibujar, 250); });
+})();
+</script>
 <script>
 // ══════════════════════════════════════════════════════════════
 //  UNA SOLA VENTANA DE FACTURACIÓN
@@ -332,7 +424,9 @@
   }
 
   function unlock(){
-    overlay.style.display = 'none';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.opacity = '0';                       // se desvanece (el CSS tiene transition)
+    setTimeout(()=>{ overlay.style.display = 'none'; }, 420);
   }
 
   function wrongPin(){
