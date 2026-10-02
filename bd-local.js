@@ -623,7 +623,7 @@
   function pickFile(){
     return new Promise(resolve => {
       const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = '.json,.csv,.xlsx,.xls,application/json,text/csv';
+      inp.type = 'file';   // sin filtro: se reconoce por el contenido
       inp.onchange = () => resolve(inp.files && inp.files[0] || null);
       inp.click();
     });
@@ -696,7 +696,9 @@
 
   // Devuelve [{ nombre, filas }] — un CSV es una sola hoja
   async function readSheets(file){
-    if(/\.csv$/i.test(file.name)) return [{ nombre: file.name, filas: parseCSV(await file.text()) }];
+    const h = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+    const excel = /\.(xlsx|xls)$/i.test(file.name) || (h[0] === 0x50 && h[1] === 0x4b) || (h[0] === 0xd0 && h[1] === 0xcf);
+    if(!excel) return [{ nombre: file.name, filas: parseCSV(await file.text()) }];
     if(!window.XLSX) await loadScript(XLSX_SRC);
     const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
     return wb.SheetNames.map(n => ({ nombre: n, filas: window.XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }) }));
@@ -916,27 +918,69 @@
   }
 
   // Restaura un archivo: respaldo .json, o registro de facturas en Excel/CSV
+  // Facturas de un respaldo de Supabase (pg_dump, "db_cluster-….backup.gz"): bloque COPY public.facturas
+  function facturasDeRespaldoSupabase(sql){
+    const lines = sql.split('\n');
+    const i = lines.findIndex(l => l.startsWith('COPY public.facturas ('));
+    if(i < 0) return null;
+    const cols = lines[i].slice(lines[i].indexOf('(') + 1, lines[i].indexOf(')')).split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    const ESC = { t: '\t', n: '\n', r: '\r', b: '\b', f: '\f', v: '\v', '\\': '\\' };
+    const val = v => v === '\\N' ? null : v.replace(/\\(.)/g, (_, c) => ESC[c] ?? c);
+    const json = v => { let x = v; for(let k = 0; k < 2 && typeof x === 'string'; k++){ try{ x = JSON.parse(x); }catch{ return []; } } return Array.isArray(x) ? x : []; };
+    const out = [];
+    for(const l of lines.slice(i + 1)){
+      if(l === '\\.') break;
+      const f = {};
+      l.split('\t').forEach((v, j) => { const x = val(v); if(x !== null && cols[j]) f[cols[j]] = x; });
+      f.items = json(f.items);
+      ['subtotal', 'shipping', 'discount_amount', 'total'].forEach(k => { if(f[k] !== undefined) f[k] = Number(f[k]); });
+      ['created_at', 'updated_at', 'void_at'].forEach(k => { if(f[k]) f[k] = f[k].replace(' ', 'T').replace(/([+-]\d\d)$/, '$1:00'); });
+      if(f.id) out.push(f);
+    }
+    return out;
+  }
+
+  // Completa los artículos que faltan y agrega solo las facturas que no están
+  async function restaurarRescate(lista, nombre, log){
+    lista = lista.filter(f => f && f.id != null);
+    log('\nRestaurando ' + nombre + ' (' + lista.length + ' facturas, ' + lista.filter(hasItems).length + ' con artículos)…');
+    const r = await fillItems([{ nombre, filas: lista }], log);
+    const actuales = await allRows('facturas');
+    const ids = new Set(actuales.map(f => String(f.id))), nums = new Set(actuales.map(numOf).filter(Boolean));
+    const nuevas = lista.filter(f => !ids.has(String(f.id)) && !(numOf(f) && nums.has(numOf(f))));
+    await write(nuevas.map(f => ({ put: ['facturas', f] })));
+    for(const f of r.filas) await encolar({ tabla: 'facturas', pq: '/rest/v1/facturas?id=eq.' + encodeURIComponent(f.id), method: 'PATCH', prefer: 'return=minimal', body: { items: itemsOf(f) } });
+    for(const f of nuevas) await encolar({ tabla: 'facturas', pq: '/rest/v1/facturas', method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: f });
+    enviarPendientes();
+    log('  · ' + r.completadas + ' facturas completadas con sus artículos, ' + nuevas.length + ' facturas agregadas');
+    if(r.sin > r.completadas) log('⚠ ' + (r.sin - r.completadas) + ' facturas siguen sin artículos (no estaban en ese archivo).');
+    log('\n✓ Facturas restauradas.');
+    return true;
+  }
+
+  // Restaura un archivo según su contenido (no según su nombre):
+  // respaldo .json, archivo de rescate, respaldo de Supabase (.backup.gz) o registro en Excel/CSV
   async function restoreFile(file, log){
-    if(/\.json$/i.test(file.name)){
-      const data = JSON.parse(await file.text());
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    const gz = head[0] === 0x1f && head[1] === 0x8b, zip = head[0] === 0x50 && head[1] === 0x4b;
+    let text = null;
+    if(gz){
+      if(typeof DecompressionStream === 'undefined') throw new Error('Este navegador no puede abrir archivos .gz. Usa Chrome o Edge actualizados.');
+      log('\nDescomprimiendo ' + file.name + '…');
+      text = await new Response(file.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    } else if(!zip && !/\.(xlsx|xls)$/i.test(file.name)) text = await file.text();
+    if(text !== null && /COPY public\.facturas \(/.test(text)){
+      const lista = facturasDeRespaldoSupabase(text);
+      if(!lista || !lista.length) throw new Error('El respaldo de Supabase no tiene facturas.');
+      log('  · respaldo de Supabase: ' + lista.length + ' facturas');
+      return restaurarRescate(lista, file.name, log);
+    }
+    if(gz) throw new Error('Ese archivo comprimido no es un respaldo de Supabase con facturas.');
+    if(text !== null && /^\s*[{[]/.test(text.replace(/^﻿/, ''))){
+      let data;
+      try{ data = JSON.parse(text.replace(/^﻿/, '')); }catch{ throw new Error('El archivo .json está dañado o incompleto. Vuelve a descargarlo.'); }
       if(!data || typeof data.tablas !== 'object') throw new Error('El archivo no es un respaldo de Pleaseme');
-      if(data.tipo === 'rescate'){
-        // Archivo de rescatar-facturas.html: completa artículos y agrega solo lo que no está
-        const lista = (Array.isArray(data.tablas.facturas) ? data.tablas.facturas : []).filter(f => f && f.id != null);
-        log('\nRestaurando ' + file.name + ' (' + lista.length + ' facturas, ' + lista.filter(hasItems).length + ' con artículos)…');
-        const r = await fillItems([{ nombre: file.name, filas: lista }], log);
-        const actuales = await allRows('facturas');
-        const ids = new Set(actuales.map(f => String(f.id))), nums = new Set(actuales.map(numOf).filter(Boolean));
-        const nuevas = lista.filter(f => !ids.has(String(f.id)) && !(numOf(f) && nums.has(numOf(f))));
-        await write(nuevas.map(f => ({ put: ['facturas', f] })));
-        for(const f of r.filas) await encolar({ tabla: 'facturas', pq: '/rest/v1/facturas?id=eq.' + encodeURIComponent(f.id), method: 'PATCH', prefer: 'return=minimal', body: { items: itemsOf(f) } });
-        for(const f of nuevas) await encolar({ tabla: 'facturas', pq: '/rest/v1/facturas', method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: f });
-        enviarPendientes();
-        log('  · ' + r.completadas + ' facturas completadas con sus artículos, ' + nuevas.length + ' facturas agregadas');
-        if(r.sin > r.completadas) log('⚠ ' + (r.sin - r.completadas) + ' facturas siguen sin artículos (no estaban en ese archivo).');
-        log('\n✓ Rescate restaurado.');
-        return true;
-      }
+      if(data.tipo === 'rescate') return restaurarRescate(Array.isArray(data.tablas.facturas) ? data.tablas.facturas : [], file.name, log);
       const reemplazar = confirm('¿Reemplazar los registros existentes con los del respaldo?\n\nAceptar = el respaldo manda\nCancelar = solo agregar lo que falte');
       log('\nRestaurando ' + file.name + '…');
       for(const [t, rows] of Object.entries(data.tablas)){
@@ -947,7 +991,8 @@
       log('\n✓ Respaldo restaurado.');
       return true;
     }
-    if(!/\.(csv|xlsx|xls)$/i.test(file.name)) throw new Error('Formato no soportado. Elige un respaldo .json o un registro de facturas .xlsx, .xls o .csv');
+    if(!zip && !/\.(csv|xlsx|xls|txt)$/i.test(file.name) && !(text && /[,;\t]/.test(text.split('\n', 1)[0])))
+      throw new Error('Formato no soportado. Elige un respaldo .json, un respaldo de Supabase (.backup.gz) o un registro de facturas .xlsx, .xls o .csv');
     log('\nLeyendo ' + file.name + '…');
     const sheets = await readSheets(file);
     let itemsByNum = null;
