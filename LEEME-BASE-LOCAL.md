@@ -57,11 +57,39 @@ derecha una notificación con barra de progreso:
 
 1. Lee toda la base de datos.
 2. Guarda una copia en este equipo (se conservan las últimas 7).
-3. Descarga el archivo `pleaseme-respaldo-AAAA-MM-DD.json` en Descargas. Si el
-   navegador no lo descargó, pulsa **⬇ Descargar de nuevo** en la notificación.
+3. Guarda el archivo en la **carpeta de respaldos** (ver abajo) o, si no hay
+   carpeta elegida, lo descarga a Descargas. Si el navegador no lo descargó,
+   pulsa **⬇ Descargar de nuevo** en la notificación.
 
 Si la app estaba cerrada a esa hora, el respaldo se hace al abrirla. Aunque
 haya varias pestañas abiertas, solo se hace uno por día.
+
+### Carpeta de respaldos en Documentos (por fecha)
+
+Para que los respaldos queden en una carpeta tuya, ordenados por fecha:
+
+1. En la notificación del primer respaldo pulsa **📁 Elegir carpeta en
+   Documentos** (o en **🗄 BD local → 📁 Carpeta de respaldos**).
+2. En la ventana de Windows abre **Documentos**, crea una carpeta llamada
+   **Pleaseme Respaldos** (botón "Nueva carpeta") y elígela. El navegador no
+   deja elegir "Documentos" directamente, por eso hay que usar una subcarpeta.
+3. Desde entonces cada día se guarda así:
+
+```
+Documentos\Pleaseme Respaldos\2026-10-02\pleaseme-respaldo-2026-10-02.json
+Documentos\Pleaseme Respaldos\2026-10-03\pleaseme-respaldo-2026-10-03.json
+```
+
+- Los respaldos de la carpeta **no se borran solos**: bórralos tú cuando ya no
+  los necesites.
+- Si el navegador pide permiso otra vez (pasa a veces al reiniciarlo), el
+  respaldo se descarga a Descargas y la notificación muestra **📁 Guardar en la
+  carpeta**: púlsalo y concede el permiso. En Chrome/Edge puedes elegir
+  "Permitir en cada visita" para que no vuelva a preguntar.
+- Requiere Google Chrome o Microsoft Edge. En otros navegadores se descarga a
+  Descargas.
+- Para restaurar: **🗄 BD local → 📂 Restaurar** y elige el archivo `.json` de
+  la fecha que quieras.
 
 En **🗄 BD local** puedes cambiar la hora, desactivarlo o elegir no descargar
 el archivo. **💾 Respaldar ahora** lo hace en el momento y **🕘 Copias

@@ -270,7 +270,7 @@
   let nube = 'conectando';            // 'conectando' | 'conectada' | 'sin-conexion'
   let nubeError = '';
   let nubeHasta = 0;                  // tras un fallo no se reintenta hasta esta hora
-  const soloLocal = new Set([META]);  // tablas que no existen en Supabase
+  const soloLocal = new Set([META, 'impresiones']);  // tablas que no existen en Supabase (impresiones: historial de impresión de este equipo)
 
   function marcarNube(estado, error){
     nube = estado; nubeError = error || '';
@@ -431,6 +431,18 @@
   leerCola().then(q => { pendientes = q.length; pintarEstado(); }).catch(() => {});
 
   // ── Interceptar fetch hacia la base de datos ────────────────
+  // Protección: guardar una factura con la lista de artículos vacía NO borra los artículos que
+  // ya tenga (aquí ni en Supabase). Se quita "items" del cambio cuando viene vacío; así abrir,
+  // imprimir o guardar una factura incompleta no pisa la copia buena.
+  function sinItemsVacios(bodyText){
+    let body;
+    try{ body = JSON.parse(bodyText); }catch{ return bodyText; }
+    const vacio = v => v === null || v === '' || (Array.isArray(v) && !v.length) || (typeof v === 'string' && /^\s*(\[\s*\]|null)\s*$/.test(v));
+    let cambio = false;
+    (Array.isArray(body) ? body : [body]).forEach(r => { if(r && typeof r === 'object' && 'items' in r && vacio(r.items)){ delete r.items; cambio = true; } });
+    return cambio ? JSON.stringify(body) : bodyText;
+  }
+
   window.fetch = async function(input, init){
     const url = typeof input === 'string' ? input : (input && input.url) || String(input);
     if(!url.startsWith(PM_DB_URL)) return realFetch(input, init);
@@ -438,9 +450,10 @@
       const u = new URL(url);
       const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
       const headers = new Headers((init && init.headers) || (input && input.headers) || {});
-      const bodyText = init && typeof init.body === 'string' ? init.body : null;
+      let bodyText = init && typeof init.body === 'string' ? init.body : null;
       if(!u.pathname.startsWith('/rest/v1/')) return respond(404, { message: 'Ruta no encontrada' });
       const table = u.pathname.slice('/rest/v1/'.length).replace(/\/+$/, '');
+      if(table === 'facturas' && bodyText && method !== 'GET' && method !== 'HEAD') bodyText = sinItemsVacios(bodyText);
       if(table === 'facturas') await autoItems;   // primero se recuperan los artículos del navegador
       if(method === 'GET' || method === 'HEAD') await nubeLeer(table, u, headers);
       const info = {};
@@ -1032,8 +1045,10 @@
   function openRespDB(){
     if(respDbP) return respDbP;
     respDbP = new Promise((resolve, reject) => {
-      const req = indexedDB.open(RESP_DB, 1);
-      req.onupgradeneeded = () => { if(!req.result.objectStoreNames.contains(RESP_STORE)) req.result.createObjectStore(RESP_STORE, { keyPath: 'id' }); };
+      const req = indexedDB.open(RESP_DB, 2);
+      req.onupgradeneeded = () => {
+        ['copias', 'ajustes'].forEach(n => { if(!req.result.objectStoreNames.contains(n)) req.result.createObjectStore(n, { keyPath: 'id' }); });
+      };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => { respDbP = null; reject(req.error); };
     });
@@ -1043,6 +1058,55 @@
     const db = await openRespDB();
     const all = await reqP(db.transaction(RESP_STORE, 'readonly').objectStore(RESP_STORE).getAll());
     return all.sort((a, b) => String(b.id).localeCompare(String(a.id)));
+  }
+
+  // ── Carpeta de respaldos (p. ej. Documentos\Pleaseme Respaldos) ──
+  //  El navegador solo deja escribir en una carpeta que el usuario eligió:
+  //  se elige una vez y se recuerda. Cada respaldo va en una subcarpeta con
+  //  la fecha:  <carpeta>\AAAA-MM-DD\pleaseme-respaldo-AAAA-MM-DD.json
+  async function leerCarpeta(){
+    try{
+      const db = await openRespDB();
+      const r = await reqP(db.transaction('ajustes', 'readonly').objectStore('ajustes').get('carpeta'));
+      return r && r.handle || null;
+    }catch{ return null; }
+  }
+  async function guardarCarpeta(handle){
+    const db = await openRespDB();
+    await new Promise((res, rej) => {
+      const tx = db.transaction('ajustes', 'readwrite');
+      tx.objectStore('ajustes').put({ id: 'carpeta', handle });
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  }
+  async function elegirCarpeta(){
+    if(!window.showDirectoryPicker) throw new Error('Este navegador no permite elegir una carpeta. Usa Google Chrome o Microsoft Edge.');
+    let h;
+    try{
+      h = await window.showDirectoryPicker({ id: 'pleaseme-respaldos', mode: 'readwrite', startIn: 'documents' });
+    }catch(e){
+      if(e && e.name === 'AbortError') return null;
+      throw new Error('El navegador no permite usar esa carpeta (no deja elegir "Documentos" directamente). Dentro de Documentos crea una carpeta llamada "Pleaseme Respaldos" y elígela.');
+    }
+    await guardarCarpeta(h);
+    return h;
+  }
+  // pedir=true solo funciona dentro de un clic del usuario
+  async function permisoCarpeta(h, pedir){
+    try{
+      const o = { mode: 'readwrite' };
+      if((await h.queryPermission(o)) === 'granted') return true;
+      return !!pedir && (await h.requestPermission(o)) === 'granted';
+    }catch{ return false; }
+  }
+  async function escribirEnCarpeta(h, dia, datos){
+    const archivo = 'pleaseme-respaldo-' + dia + '.json';
+    const sub = await h.getDirectoryHandle(dia, { create: true });
+    const f = await sub.getFileHandle(archivo, { create: true });
+    const w = await f.createWritable();
+    await w.write(JSON.stringify(datos));
+    await w.close();
+    return h.name + '\\' + dia + '\\' + archivo;
   }
 
   async function respConfig(){ return { ...RESP_DEF, ...((await getMeta('respaldo_auto')) || {}).value }; }
@@ -1088,17 +1152,26 @@
         if(texto) q('texto').textContent = texto;
         if(paso !== undefined) q('paso').textContent = paso;
       },
-      listo(texto, boton){
+      // botones: [{ texto, titulo, accion }] — accion() devuelve el texto nuevo (o null); lanza Error si falla
+      listo(texto, botones){
         this.progreso(100, texto, '✓ Completado');
         q('barra').style.background = '#2fe3b5';
-        if(boton){
+        const fila = document.createElement('div');
+        fila.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+        (botones || []).forEach(bt => {
           const b = document.createElement('button');
-          b.textContent = boton.texto; b.title = boton.titulo || '';
+          b.textContent = bt.texto; b.title = bt.titulo || '';
           b.style.cssText = 'margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid rgba(212,175,55,.4);background:rgba(212,175,55,.1);color:#e8c56e;font-weight:600;cursor:pointer;font-size:12px';
-          b.onclick = boton.accion;
-          el.appendChild(b);
-        }
-        timer = setTimeout(cerrar, 15000);
+          b.onclick = async () => {
+            clearTimeout(timer); b.disabled = true;
+            try{ const r = await bt.accion(); if(r){ q('texto').textContent = r; if(bt.unaVez) b.remove(); } }
+            catch(e){ q('texto').textContent = '⚠ ' + (e && e.message || e); }
+            b.disabled = false;
+          };
+          fila.appendChild(b);
+        });
+        if(fila.children.length) el.appendChild(fila);
+        timer = setTimeout(cerrar, 20000);
         el.onmouseenter = () => clearTimeout(timer);
       },
       error(texto, reintentar){
@@ -1162,15 +1235,40 @@
         setTimeout(() => URL.revokeObjectURL(a.href), 5000);
         setMeta('ultimo_respaldo', new Date().toISOString()).catch(() => {});
       };
-      if(cfg.descargar){
-        n.progreso(80, 'Descargando el archivo de respaldo…', 'Paso 3 de 3');
-        descargar();
-        await sleep(300);
+      // Paso 3: carpeta elegida (Documentos\Pleaseme Respaldos\AAAA-MM-DD); si no se puede, Descargas
+      const carpeta = await leerCarpeta();
+      let ruta = '', avisoCarpeta = '';
+      if(carpeta){
+        n.progreso(80, 'Guardando en la carpeta "' + carpeta.name + '"…', 'Paso 3 de 3');
+        try{ if(await permisoCarpeta(carpeta, false)) ruta = await escribirEnCarpeta(carpeta, dia, datos); else avisoCarpeta = 'El navegador pide permiso para escribir en la carpeta "' + carpeta.name + '".'; }
+        catch(e){ console.warn('[Respaldo diario] carpeta:', e); avisoCarpeta = 'No se pudo escribir en la carpeta "' + carpeta.name + '" (' + (e && e.message || e) + ').'; }
       }
+      if(ruta) setMeta('ultimo_respaldo', new Date().toISOString()).catch(() => {});
+      const bajar = !ruta && (cfg.descargar || carpeta);
+      if(bajar){
+        n.progreso(85, 'Descargando el archivo de respaldo…', 'Paso 3 de 3');
+        descargar();
+      }
+      await sleep(300);
       await setMeta('respaldo_auto_ultimo', ahora.toISOString());
-      n.listo('Respaldo del ' + ahora.toLocaleDateString('es') + ' listo: ' + registros.toLocaleString('es') + ' registros.' +
-        (cfg.descargar ? ' Archivo "' + archivo + '" en Descargas.' : ' Copia guardada en este equipo.'),
-        { texto: cfg.descargar ? '⬇ Descargar de nuevo' : '⬇ Descargar archivo', titulo: 'Por si el navegador no lo descargó', accion: descargar });
+
+      // Botones de la notificación (un clic del usuario permite pedir permiso / elegir carpeta)
+      const guardarEnCarpeta = async () => {
+        let h = await leerCarpeta();
+        if(!h) h = await elegirCarpeta();
+        if(!h) return null;
+        if(!(await permisoCarpeta(h, true))) throw new Error('Sin permiso para escribir en la carpeta "' + h.name + '".');
+        const r = await escribirEnCarpeta(h, dia, datos);
+        setMeta('ultimo_respaldo', new Date().toISOString()).catch(() => {});
+        return '✓ Guardado en: ' + r;
+      };
+      const botones = [];
+      if(!ruta) botones.push({ unaVez: true, texto: carpeta ? '📁 Guardar en la carpeta' : '📁 Elegir carpeta en Documentos',
+        titulo: carpeta ? 'Permitir que el navegador escriba en la carpeta de respaldos' : 'Elige (o crea) una carpeta dentro de Documentos para guardar los respaldos por fecha', accion: guardarEnCarpeta });
+      if(bajar || cfg.descargar) botones.push({ texto: '⬇ Descargar de nuevo', titulo: 'Por si el navegador no lo descargó', accion: () => { descargar(); return null; } });
+      n.listo('Respaldo del ' + ahora.toLocaleDateString('es') + ' listo: ' + registros.toLocaleString('es') + ' registros. ' +
+        (ruta ? 'Guardado en: ' + ruta
+          : (avisoCarpeta ? avisoCarpeta + ' ' : '') + (bajar ? 'Archivo "' + archivo + '" en Descargas.' : 'Copia guardada en este equipo.')), botones);
       return true;
     }catch(e){
       console.error('[Respaldo diario]', e);
@@ -1221,7 +1319,8 @@
         <div style="padding:10px 20px;border-top:1px solid rgba(212,175,55,.2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="activo" style="accent-color:#d4af37"> Respaldo diario a las</label>
           <input type="time" data-c="hora" style="background:rgba(0,0,0,.35);border:1px solid rgba(212,175,55,.35);border-radius:6px;color:#e8e0cc;padding:3px 6px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="descargar" style="accent-color:#d4af37"> descargar archivo</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="descargar" style="accent-color:#d4af37"> descargar a Descargas si no hay carpeta</label>
+          <button data-a="carpeta" style="${BTN}" title="Elige la carpeta (dentro de Documentos) donde se guardan los respaldos, una subcarpeta por fecha">📁 Carpeta de respaldos</button>
           <span style="flex:1"></span>
           <button data-a="copias" style="${BTN}" title="Ver y restaurar las copias diarias guardadas en este equipo">🕘 Copias diarias</button>
           <button data-a="ahora" style="${BTN}" title="Hacer el respaldo diario ahora">💾 Respaldar ahora</button>
@@ -1267,6 +1366,8 @@
       log('Los datos se guardan en este navegador, en este equipo. No necesita servidor ni internet.');
       const last = await getMeta('ultimo_respaldo');
       log('Último respaldo descargado: ' + (last ? new Date(last.value).toLocaleString('es') : 'nunca'));
+      const carp = await leerCarpeta();
+      log('Carpeta de respaldos: ' + (carp ? carp.name + '  (se crea una subcarpeta por fecha)' : 'no elegida — se descarga a la carpeta Descargas'));
       const auto = await getMeta('respaldo_auto_ultimo');
       log('Respaldo diario: ' + (cfg.activo ? 'activo a las ' + cfg.hora : 'desactivado') + ' · último: ' + (auto ? new Date(auto.value).toLocaleString('es') : 'nunca'));
       await showTotals('\nContenido actual:');
@@ -1307,6 +1408,13 @@
     ov.querySelector('[data-a="respaldo"]').onclick = () => run(async () => {
       await exportBackup();
       log('\n✓ Respaldo descargado. Guárdalo en un lugar seguro (USB, nube…).');
+    });
+
+    ov.querySelector('[data-a="carpeta"]').onclick = () => run(async () => {
+      const h = await elegirCarpeta();
+      if(!h) return;
+      log('\n✓ Carpeta de respaldos: "' + h.name + '". Cada día se guarda en una subcarpeta con la fecha.');
+      log('  Pulsa 💾 Respaldar ahora para probarla.');
     });
 
     ov.querySelector('[data-a="ahora"]').onclick = () => run(async () => {

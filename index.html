@@ -145,6 +145,9 @@
     .kpi{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:12px;padding:14px 16px;transition:border-color .2s,transform .2s}
     .kpi:hover{transform:translateY(-1px)}
     .kpi[onclick]{cursor:pointer}
+    .lb-sel,#itemsSelAll,#transferMover{width:auto!important;flex:none;margin:0;padding:0;cursor:pointer}
+    .inv-fecha{cursor:pointer;border-bottom:1px dashed rgba(212,175,55,.45);padding:0 1px}
+    .inv-fecha:hover{color:var(--gold)}
     .kpi[onclick]:hover{border-color:rgba(212,175,55,.45)}
     .kpi-val{font-family:Georgia,serif;font-size:22px;color:var(--gold);font-weight:700}
     .kpi-lbl{font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:5px}
@@ -322,6 +325,7 @@
     <button class="btn btn-outline" onclick="openNewInvoice()">＋ Nueva Factura</button>
     <button class="btn btn-green" onclick="exportCSV()" title="Descargar el registro completo de facturas (con artículos) en Excel">⬇ Excel</button>
     <button class="btn btn-outline" onclick="pmRestaurarArchivo()" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json">📂 Restaurar</button>
+    <button class="btn btn-outline" onclick="openPrintHistory()" title="Ver todas las facturas impresas y abrirlas en PDF">🖨 Historial</button>
     <button class="btn btn-outline" onclick="window.close()" title="Cerrar ventana">✕ Cerrar</button>
   </div>
 </header>
@@ -406,7 +410,7 @@
         </div>
         <div class="field">
           <label class="lbl">Fecha</label>
-          <input id="f_date" type="date" />
+          <input id="f_date" type="date" onclick="try{this.showPicker()}catch(e){}" style="cursor:pointer" title="Haz clic para cambiar la fecha" />
         </div>
       </div>
     </div>
@@ -470,10 +474,17 @@
       <!-- LISTBOX de productos agregados -->
       <div class="listbox-wrap" style="margin-bottom:10px">
         <div class="listbox-header">
-          <span>Producto</span><span style="text-align:center">Cant.</span><span style="text-align:right">Precio</span><span style="text-align:right">Subtotal</span><span></span>
+          <span style="display:flex;align-items:center;gap:7px"><input type="checkbox" id="itemsSelAll" onclick="toggleAllItemsSel(this.checked)" title="Seleccionar todos" style="accent-color:var(--gold)">Producto</span><span style="text-align:center">Cant.</span><span style="text-align:right">Precio</span><span style="text-align:right">Subtotal</span><span></span>
         </div>
         <div class="listbox-items" id="itemsList">
           <div class="listbox-empty" id="itemsEmpty">Sin artículos — agrega productos abajo</div>
+        </div>
+        <div id="itemsSelBar" style="display:none;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:rgba(212,175,55,.1);border-top:1px solid var(--border);font-size:12px">
+          <span id="itemsSelCount" style="color:var(--gold);font-weight:600"></span>
+          <span style="display:flex;gap:6px">
+            <button class="btn btn-sm btn-gold" onclick="openTransferItems()" title="Enviar los artículos seleccionados a otra factura">↪ Enviar a otra factura</button>
+            <button class="btn btn-sm btn-outline" onclick="toggleAllItemsSel(false)">Quitar selección</button>
+          </span>
         </div>
         <div class="listbox-count" id="listboxFooter" style="display:none">
           <span id="listboxCount">0 artículos</span>
@@ -560,7 +571,8 @@
             <option value="pendiente">Pendiente</option>
             <option value="procesando">Procesando</option>
             <option value="enviado">Enviado</option>
-            <option value="entregado">Entregado / Pagado</option>
+            <option value="pagado">Pagado</option>
+            <option value="entregado">Entregado</option>
             <option value="cancelado">Cancelado</option>
           </select>
         </div>
@@ -630,6 +642,46 @@
       <div id="modalInvoiceList" style="flex:1;overflow-y:auto;padding:12px 22px;display:flex;flex-direction:column;gap:8px">
         <div class="items-empty">Cargando...</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL — ENVIAR ARTÍCULOS A OTRA FACTURA ═══ -->
+  <div id="transferModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:510;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:min(480px,94vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.8)">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-weight:700;color:var(--gold)">↪ Enviar artículos a otra factura</span>
+        <button onclick="closeTransferItems()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+        <div id="transferResumen" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
+        <div class="search-wrap" style="margin-bottom:8px">
+          <input id="transferQ" placeholder="Buscar factura por número o cliente..." oninput="renderTransferList()" style="padding-left:34px" autocomplete="off"/>
+        </div>
+        <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="transferMover" checked style="accent-color:var(--gold)"> Quitar de esta factura (mover). Sin marcar: se copian.
+        </label>
+      </div>
+      <div id="transferList" style="flex:1;overflow-y:auto;padding:10px 18px;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL — HISTORIAL DE IMPRESIÓN ═══ -->
+  <div id="printHistModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:min(900px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.8)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-family:Georgia,serif;font-size:17px;color:var(--gold);font-weight:700">🖨 Historial de impresión</span>
+          <span id="printHistCount" style="font-size:11px;color:var(--muted);background:rgba(212,175,55,.1);padding:2px 8px;border-radius:20px"></span>
+        </div>
+        <button onclick="closePrintHistory()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0 4px">✕</button>
+      </div>
+      <div style="padding:12px 22px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <div class="search-wrap" style="margin-bottom:0">
+          <input id="printHistQ" placeholder="Buscar cliente, No. factura..." oninput="renderPrintHistory()" style="padding-left:34px"/>
+        </div>
+      </div>
+      <div style="padding:6px 22px 0;font-size:11px;color:var(--muted)">🧾 PDF abre la factura tal como se imprimió · ✏️ abre la factura para hacer cambios</div>
+      <div id="printHistList" style="flex:1;overflow-y:auto;padding:12px 22px;display:flex;flex-direction:column;gap:8px"></div>
     </div>
   </div>
 
@@ -854,6 +906,7 @@ async function readLocalDatabase(){
 let DB = { orders:[], products:[], clients:[] };
 let editingId = null;
 let items = [];
+const itemsSel = new Set();   // artículos seleccionados para enviar a otra factura
 let formReadOnly = false;
 let editingItemIdx = -1;   // índice del artículo que se está editando en la fila inferior (-1 = agregando)
 
@@ -949,11 +1002,20 @@ async function loadOrders(){
   }
 }
 
+// Los productos del Admin guardan nombre, precio, etc. dentro de "record": se aplanan
+function productoPlano(r){
+  let rec = r && r.record;
+  if(typeof rec === 'string'){ try{ rec = JSON.parse(rec); }catch{ rec = {}; } }
+  const p = {...(rec||{}), ...r};
+  delete p.record;
+  return p;
+}
+
 async function loadProducts(){
   try{
     const data = await sbGET('productos?select=*&order=name');
     if(data === null) throw new Error('null response');
-    DB.products = data||[];
+    DB.products = (data||[]).map(productoPlano);
     localStorage.setItem(LS_PRODS, JSON.stringify(DB.products));
     console.log('[SB] Productos cargados:', DB.products.length);
   }catch(e){
@@ -1315,12 +1377,15 @@ function renderItems(){
   if(!items.length){
     el.innerHTML = '<div class="listbox-empty">Sin artículos — agrega productos abajo</div>';
     if(footerEl) footerEl.style.display = 'none';
+    itemsSel.clear(); updateItemsSelBar();
     recalc();
     return;
   }
 
   if(editingItemIdx >= items.length) cancelItemEdit();
 
+  // Conservar solo la selección de artículos que siguen en la lista
+  [...itemsSel].forEach(it=>{ if(!items.includes(it)) itemsSel.delete(it); });
   el.innerHTML = items.map((it, i) => {
     const lineTotal = (Number(it.price||0) * Number(it.qty||1)).toFixed(2);
     const sizeLabel = it.size && it.size !== '—' ? `<div class="lb-size">${esc(it.size)}</div>` : '';
@@ -1346,7 +1411,7 @@ function renderItems(){
     const rowCls = 'listbox-row' + (formReadOnly ? '' : ' editable') + (i === editingItemIdx ? ' editing' : '');
     return `
     <div class="${rowCls}" id="lbrow-${i}" onclick="selectListboxRow(${i})" ${formReadOnly ? '' : 'title="Clic para editar este artículo"'}>
-      <div><div class="lb-name" title="${esc(it.name)}">${esc(it.name)}</div>${sizeLabel}</div>
+      <div style="display:flex;align-items:flex-start;gap:7px;min-width:0">${formReadOnly ? '' : `<input type="checkbox" class="lb-sel" ${itemsSel.has(it)?'checked':''} onclick="event.stopPropagation();toggleItemSel(${i},this.checked)" title="Seleccionar para enviar a otra factura" style="accent-color:var(--gold);margin-top:2px;flex-shrink:0">`}<div style="min-width:0"><div class="lb-name" title="${esc(it.name)}">${esc(it.name)}</div>${sizeLabel}</div></div>
       ${qtyCell}
       ${priceCell}
       <div class="lb-total" id="lbtotal-${i}">$${lineTotal}</div>
@@ -1355,6 +1420,7 @@ function renderItems(){
   }).join('');
 
   updateListboxFooter();
+  updateItemsSelBar();
   recalc();
 }
 
@@ -1465,6 +1531,7 @@ function showProdDropdown(q){
   if(q && q.trim()){
     results = results.filter(p=>(p.name||'').toLowerCase().includes(q.toLowerCase()));
   }
+  results = results.filter(p=>p.name);
   results = results.slice(0,12);
 
   if(!results.length){
@@ -1473,7 +1540,7 @@ function showProdDropdown(q){
     return;
   }
   dd.innerHTML = results.map(p=>{
-    const stock = p.stock!=null ? '<span style="font-size:10px;color:'+(Number(p.stock)>0?'#2fe3b5':'#ff5555')+'">Stock: '+p.stock+'</span>' : '';
+    const stock = p.stock!=null && p.origen!=='facturacion' ? '<span style="font-size:10px;color:'+(Number(p.stock)>0?'#2fe3b5':'#ff5555')+'">Stock: '+p.stock+'</span>' : '';
     const sku   = p.sku ? '<span style="font-size:10px;color:var(--muted);font-family:monospace">'+p.sku+'</span>' : '';
     return '<div class="prod-option" onclick="selectProd(this.dataset.name,this.dataset.price,this.dataset.sku)" data-name="'+p.name.replace(/"/g,"&quot;")+'" data-price="'+Number(p.price||0)+'" data-sku="'+(p.sku||'').replace(/"/g,"&quot;")+'"><div><div class="pname">'+esc(p.name)+'</div><div style="display:flex;gap:8px;margin-top:2px">'+sku+stock+'</div></div><span class="pprice">$'+Number(p.price||0).toFixed(2)+'</span></div>';
   }).join('');
@@ -1536,6 +1603,38 @@ document.addEventListener('blur', e => {
   if(!el.classList || !el.classList.contains('money-input') || el.value.trim() === '') return;
   el.value = parseMoney(el.value).toFixed(2);
 }, true);
+
+// ══════════════════════════════════════════════════════
+//  PRODUCTOS NUEVOS — al guardar o imprimir, los artículos que no existen en
+//  Productos se registran automáticamente (inactivos: no salen en la tienda
+//  hasta que se activen y se les ponga foto en el Admin).
+// ══════════════════════════════════════════════════════
+const normNombre = s => String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+function registrarProductosNuevos(lista){
+  const existentes = new Set(DB.products.map(p=>normNombre(p.name)));
+  const nuevos = [];
+  (lista||[]).forEach(it=>{
+    const n = normNombre(it.name);
+    if(!n || existentes.has(n)) return;
+    existentes.add(n);
+    const ahora = new Date().toISOString();
+    nuevos.push({
+      id: 'prod_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      name: String(it.name).trim(), price: Number(it.price||0), old_price: 0, stock: 0,
+      category: 'General', is_new: false, active: false, origen: 'facturacion',
+      images: [], sizes: it.size && it.size!=='—' ? [it.size] : [], colors: [],
+      created_at: ahora, updated_at: ahora,
+    });
+  });
+  if(!nuevos.length) return 0;
+  DB.products.push(...nuevos);
+  try{ localStorage.setItem(LS_PRODS, JSON.stringify(DB.products)); }catch(e){}
+  // Mismo formato que el Admin: columnas id, record, active, created_at
+  sbPOST('productos', nuevos.map(p=>({id:p.id, record:{...p}, active:false, created_at:p.created_at})), 'return=minimal')
+    .then(()=>toast('🗂 '+nuevos.length+' artículo'+(nuevos.length!==1?'s nuevos guardados':' nuevo guardado')+' en Productos','ok'))
+    .catch(e=>console.error('[Productos nuevos]', e.message));
+  return nuevos.length;
+}
 
 function recalc(){
   const sub   = items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
@@ -1658,7 +1757,7 @@ function collectData(){
     discountValue: disc,
     discountAmount:disc,
     total,
-    created_at:    g('f_date').value ? new Date(g('f_date').value).toISOString() : new Date().toISOString(),
+    created_at:    g('f_date').value ? fechaAISO(g('f_date').value) : new Date().toISOString(),
     updated_at:    new Date().toISOString(),
     currency:      'USD',
   };
@@ -1698,6 +1797,9 @@ async function saveOnly(opts={}){
   const data = collectData();
   if(!validate(data)) return false;
   const wasNew = !editingId;
+
+  // Artículos que no están en Productos se guardan solos (no bloquea si falla)
+  registrarProductosNuevos(data.items);
 
   // Al procesar la factura, pasar automáticamente de "pendiente" → "procesando"
   if(data.status === 'pendiente'){
@@ -2016,7 +2118,7 @@ function renderList(){
         <div>
           <div class="inv-num">${invNum}</div>
           <div class="inv-client">${esc(o.clientName||'Sin nombre')}</div>
-          <div class="inv-meta"><span>${date}</span><span class="status-badge s-${status}">${status}</span></div>
+          <div class="inv-meta"><span class="inv-fecha" onclick="event.stopPropagation();cambiarFechaFactura('${o.id}',this)" title="Clic para cambiar la fecha">📅 ${date}</span><span class="status-badge s-${status}">${status}</span></div>
           ${o.tracking_number?`<div style="font-size:10px;color:${o.tracking_delivered?'#2fe3b5':'var(--green)'};margin-top:3px">📦 ${esc(o.tracking_status||o.tracking_number)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
@@ -2117,7 +2219,7 @@ function renderModal(){
           </div>
           <div class="inv-client" style="margin:3px 0 2px">${esc(o.clientName||'Sin nombre')}</div>
           <div class="inv-meta" style="display:flex;gap:10px;flex-wrap:wrap">
-            <span>📅 ${date}</span>
+            <span class="inv-fecha" onclick="event.stopPropagation();cambiarFechaFactura('${o.id}',this)" title="Clic para cambiar la fecha">📅 ${date}</span>
             <span>🛍 ${nItems} artículo${nItems!==1?'s':''}</span>
             ${o.payment_method?`<span>💳 ${esc(o.payment_method)}</span>`:''}
             ${o.clientPhone?`<span>📞 ${esc(o.clientPhone)}</span>`:''}
@@ -2414,6 +2516,10 @@ document.addEventListener('keydown', e=>{
   if(courierPicker && courierPicker.style.display !== 'none'){ closeCourierPicker(); return; }
   const clientPicker = g('clientPicker');
   if(clientPicker && clientPicker.classList.contains('open')){ closeClientPicker(); return; }
+  const transferModal = g('transferModal');
+  if(transferModal && transferModal.style.display !== 'none'){ closeTransferItems(); return; }
+  const printHistModal = g('printHistModal');
+  if(printHistModal && printHistModal.style.display !== 'none'){ closePrintHistory(); return; }
   const invoicesModal = g('invoicesModal');
   if(invoicesModal && invoicesModal.style.display !== 'none'){ closeInvoicesModal(); return; }
   const companyPanel = g('companyPanel');
@@ -2433,6 +2539,269 @@ document.addEventListener('keydown', e=>{
 // ══════════════════════════════════════════════════════
 //  IMPRIMIR FACTURA
 // ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+//  SELECCIONAR ARTÍCULOS Y ENVIARLOS A OTRA FACTURA
+// ══════════════════════════════════════════════════════
+function toggleItemSel(i, on){
+  const it = items[i]; if(!it) return;
+  if(on) itemsSel.add(it); else itemsSel.delete(it);
+  updateItemsSelBar();
+}
+function toggleAllItemsSel(on){
+  itemsSel.clear();
+  if(on) items.forEach(it=>itemsSel.add(it));
+  document.querySelectorAll('#itemsList .lb-sel').forEach(c=>c.checked=!!on);
+  updateItemsSelBar();
+}
+function updateItemsSelBar(){
+  const bar = g('itemsSelBar'); if(!bar) return;
+  const n = itemsSel.size;
+  bar.style.display = n && !formReadOnly ? 'flex' : 'none';
+  if(g('itemsSelCount')) g('itemsSelCount').textContent = n+' artículo'+(n!==1?'s':'')+' seleccionado'+(n!==1?'s':'');
+  const all = g('itemsSelAll');
+  if(all){ all.checked = n>0 && n===items.length; all.indeterminate = n>0 && n<items.length; all.style.visibility = formReadOnly ? 'hidden' : ''; }
+}
+
+function openTransferItems(){
+  if(!itemsSel.size){ toast('Selecciona los artículos que quieres enviar','warn'); return; }
+  const sel = items.filter(it=>itemsSel.has(it));
+  const sub = sel.reduce((a,i)=>a+Number(i.price||0)*Number(i.qty||1),0);
+  g('transferResumen').innerHTML = '<b style="color:var(--text)">'+sel.length+' artículo'+(sel.length!==1?'s':'')+'</b> ('+
+    esc(sel.slice(0,3).map(i=>(i.qty||1)+'× '+i.name).join(', ')+(sel.length>3?'…':''))+') · $'+sub.toFixed(2);
+  g('transferQ').value = '';
+  g('transferMover').checked = true;
+  g('transferModal').style.display = 'flex';
+  renderTransferList();
+  setTimeout(()=>g('transferQ').focus(), 50);
+}
+function closeTransferItems(){ g('transferModal').style.display = 'none'; }
+
+function renderTransferList(){
+  const q = (g('transferQ').value||'').toLowerCase().trim();
+  let list = DB.orders.filter(o=>{
+    const st = o.status||o.invoice_status||'';
+    return o.id!==editingId && st!=='cancelado' && st!=='anulado';
+  }).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+  if(q) list = list.filter(o=>((o.invoice_num||'')+' '+(o.clientName||'')).toLowerCase().includes(q));
+  const el = g('transferList');
+  if(!list.length){ el.innerHTML = '<div class="items-empty" style="padding:20px;text-align:center;color:var(--muted)">No hay facturas que coincidan</div>'; return; }
+  el.innerHTML = list.slice(0,40).map(o=>{
+    const n = (o.items||[]).reduce((a,i)=>a+(Number(i.qty)||1),0);
+    const date = o.created_at ? new Date(o.created_at).toLocaleDateString('es') : '—';
+    return `<div class="invoice-card" style="cursor:pointer;padding:9px 12px" onclick="transferItemsTo('${o.id}')" title="Enviar aquí">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="min-width:0"><div class="inv-num">${esc(o.invoice_num||'—')}</div>
+          <div class="inv-client" style="margin:2px 0">${esc(o.clientName||'Sin nombre')}</div>
+          <div class="inv-meta"><span>📅 ${date}</span><span>🛍 ${n}</span></div></div>
+        <div class="inv-total">$${Number(o.total||0).toFixed(2)}</div>
+      </div></div>`;
+  }).join('');
+}
+
+async function transferItemsTo(destId){
+  const dest = DB.orders.find(o=>o.id===destId);
+  if(!dest){ toast('Factura no encontrada','err'); return; }
+  const sel = items.filter(it=>itemsSel.has(it));
+  if(!sel.length) return;
+  const mover = g('transferMover').checked;
+  if(mover && sel.length===items.length){
+    toast('No puedes mover todos los artículos: la factura quedaría vacía. Desmarca "mover" para copiarlos.','warn');
+    return;
+  }
+  const origen = g('f_invNum').value || 'esta factura';
+  if(!confirm((mover?'¿Mover ':'¿Copiar ')+sel.length+' artículo'+(sel.length!==1?'s':'')+' de '+origen+' a '+(dest.invoice_num||'la factura')+' ('+(dest.clientName||'')+')?')) return;
+
+  // 1) Factura destino: agregar los artículos y recalcular sus totales
+  const copia = sel.map(it=>({...it}));
+  const nuevosItems = [...(dest.items||[]).map(i=>({...i})), ...copia];
+  const sub = nuevosItems.reduce((a,i)=>a+Number(i.price||0)*Number(i.qty||1),0);
+  const ship = Number(dest.shipping||dest.shipping_cost||0);
+  const disc = Number(dest.discountAmount||dest.discount_amount||0);
+  const cambio = { items:nuevosItems, subtotal:sub, total:Math.max(0, sub+ship-disc) };
+  try{
+    await sbPATCH('facturas','id=eq.'+encodeURIComponent(destId), {...cambio, updated_at:new Date().toISOString()});
+  }catch(e){ console.error('[Enviar artículos]', e.message); }
+  Object.assign(dest, cambio);
+  registrarProductosNuevos(copia);
+
+  // 2) Factura actual: quitar los artículos si se mueven, y guardar
+  if(mover){
+    items = items.filter(it=>!itemsSel.has(it));
+    itemsSel.clear();
+    renderItems();
+    if(editingId) await saveOnly({noPrompt:true});
+  } else {
+    toggleAllItemsSel(false);
+  }
+  persist();
+  renderList(); updateKPIs();
+  if(g('invoicesModal').style.display!=='none') renderModal();
+  closeTransferItems();
+  toast('↪ '+sel.length+' artículo'+(sel.length!==1?'s':'')+(mover?' movido':' copiado')+(sel.length!==1?'s':'')+' a '+(dest.invoice_num||'la factura')+' — nuevo total $'+cambio.total.toFixed(2),'ok');
+}
+
+document.addEventListener('click', e=>{
+  const m = document.getElementById('transferModal');
+  if(m && e.target===m) closeTransferItems();
+});
+
+// ══════════════════════════════════════════════════════
+//  CAMBIAR LA FECHA DE UNA FACTURA (clic sobre la fecha en las listas)
+// ══════════════════════════════════════════════════════
+// "AAAA-MM-DD" → ISO al mediodía local, para que ninguna zona horaria la muestre un día antes
+function fechaAISO(ymd){ return new Date(ymd+'T12:00:00').toISOString(); }
+
+function cambiarFechaFactura(id, el){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o){ toast('Factura no encontrada','err'); return; }
+  const actual = o.invoice_date || (o.created_at ? (()=>{ const d=new Date(o.created_at); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })() : '');
+  const inp = document.createElement('input');
+  inp.type = 'date'; inp.value = actual;
+  const r = el.getBoundingClientRect();
+  inp.style.cssText = 'position:fixed;left:'+r.left+'px;top:'+r.bottom+'px;width:1px;height:1px;opacity:0;border:0;padding:0';
+  document.body.appendChild(inp);
+  const quitar = () => setTimeout(()=>inp.remove(), 300);
+  inp.addEventListener('change', ()=>{ if(inp.value && inp.value!==actual) guardarFechaFactura(id, inp.value); quitar(); });
+  inp.addEventListener('blur', quitar);
+  inp.focus();
+  try{ inp.showPicker(); }
+  catch(e){
+    // Navegador sin calendario emergente: pedir la fecha escrita
+    inp.remove();
+    const v = prompt('Nueva fecha para '+(o.invoice_num||'la factura')+' (AAAA-MM-DD):', actual);
+    if(v && /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) && v.trim()!==actual) guardarFechaFactura(id, v.trim());
+    else if(v) toast('Fecha no válida. Usa el formato AAAA-MM-DD','warn');
+  }
+}
+
+function guardarFechaFactura(id, ymd){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o) return;
+  const cambio = { created_at: fechaAISO(ymd), invoice_date: ymd };
+  const aplicar = x => Object.assign(x, cambio);
+  const pintar = () => { renderList(); updateKPIs(); if(g('invoicesModal').style.display!=='none') renderModal(); };
+  aplicar(o);
+  if(editingId===id && g('f_date')) g('f_date').value = ymd;
+  pintar();
+  toast('📅 '+(o.invoice_num||'Factura')+': fecha cambiada a '+new Date(ymd+'T12:00:00').toLocaleDateString('es'),'ok');
+  // Primero la base, después localStorage (así una recarga no trae la fecha vieja)
+  const fin = () => { const x = DB.orders.find(y=>y.id===id); if(x && x.invoice_date!==ymd){ aplicar(x); pintar(); } persist(); };
+  sbPATCH('facturas','id=eq.'+encodeURIComponent(id), {...cambio, updated_at:new Date().toISOString()})
+    .then(fin, e=>{ console.error('[SB] cambiar fecha:', e.message); fin(); });
+}
+
+// Al imprimir, la factura pasa de "pendiente"/"procesando" a "pagado" (antes de abrir la
+// ventana de impresión, para que la factura impresa ya diga PAGADO). Entregado/enviado/anulada no cambian.
+function marcarPagadaAlImprimir(o){
+  const st = o.status||o.invoice_status||'pendiente';
+  if(st!=='pendiente' && st!=='procesando') return;
+  const id = o.id;
+  const aplicar = x => { x.status = 'pagado'; x.invoice_status = 'pagado'; };
+  const pintar = () => {
+    renderList(); updateKPIs();
+    if(g('invoicesModal').style.display!=='none') renderModal();
+  };
+  aplicar(o);
+  if(editingId===id && g('f_status')) g('f_status').value = 'pagado';
+  pintar();
+  // Se guarda primero en la base y después en localStorage: así ninguna recarga (ni otra ventana)
+  // puede leer el estado viejo y devolverlo a "procesando".
+  const fin = () => {
+    const x = DB.orders.find(y=>y.id===id);
+    if(x && x.status!=='cancelado' && x.status!=='entregado' && x.status!=='pagado'){ aplicar(x); pintar(); }
+    persist();
+  };
+  sbPATCH('facturas','id=eq.'+encodeURIComponent(id), {status:'pagado', updated_at:new Date().toISOString()})
+    .then(fin, e=>{ console.error('[SB] marcar pagada:', e.message); fin(); });
+}
+
+// ══════════════════════════════════════════════════════
+//  HISTORIAL DE IMPRESIÓN
+//  Cada impresión guarda una COPIA de la factura tal como se imprimió (tabla local
+//  "impresiones", incluida en los respaldos). El PDF del historial se genera desde
+//  esa copia, así se puede volver a abrir aunque la factura cambie después.
+// ══════════════════════════════════════════════════════
+function registrarImpresion(o){
+  let copia;
+  try{ copia = JSON.parse(JSON.stringify(o)); }catch(e){ copia = {...o}; }
+  delete copia.pending_sync;
+  const ahora = new Date().toISOString();
+  const reg = {
+    id: 'imp-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+    factura_id: o.id,
+    invoice_num: o.invoice_num||o.invoiceNum||'',
+    client_name: o.clientName||o.client_name||'',
+    total: Number(o.total||0),
+    status: o.status||o.invoice_status||'',
+    items_count: (o.items||[]).reduce((a,i)=>a+(Number(i.qty)||1),0),
+    impreso_at: ahora,
+    created_at: ahora,
+    factura: copia,
+  };
+  sbPOST('impresiones', reg, 'return=minimal').catch(e=>console.error('[Historial impresión]', e.message));
+}
+
+let _impresiones = [];
+async function openPrintHistory(){
+  g('printHistQ').value = '';
+  g('printHistModal').style.display = 'flex';
+  g('printHistList').innerHTML = '<div class="items-empty" style="padding:30px;text-align:center;color:var(--muted)">Cargando…</div>';
+  _impresiones = (await sbGET('impresiones?select=*&order=impreso_at.desc')) || [];
+  renderPrintHistory();
+}
+function closePrintHistory(){ g('printHistModal').style.display = 'none'; }
+
+function renderPrintHistory(){
+  const q = (g('printHistQ').value||'').toLowerCase().trim();
+  const list = q ? _impresiones.filter(r=>((r.invoice_num||'')+' '+(r.client_name||'')).toLowerCase().includes(q)) : _impresiones;
+  g('printHistCount').textContent = list.length+' impresi'+(list.length!==1?'ones':'ón');
+  const el = g('printHistList');
+  if(!list.length){
+    el.innerHTML = '<div class="items-empty" style="padding:30px;text-align:center;color:var(--muted)">'+
+      (_impresiones.length ? 'Sin impresiones que coincidan' : 'Todavía no hay facturas impresas. Cada vez que imprimas una factura aparecerá aquí.')+'</div>';
+    return;
+  }
+  el.innerHTML = list.map(r=>{
+    const f = new Date(r.impreso_at||r.created_at);
+    const cuando = f.toLocaleDateString('es')+' '+f.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+    const status = r.status||'pendiente';
+    const n = Number(r.items_count||0);
+    const existe = DB.orders.some(x=>x.id===r.factura_id);
+    return `
+    <div class="invoice-card" style="cursor:default">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="inv-num">${esc(r.invoice_num||'—')}</div>
+            <span class="status-badge s-${esc(status)}">${esc(status)}</span>
+          </div>
+          <div class="inv-client" style="margin:3px 0 2px">${esc(r.client_name||'Sin nombre')}</div>
+          <div class="inv-meta" style="display:flex;gap:10px;flex-wrap:wrap"><span>🖨 ${cuando}</span><span>🛍 ${n} artículo${n!==1?'s':''}</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <div class="inv-total">$${Number(r.total||0).toFixed(2)}</div>
+          <button class="btn btn-sm btn-green" onclick="printHistoryPDF('${r.id}')" title="Abrir en PDF la factura tal como se imprimió">🧾 PDF</button>
+          ${existe?`<button class="btn btn-sm btn-outline" onclick="closePrintHistory();loadForEdit('${r.factura_id}')" title="Abrir la factura para hacer cambios">✏️</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function printHistoryPDF(id){
+  const r = _impresiones.find(x=>x.id===id);
+  if(!r || !r.factura){ toast('Impresión no encontrada','err'); return; }
+  try{
+    const doc = buildInvoicePDF(r.factura);
+    if(doc) showPDFInTab(doc, 'Factura-'+(r.invoice_num||r.factura_id));
+  }catch(e){ toast('Error PDF: '+e.message,'err'); console.error(e); }
+}
+
+document.addEventListener('click', e=>{
+  const m = document.getElementById('printHistModal');
+  if(m && e.target===m) closePrintHistory();
+});
+
 function printInvoice(id){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Factura no encontrada','err'); return; }
@@ -2471,6 +2840,9 @@ function openPirateShipLabel(o){
 }
 
 function openPrintWindow(o){
+  // Toda impresión: pasa a "pagado" y queda en el historial de impresión (con copia de la factura)
+  marcarPagadaAlImprimir(o);
+  registrarImpresion(o);
   const co = getCompanyInfo();
   const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
   const logoSrc = (co._logoB64||co.logoB64||co.logo_b64||co.logo||'').trim();
