@@ -181,7 +181,9 @@ Las facturas sin abonos se comportan igual que antes.
 
 El botón **💱 Tasa** guarda la tasa del día (con historial y calculadora). Las
 facturas muestran "Equivale a …" en la otra moneda usando la tasa vigente en la
-fecha de la factura; al imprimir se guarda la tasa usada. Al cambiar el país de
+fecha de la factura; al imprimir se guarda la tasa usada. La tasa de hoy se carga sola desde internet al abrir la app (y cada 3 horas);
+una tasa que escribas a mano para hoy no se pisa, y el botón **🌐 Actualizar
+desde internet** la fuerza. Al cambiar el país de
 una factura se pregunta si se convierten los precios.
 
 ## Ficha de cliente
@@ -189,7 +191,16 @@ una factura se pregunta si se convierten los precios.
 El botón **📇 Clientes** lista a los clientes (buscar y ordenar). Cada ficha
 muestra facturas, total comprado, saldo pendiente, lo que más compra, WhatsApp,
 "Recordar el saldo" y **＋ Nueva factura** con los datos ya llenos. También se
-abre con el 📇 junto al nombre en el formulario.
+abre con el 📇 junto al nombre en el formulario. Las tarjetas cambian de tono
+según lo comprado: 💎 VIP (top 10 %, dorado), ⭐ Frecuente (siguiente 15 %,
+violeta) y 🙂 Habitual (hasta la mitad, turquesa).
+
+## Dirección del cliente
+
+Dirección, Ciudad, Estado y Código postal tienen su propio campo. Al escribir
+el código postal (5 dígitos, USA o RD) se llenan ciudad y estado desde internet,
+y al elegir una dirección del buscador se llenan los cuatro campos. En la
+factura impresa sale la dirección completa en una línea.
 
 ## Aviso si pasan días sin respaldo
 

@@ -698,9 +698,17 @@
           </div>
         </div>
         <div class="field" style="position:relative;grid-column:1 / -1">
-          <label class="lbl">Dirección del cliente</label>
+          <label class="lbl">Dirección (calle y número)</label>
           <input id="f_address" placeholder="Escribe para buscar dirección..." autocomplete="off" oninput="addrSearch(this.value)" onkeydown="addrKeydown(event)" />
           <div id="addrDropdown" style="display:none;position:absolute;top:calc(100% + 3px);left:0;right:0;background:#0f0d08;border:1px solid var(--border);border-radius:8px;z-index:250;max-height:200px;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.7)"></div>
+        </div>
+        <div class="field" style="grid-column:1 / -1">
+          <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:10px">
+            <div><label class="lbl">Ciudad</label><input id="f_city" placeholder="Ciudad" autocomplete="off" /></div>
+            <div><label class="lbl">Estado</label><input id="f_state" placeholder="FL" autocomplete="off" maxlength="40" /></div>
+            <div><label class="lbl">Código postal</label><input id="f_zip" placeholder="33101" inputmode="numeric" autocomplete="off" maxlength="10" oninput="zipLookup(this.value)" /></div>
+          </div>
+          <div id="zipEstado" style="font-size:10.5px;color:var(--muted);min-height:14px;margin-top:3px"></div>
         </div>
       </div>
     </div>
@@ -1244,6 +1252,10 @@ async function loadOrders(){
         clientEmail:   o.client_email   || '',
         clientPhone:   o.client_phone   || '',
         address:       o.client_address || '',
+        street:        o.client_street  || '',
+        city:          o.client_city    || '',
+        state:         o.client_state   || '',
+        zip:           o.client_zip     || '',
         address_usa:   o.shipping_address_usa || prev.address_usa || '',
         casillero:     o.casillero_number || prev.casillero || '',
         tracking_number: o.tracking_number || prev.tracking_number || '',
@@ -1609,6 +1621,7 @@ async function resetForm(){
   g('f_country').value = 'USA';
   updatePhoneCountryBadge();
   g('f_address').value = '';
+  g('f_city').value = ''; g('f_state').value = ''; g('f_zip').value = ''; g('zipEstado').textContent = '';
   g('f_address_usa').value = '';
   g('f_casillero').value = '';
   checkCourierBadge();
@@ -1973,12 +1986,56 @@ function clientSearch(q){
   dd.style.display='block';
 }
 
+function dirCompleta(calle, ciudad, estado, zip){
+  const ez = [String(estado||'').trim(), String(zip||'').trim()].filter(Boolean).join(' ');
+  return [String(calle||'').trim(), String(ciudad||'').trim(), ez].filter(Boolean).join(', ');
+}
+// Al escribir el código postal se completan ciudad y estado desde internet (USA y RD)
+let _zipTimer = null, _zipSeq = 0;
+function zipLookup(v){
+  clearTimeout(_zipTimer);
+  const st = g('zipEstado'), z = String(v||'').trim();
+  const pais = g('f_country').value === 'RD' ? 'do' : 'us';
+  const zip = pais === 'us' ? z.replace(/\D/g,'').slice(0,5) : z.replace(/\D/g,'');
+  if((pais==='us' && zip.length!==5) || (pais==='do' && zip.length!==5)){ st.textContent = ''; return; }
+  st.textContent = '🔍 Buscando ciudad…';
+  const mi = ++_zipSeq;
+  _zipTimer = setTimeout(async ()=>{
+    try{
+      const r = await fetch('https://api.zippopotam.us/'+pais+'/'+zip);
+      if(mi !== _zipSeq) return;
+      if(!r.ok) throw new Error('nf');
+      const p = ((await r.json()).places||[])[0];
+      if(!p) throw new Error('nf');
+      g('f_city').value  = p['place name'] || '';
+      g('f_state').value = p['state abbreviation'] || p['state'] || '';
+      st.textContent = '✓ ' + g('f_city').value + (g('f_state').value ? ', ' + g('f_state').value : '');
+    }catch(e){
+      if(mi === _zipSeq) st.textContent = 'No se encontró ese código postal — escribe la ciudad y el estado.';
+    }
+  }, 350);
+}
+
 function fillClient(name,email,phone,address){
   g('f_clientName').value=name;
   g('f_email').value=email||'';
   g('f_phone').value=phone||'';
   updatePhoneCountryBadge();
-  g('f_address').value=address||'';
+  const nl = String(name||'').toLowerCase().trim();
+  let cl = DB.clients.find(c=>(c.name||'').toLowerCase().trim()===nl);
+  if(!(cl && (cl.city||cl.state||cl.zip||cl.street))){
+    // las partes de la dirección viajan con las facturas: se toma la más reciente de ese cliente
+    const of = DB.orders.filter(o=>(o.client_name||'').toLowerCase().trim()===nl && (o.city||o.state||o.zip||o.street))
+      .sort((x,y)=>String(y.created_at||'').localeCompare(String(x.created_at||'')))[0];
+    if(of) cl = { street:of.street, city:of.city, state:of.state, zip:of.zip };
+  }
+  if(cl && (cl.city||cl.state||cl.zip||cl.street)){
+    g('f_address').value=cl.street||'';
+    g('f_city').value=cl.city||''; g('f_state').value=cl.state||''; g('f_zip').value=cl.zip||'';
+  }else{
+    g('f_address').value=address||'';
+    g('f_city').value=''; g('f_state').value=''; g('f_zip').value='';
+  }
   g('f_address_usa').value='';
   g('clientDropdown').style.display='none';
   checkCourierBadge();
@@ -2034,7 +2091,11 @@ function collectData(){
     clientName:    g('f_clientName').value.trim(),
     clientEmail:   g('f_email').value.trim(),
     clientPhone:   g('f_phone').value.trim(),
-    address:       g('f_address').value.trim(),
+    street:        g('f_address').value.trim(),
+    city:          g('f_city').value.trim(),
+    state:         g('f_state').value.trim(),
+    zip:           g('f_zip').value.trim(),
+    address:       dirCompleta(g('f_address').value, g('f_city').value, g('f_state').value, g('f_zip').value),
     address_usa:   g('f_address_usa').value.trim(),
     casillero:     g('f_casillero').value.trim(),
     invoice_num:   g('f_invNum').value.trim(),
@@ -2111,7 +2172,14 @@ async function saveOnly(opts={}){
     data.client_id    = clienteExistente.id;
     data.clientEmail  = data.clientEmail  || clienteExistente.email             || '';
     data.clientPhone  = data.clientPhone  || clienteExistente.phone             || '';
-    data.address      = data.address      || clienteExistente.shipping_address  || clienteExistente.address || '';
+    if(!data.address){
+      data.address = clienteExistente.shipping_address || clienteExistente.address || '';
+      data.street = clienteExistente.street || data.address; data.city = clienteExistente.city || ''; data.state = clienteExistente.state || ''; data.zip = clienteExistente.zip || '';
+    }
+    else if(data.city||data.state||data.zip||data.street){
+      Object.assign(clienteExistente, { street:data.street, city:data.city, state:data.state, zip:data.zip, address:data.address, shipping_address:data.address });
+      try{ localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients)); }catch(e){}
+    }
     console.log('[Cliente] Existente encontrado:', clienteExistente.id, '| email:', data.clientEmail, '| address:', data.address);
   } else if(data.clientName){
     // Cliente nuevo — guardar en Supabase y siempre conservarlo localmente.
@@ -2123,6 +2191,7 @@ async function saveOnly(opts={}){
         email:            data.clientEmail  || null,
         phone:            data.clientPhone  || null,
         shipping_address: data.address      || null,
+        street: data.street||null, city: data.city||null, state: data.state||null, zip: data.zip||null,
         billing_address:  null,
         preferred_payment:data.payment_method || null,
         orders_count:     1,
@@ -2136,6 +2205,7 @@ async function saveOnly(opts={}){
         id: cliId, name: data.clientName,
         email: data.clientEmail||'', phone: data.clientPhone||'',
         address: data.address||'', shipping_address: data.address||'',
+        street: data.street||'', city: data.city||'', state: data.state||'', zip: data.zip||'',
         billing_address:'', preferred_payment: data.payment_method||'', orders_count:1,
       });
       localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
@@ -2143,7 +2213,7 @@ async function saveOnly(opts={}){
     }catch(e){
       console.error('[SB] insert cliente:', e.message);
       data.client_id = cliId;
-      DB.clients.push({id:cliId, name:data.clientName, email:data.clientEmail||'', phone:data.clientPhone||'', address:data.address||'', shipping_address:data.address||'', billing_address:'', preferred_payment:data.payment_method||'', orders_count:1, pending_sync:true});
+      DB.clients.push({id:cliId, name:data.clientName, email:data.clientEmail||'', phone:data.clientPhone||'', address:data.address||'', shipping_address:data.address||'', street:data.street||'', city:data.city||'', state:data.state||'', zip:data.zip||'', billing_address:'', preferred_payment:data.payment_method||'', orders_count:1, pending_sync:true});
       toast('⚠ Cliente guardado solo en la base local: '+e.message,'warn');
     }
   }
@@ -2161,6 +2231,10 @@ async function saveOnly(opts={}){
       client_email:     d.clientEmail       || '',
       client_phone:     d.clientPhone       || '',
       client_address:   d.address           || '',
+      client_street:    d.street            || '',
+      client_city:      d.city              || '',
+      client_state:     d.state             || '',
+      client_zip:       d.zip               || '',
       items:            d.items             || [],
       subtotal:         Number(d.subtotal   || 0),
       shipping:         Number(d.shipping   || 0),
@@ -2400,7 +2474,9 @@ function loadForEdit(id, readOnly){
   g('f_phone').value        = o.clientPhone||o.phone||'';
   g('f_country').value      = paisDeMoneda(o.currency);
   updatePhoneCountryBadge();
-  g('f_address').value      = o.address||o.shipping_address||'';
+  { const full = o.address||o.shipping_address||''; const conPartes = o.city||o.state||o.zip||o.street;
+    g('f_address').value = conPartes ? (o.street||'') : full;
+    g('f_city').value = o.city||''; g('f_state').value = o.state||''; g('f_zip').value = o.zip||''; g('zipEstado').textContent = ''; }
   g('f_address_usa').value  = o.address_usa||o.shipping_address_usa||'';
   g('f_casillero').value    = o.casillero||o.casillero_number||'';
   checkCourierBadge();
@@ -3998,7 +4074,14 @@ function selectAddr(idx){
   ].filter(Boolean);
   const addr = parts.length ? parts.join(', ') : item.display_name;
   if(window.confirm('¿Confirmas usar esta dirección?\n\n'+addr)){
-    document.getElementById('f_address').value = addr;
+    const calle = [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(' ');
+    const iso = String(a['ISO3166-2-lvl4']||'').split('-')[1];
+    document.getElementById('f_address').value = calle || item.display_name.split(',')[0];
+    document.getElementById('f_city').value  = a.city || a.town || a.village || a.suburb || a.county || '';
+    document.getElementById('f_state').value = iso || a.state || '';
+    document.getElementById('f_zip').value   = (a.postcode||'').split(';')[0].trim();
+    document.getElementById('zipEstado').textContent = '';
+    if(a.country_code==='do' || a.country_code==='us'){ const sel=document.getElementById('f_country'); const nuevo = a.country_code==='do'?'RD':'USA'; if(sel.value!==nuevo && !items.length){ sel.value=nuevo; if(typeof cambiarPais==='function') cambiarPais(); } }
   }
   document.getElementById('addrDropdown').style.display = 'none';
   _addrResults = [];
