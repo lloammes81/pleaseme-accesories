@@ -431,6 +431,18 @@
   leerCola().then(q => { pendientes = q.length; pintarEstado(); }).catch(() => {});
 
   // ── Interceptar fetch hacia la base de datos ────────────────
+  // Protección: guardar una factura con la lista de artículos vacía NO borra los artículos que
+  // ya tenga (aquí ni en Supabase). Se quita "items" del cambio cuando viene vacío; así abrir,
+  // imprimir o guardar una factura incompleta no pisa la copia buena.
+  function sinItemsVacios(bodyText){
+    let body;
+    try{ body = JSON.parse(bodyText); }catch{ return bodyText; }
+    const vacio = v => v === null || v === '' || (Array.isArray(v) && !v.length) || (typeof v === 'string' && /^\s*(\[\s*\]|null)\s*$/.test(v));
+    let cambio = false;
+    (Array.isArray(body) ? body : [body]).forEach(r => { if(r && typeof r === 'object' && 'items' in r && vacio(r.items)){ delete r.items; cambio = true; } });
+    return cambio ? JSON.stringify(body) : bodyText;
+  }
+
   window.fetch = async function(input, init){
     const url = typeof input === 'string' ? input : (input && input.url) || String(input);
     if(!url.startsWith(PM_DB_URL)) return realFetch(input, init);
@@ -438,9 +450,10 @@
       const u = new URL(url);
       const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
       const headers = new Headers((init && init.headers) || (input && input.headers) || {});
-      const bodyText = init && typeof init.body === 'string' ? init.body : null;
+      let bodyText = init && typeof init.body === 'string' ? init.body : null;
       if(!u.pathname.startsWith('/rest/v1/')) return respond(404, { message: 'Ruta no encontrada' });
       const table = u.pathname.slice('/rest/v1/'.length).replace(/\/+$/, '');
+      if(table === 'facturas' && bodyText && method !== 'GET' && method !== 'HEAD') bodyText = sinItemsVacios(bodyText);
       if(table === 'facturas') await autoItems;   // primero se recuperan los artículos del navegador
       if(method === 'GET' || method === 'HEAD') await nubeLeer(table, u, headers);
       const info = {};
