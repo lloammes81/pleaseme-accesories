@@ -560,7 +560,8 @@
             <option value="pendiente">Pendiente</option>
             <option value="procesando">Procesando</option>
             <option value="enviado">Enviado</option>
-            <option value="entregado">Entregado / Pagado</option>
+            <option value="pagado">Pagado</option>
+            <option value="entregado">Entregado</option>
             <option value="cancelado">Cancelado</option>
           </select>
         </div>
@@ -2433,9 +2434,35 @@ document.addEventListener('keydown', e=>{
 // ══════════════════════════════════════════════════════
 //  IMPRIMIR FACTURA
 // ══════════════════════════════════════════════════════
+// Al imprimir, la factura pasa de "pendiente"/"procesando" a "pagado" (antes de abrir la
+// ventana de impresión, para que la factura impresa ya diga PAGADO). Entregado/enviado/anulada no cambian.
+function marcarPagadaAlImprimir(o){
+  const st = o.status||o.invoice_status||'pendiente';
+  if(st!=='pendiente' && st!=='procesando') return;
+  const id = o.id;
+  const aplicar = x => { x.status = 'pagado'; x.invoice_status = 'pagado'; };
+  const pintar = () => {
+    renderList(); updateKPIs();
+    if(g('invoicesModal').style.display!=='none') renderModal();
+  };
+  aplicar(o);
+  if(editingId===id && g('f_status')) g('f_status').value = 'pagado';
+  pintar();
+  // Se guarda primero en la base y después en localStorage: así ninguna recarga (ni otra ventana)
+  // puede leer el estado viejo y devolverlo a "procesando".
+  const fin = () => {
+    const x = DB.orders.find(y=>y.id===id);
+    if(x && x.status!=='cancelado' && x.status!=='entregado' && x.status!=='pagado'){ aplicar(x); pintar(); }
+    persist();
+  };
+  sbPATCH('facturas','id=eq.'+encodeURIComponent(id), {status:'pagado', updated_at:new Date().toISOString()})
+    .then(fin, e=>{ console.error('[SB] marcar pagada:', e.message); fin(); });
+}
+
 function printInvoice(id){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Factura no encontrada','err'); return; }
+  marcarPagadaAlImprimir(o);
   openPrintWindow(o);
 }
 
@@ -2451,6 +2478,7 @@ async function printCurrentInvoice(){
   if(!o){ toast('Factura no encontrada','err'); return; }
   // Factura nueva: preguntar si se envía al cliente (la impresión sigue porque se pidió imprimir)
   if(wasNew) await askSendInvoiceToClient(o, {printOnNo:false});
+  marcarPagadaAlImprimir(o);
   openPrintWindow(o);
   openPirateShipLabel(o);
 }
