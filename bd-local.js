@@ -11,7 +11,8 @@
 //  • pmAbrirBDLocal(): ventana "🗄 BD local" con:
 //      - Traer mis datos: copia todo lo de Supabase y lo guardado en este
 //        navegador a la base local (no borra nada; se puede repetir).
-//      - Descargar respaldo (.json) y Restaurar respaldo.
+//      - Descargar respaldo (.json) y Restaurar: respaldo .json o el
+//        registro de facturas descargado en Excel (.xlsx/.xls) o CSV.
 //
 //  Debe cargarse ANTES que cualquier otro script de la página.
 // ══════════════════════════════════════════════════════════════
@@ -418,10 +419,171 @@
   function pickFile(){
     return new Promise(resolve => {
       const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = '.json,application/json';
+      inp.type = 'file'; inp.accept = '.json,.csv,.xlsx,.xls,application/json,text/csv';
       inp.onchange = () => resolve(inp.files && inp.files[0] || null);
       inp.click();
     });
+  }
+
+  // ── Restaurar facturas desde Excel (.xlsx/.xls) o CSV ───────
+  //  Acepta el registro descargado con "⬇ CSV" (Facturación o Admin),
+  //  aunque se haya abierto y guardado en Excel.
+  const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const COLS = {
+    id:              ['id'],
+    invoice_num:     ['nofactura', 'nfactura', 'numfactura', 'numerofactura', 'factura', 'nodefactura', 'invoicenum', 'invoice', 'numero', 'no'],
+    client_name:     ['cliente', 'nombre', 'nombrecliente', 'clientname', 'client'],
+    client_email:    ['email', 'correo', 'correoelectronico', 'clientemail'],
+    client_phone:    ['telefono', 'tel', 'celular', 'whatsapp', 'phone', 'clientphone'],
+    client_address:  ['direccion', 'address', 'clientaddress'],
+    subtotal:        ['subtotal'],
+    shipping:        ['envio', 'shipping'],
+    discount_amount: ['descuento', 'discount', 'discountamount'],
+    total:           ['total', 'monto', 'importe'],
+    status:          ['estado', 'status'],
+    payment_method:  ['metodopago', 'metododepago', 'formadepago', 'pago', 'paymentmethod'],
+    fecha:           ['fecha', 'fechafactura', 'date', 'invoicedate', 'createdat'],
+    notes:           ['notas', 'nota', 'notes', 'observaciones'],
+  };
+  const NUMERIC = ['subtotal', 'shipping', 'discount_amount', 'total'];
+
+  function parseCSV(text){
+    text = text.replace(/^﻿/, '');
+    const first = text.split(/\r?\n/, 1)[0];
+    const count = c => first.split(c).length - 1;
+    const sep = [';', '\t', ','].reduce((a, b) => count(b) > count(a) ? b : a, ',');
+    const rows = []; let row = [], cell = '', q = false;
+    for(let i = 0; i < text.length; i++){
+      const ch = text[i];
+      if(q){
+        if(ch === '"'){ if(text[i + 1] === '"'){ cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      }
+      else if(ch === '"' && cell === '') q = true;
+      else if(ch === sep){ row.push(cell); cell = ''; }
+      else if(ch === '\n' || ch === '\r'){
+        if(ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); rows.push(row); row = []; cell = '';
+      }
+      else cell += ch;
+    }
+    if(cell !== '' || row.length){ row.push(cell); rows.push(row); }
+    return rows;
+  }
+
+  function loadScript(src){
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res;
+      s.onerror = () => rej(new Error('No se pudo cargar el lector de Excel (necesita internet). Guarda el archivo como CSV en Excel y vuelve a intentarlo.'));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function readSheet(file){
+    if(/\.csv$/i.test(file.name)) return parseCSV(await file.text());
+    if(!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    return window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+  }
+
+  function toNumber(v){
+    if(typeof v === 'number') return v;
+    let s = String(v || '').replace(/[^\d,.\-]/g, '');
+    if(!s) return 0;
+    const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+    if(lc > ld) s = /,\d{1,2}$/.test(s) ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+    else s = s.replace(/,/g, '');
+    const n = Number(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // Devuelve AAAA-MM-DD o '' (acepta fecha ISO, dd/mm/aaaa y el número de fecha de Excel)
+  function toDate(v){
+    const pad = n => String(n).padStart(2, '0');
+    if(typeof v === 'number' && v > 20000 && v < 80000){
+      const d = new Date(Math.round((v - 25569) * 86400000));
+      return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
+    }
+    const s = String(v || '').trim();
+    let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if(m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+    if(m){
+      let [, a, b, y] = m;
+      if(y.length === 2) y = '20' + y;
+      const [d, mo] = Number(b) > 12 ? [b, a] : [a, b];       // dd/mm salvo que no pueda ser
+      return y + '-' + pad(mo) + '-' + pad(d);
+    }
+    return '';
+  }
+
+  function sheetToFacturas(table, existing){
+    const hIdx = table.slice(0, 10).findIndex(r => r.filter(c => Object.values(COLS).some(a => a.includes(norm(c)))).length >= 2);
+    if(hIdx < 0) throw new Error('No encontré los encabezados (No. Factura, Cliente, Total, Fecha…) en el archivo.');
+    const col = {};
+    table[hIdx].forEach((h, i) => {
+      const n = norm(h);
+      for(const [field, alias] of Object.entries(COLS)) if(col[field] === undefined && alias.includes(n)){ col[field] = i; break; }
+    });
+    const byNum = new Map(existing.filter(f => f.invoice_num).map(f => [String(f.invoice_num).trim(), f.id]));
+    const ids = new Set(existing.map(f => String(f.id)));
+    const out = [];
+    table.slice(hIdx + 1).forEach((r, i) => {
+      const get = f => col[f] === undefined ? '' : r[col[f]];
+      const txt = f => String(get(f) == null ? '' : get(f)).trim();
+      if(!r.some(c => String(c).trim() !== '')) return;
+      let id = txt('id'), num = txt('invoice_num');
+      if(id && !id.startsWith('fac-') && !ids.has(id)){ if(!num) num = id; id = ''; }
+      if(!id && num) id = byNum.get(num) || '';
+      if(!id) id = 'fac-imp-' + (num ? num.replace(/[^A-Za-z0-9_-]/g, '') : '') + '-' + (i + 1);
+      const fecha = toDate(get('fecha'));
+      const f = { id, invoice_num: num, client_name: txt('client_name'), client_email: txt('client_email'),
+        client_phone: txt('client_phone'), client_address: txt('client_address'), status: txt('status').toLowerCase(),
+        payment_method: txt('payment_method'), notes: txt('notes'), invoice_date: fecha,
+        created_at: fecha ? fecha + 'T12:00:00.000Z' : '' };
+      NUMERIC.forEach(k => { if(col[k] !== undefined && txt(k) !== '') f[k] = toNumber(get(k)); });
+      if(!f.client_name && !f.invoice_num && f.total === undefined) return;
+      Object.keys(f).forEach(k => { if(f[k] === '') delete f[k]; });
+      if(!ids.has(id)){
+        Object.assign(f, { status: f.status || 'pendiente', items: [], currency: 'USD',
+          subtotal: f.subtotal ?? f.total ?? 0, total: f.total ?? 0, shipping: f.shipping ?? 0, discount_amount: f.discount_amount ?? 0,
+          created_at: f.created_at || new Date().toISOString() });
+        f.invoice_date = f.invoice_date || f.created_at.slice(0, 10);
+      }
+      ids.add(id);
+      if(num) byNum.set(num, id);
+      out.push(f);
+    });
+    return out;
+  }
+
+  // Restaura un archivo: respaldo .json, o registro de facturas en Excel/CSV
+  async function restoreFile(file, log){
+    if(/\.json$/i.test(file.name)){
+      const data = JSON.parse(await file.text());
+      if(!data || typeof data.tablas !== 'object') throw new Error('El archivo no es un respaldo de Pleaseme');
+      const reemplazar = confirm('¿Reemplazar los registros existentes con los del respaldo?\n\nAceptar = el respaldo manda\nCancelar = solo agregar lo que falte');
+      log('\nRestaurando ' + file.name + '…');
+      for(const [t, rows] of Object.entries(data.tablas)){
+        if(!/^[A-Za-z0-9_]+$/.test(t) || !Array.isArray(rows) || t === META) continue;
+        const r = await importRows(t, rows, reemplazar ? 'reemplazar' : 'completar');
+        log('  · ' + t + ': ' + r.nuevos + ' nuevos, ' + r.actualizados + ' actualizados');
+      }
+      log('\n✓ Respaldo restaurado.');
+      return true;
+    }
+    if(!/\.(csv|xlsx|xls)$/i.test(file.name)) throw new Error('Formato no soportado. Elige un respaldo .json o un registro de facturas .xlsx, .xls o .csv');
+    log('\nLeyendo ' + file.name + '…');
+    const facturas = sheetToFacturas(await readSheet(file), await allRows('facturas'));
+    if(!facturas.length){ log('  (no se encontraron facturas en el archivo)'); return false; }
+    log('  · ' + facturas.length + ' facturas encontradas');
+    if(!confirm('Se van a restaurar ' + facturas.length + ' facturas desde ' + file.name + '.\n\nLas facturas que ya existen no se cambian: solo se completan los datos que les falten. ¿Continuar?')) return false;
+    const r = await importRows('facturas', facturas, 'completar');
+    log('  · facturas: ' + r.nuevos + ' nuevas, ' + r.actualizados + ' completadas');
+    log('\n✓ Facturas restauradas. El Excel/CSV solo trae el resumen (número, cliente, total, estado y fecha), no los artículos de cada factura.');
+    return true;
   }
 
   // ── Ventana "BD local" ──────────────────────────────────────
@@ -441,7 +603,7 @@
         </div>
         <pre id="pmBDLog" style="margin:0;padding:14px 20px;overflow:auto;flex:1;min-height:120px;font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:#cfc6b0"></pre>
         <div style="padding:12px 20px;border-top:1px solid rgba(212,175,55,.2);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
-          <button data-a="restaurar" style="${BTN}">📂 Restaurar respaldo</button>
+          <button data-a="restaurar" style="${BTN}" title="Respaldo .json o registro de facturas en Excel (.xlsx/.xls) o CSV">📂 Restaurar (respaldo o Excel)</button>
           <button data-a="respaldo" style="${BTN}">💾 Descargar respaldo</button>
           <button data-a="migrar" style="${BTN_MAIN}">⇪ Traer mis datos (Supabase + navegador)</button>
         </div>
@@ -505,19 +667,15 @@
     ov.querySelector('[data-a="restaurar"]').onclick = () => run(async () => {
       const file = await pickFile();
       if(!file) return;
-      const data = JSON.parse(await file.text());
-      if(!data || typeof data.tablas !== 'object') throw new Error('El archivo no es un respaldo de Pleaseme');
-      const reemplazar = confirm('¿Reemplazar los registros existentes con los del respaldo?\n\nAceptar = el respaldo manda\nCancelar = solo agregar lo que falte');
-      log('\nRestaurando ' + file.name + '…');
-      for(const [t, rows] of Object.entries(data.tablas)){
-        if(!/^[A-Za-z0-9_]+$/.test(t) || !Array.isArray(rows) || t === META) continue;
-        const r = await importRows(t, rows, reemplazar ? 'reemplazar' : 'completar');
-        log('  · ' + t + ': ' + r.nuevos + ' nuevos, ' + r.actualizados + ' actualizados');
-      }
-      changed = true;
-      log('\n✓ Respaldo restaurado.');
+      if(await restoreFile(file, log)){ changed = true; await showTotals('\nTotal en la base local:'); }
     });
   }
   window.pmAbrirBDLocal = pmAbrirBDLocal;
   window.pmMigrarABaseLocal = pmAbrirBDLocal;   // compatibilidad con botones anteriores
+
+  // Botón "📂 Restaurar": abre la ventana BD local y pide el archivo de una vez
+  window.pmRestaurarArchivo = async function(){
+    await pmAbrirBDLocal();
+    document.querySelector('#pmBDOverlay [data-a="restaurar"]')?.click();
+  };
 })();

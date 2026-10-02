@@ -34,7 +34,23 @@ datos. Por eso:
 - Pulsa **🗄 BD local → 💾 Descargar respaldo** con frecuencia y guarda el
   archivo `.json` en un USB o en la nube.
 - Para recuperar los datos, o para pasarlos a otro equipo, usa
-  **📂 Restaurar respaldo** y elige ese archivo.
+  **📂 Restaurar** y elige ese archivo.
+
+## Restaurar facturas desde Excel o CSV
+
+Si solo tienes el registro de facturas descargado con **⬇ CSV** (aunque lo
+hayas abierto y guardado en Excel):
+
+1. Pulsa **📂 Restaurar** (en Facturación junto a "⬇ CSV", en Admin junto a
+   "📊 Exportar CSV", o dentro de **🗄 BD local**).
+2. Elige el archivo `.xlsx`, `.xls` o `.csv`.
+3. Se crean las facturas que falten. Las que ya existen no se cambian; solo
+   se completan los datos vacíos.
+
+El Excel solo trae el resumen de cada factura (número, cliente, email,
+teléfono, total, estado y fecha), no los artículos. Para recuperar todo, usa
+un respaldo `.json`. Abrir un archivo `.xlsx` necesita internet; un `.csv`
+funciona sin internet.
 - **No uses** "Borrar datos de navegación / cookies y datos de sitios" en ese
   navegador.
 
