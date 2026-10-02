@@ -324,6 +324,7 @@
     <button class="btn btn-outline" onclick="openNewInvoice()">＋ Nueva Factura</button>
     <button class="btn btn-green" onclick="exportCSV()" title="Descargar el registro completo de facturas (con artículos) en Excel">⬇ Excel</button>
     <button class="btn btn-outline" onclick="pmRestaurarArchivo()" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json">📂 Restaurar</button>
+    <button class="btn btn-outline" onclick="openPrintHistory()" title="Ver todas las facturas impresas y abrirlas en PDF">🖨 Historial</button>
     <button class="btn btn-outline" onclick="window.close()" title="Cerrar ventana">✕ Cerrar</button>
   </div>
 </header>
@@ -633,6 +634,26 @@
       <div id="modalInvoiceList" style="flex:1;overflow-y:auto;padding:12px 22px;display:flex;flex-direction:column;gap:8px">
         <div class="items-empty">Cargando...</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL — HISTORIAL DE IMPRESIÓN ═══ -->
+  <div id="printHistModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:min(900px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.8)">
+      <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-family:Georgia,serif;font-size:17px;color:var(--gold);font-weight:700">🖨 Historial de impresión</span>
+          <span id="printHistCount" style="font-size:11px;color:var(--muted);background:rgba(212,175,55,.1);padding:2px 8px;border-radius:20px"></span>
+        </div>
+        <button onclick="closePrintHistory()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0 4px">✕</button>
+      </div>
+      <div style="padding:12px 22px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <div class="search-wrap" style="margin-bottom:0">
+          <input id="printHistQ" placeholder="Buscar cliente, No. factura..." oninput="renderPrintHistory()" style="padding-left:34px"/>
+        </div>
+      </div>
+      <div style="padding:6px 22px 0;font-size:11px;color:var(--muted)">🧾 PDF abre la factura tal como se imprimió · ✏️ abre la factura para hacer cambios</div>
+      <div id="printHistList" style="flex:1;overflow-y:auto;padding:12px 22px;display:flex;flex-direction:column;gap:8px"></div>
     </div>
   </div>
 
@@ -2417,6 +2438,8 @@ document.addEventListener('keydown', e=>{
   if(courierPicker && courierPicker.style.display !== 'none'){ closeCourierPicker(); return; }
   const clientPicker = g('clientPicker');
   if(clientPicker && clientPicker.classList.contains('open')){ closeClientPicker(); return; }
+  const printHistModal = g('printHistModal');
+  if(printHistModal && printHistModal.style.display !== 'none'){ closePrintHistory(); return; }
   const invoicesModal = g('invoicesModal');
   if(invoicesModal && invoicesModal.style.display !== 'none'){ closeInvoicesModal(); return; }
   const companyPanel = g('companyPanel');
@@ -2506,10 +2529,96 @@ function marcarPagadaAlImprimir(o){
     .then(fin, e=>{ console.error('[SB] marcar pagada:', e.message); fin(); });
 }
 
+// ══════════════════════════════════════════════════════
+//  HISTORIAL DE IMPRESIÓN
+//  Cada impresión guarda una COPIA de la factura tal como se imprimió (tabla local
+//  "impresiones", incluida en los respaldos). El PDF del historial se genera desde
+//  esa copia, así se puede volver a abrir aunque la factura cambie después.
+// ══════════════════════════════════════════════════════
+function registrarImpresion(o){
+  let copia;
+  try{ copia = JSON.parse(JSON.stringify(o)); }catch(e){ copia = {...o}; }
+  delete copia.pending_sync;
+  const ahora = new Date().toISOString();
+  const reg = {
+    id: 'imp-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+    factura_id: o.id,
+    invoice_num: o.invoice_num||o.invoiceNum||'',
+    client_name: o.clientName||o.client_name||'',
+    total: Number(o.total||0),
+    status: o.status||o.invoice_status||'',
+    items_count: (o.items||[]).reduce((a,i)=>a+(Number(i.qty)||1),0),
+    impreso_at: ahora,
+    created_at: ahora,
+    factura: copia,
+  };
+  sbPOST('impresiones', reg, 'return=minimal').catch(e=>console.error('[Historial impresión]', e.message));
+}
+
+let _impresiones = [];
+async function openPrintHistory(){
+  g('printHistQ').value = '';
+  g('printHistModal').style.display = 'flex';
+  g('printHistList').innerHTML = '<div class="items-empty" style="padding:30px;text-align:center;color:var(--muted)">Cargando…</div>';
+  _impresiones = (await sbGET('impresiones?select=*&order=impreso_at.desc')) || [];
+  renderPrintHistory();
+}
+function closePrintHistory(){ g('printHistModal').style.display = 'none'; }
+
+function renderPrintHistory(){
+  const q = (g('printHistQ').value||'').toLowerCase().trim();
+  const list = q ? _impresiones.filter(r=>((r.invoice_num||'')+' '+(r.client_name||'')).toLowerCase().includes(q)) : _impresiones;
+  g('printHistCount').textContent = list.length+' impresi'+(list.length!==1?'ones':'ón');
+  const el = g('printHistList');
+  if(!list.length){
+    el.innerHTML = '<div class="items-empty" style="padding:30px;text-align:center;color:var(--muted)">'+
+      (_impresiones.length ? 'Sin impresiones que coincidan' : 'Todavía no hay facturas impresas. Cada vez que imprimas una factura aparecerá aquí.')+'</div>';
+    return;
+  }
+  el.innerHTML = list.map(r=>{
+    const f = new Date(r.impreso_at||r.created_at);
+    const cuando = f.toLocaleDateString('es')+' '+f.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+    const status = r.status||'pendiente';
+    const n = Number(r.items_count||0);
+    const existe = DB.orders.some(x=>x.id===r.factura_id);
+    return `
+    <div class="invoice-card" style="cursor:default">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="inv-num">${esc(r.invoice_num||'—')}</div>
+            <span class="status-badge s-${esc(status)}">${esc(status)}</span>
+          </div>
+          <div class="inv-client" style="margin:3px 0 2px">${esc(r.client_name||'Sin nombre')}</div>
+          <div class="inv-meta" style="display:flex;gap:10px;flex-wrap:wrap"><span>🖨 ${cuando}</span><span>🛍 ${n} artículo${n!==1?'s':''}</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <div class="inv-total">$${Number(r.total||0).toFixed(2)}</div>
+          <button class="btn btn-sm btn-green" onclick="printHistoryPDF('${r.id}')" title="Abrir en PDF la factura tal como se imprimió">🧾 PDF</button>
+          ${existe?`<button class="btn btn-sm btn-outline" onclick="closePrintHistory();loadForEdit('${r.factura_id}')" title="Abrir la factura para hacer cambios">✏️</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function printHistoryPDF(id){
+  const r = _impresiones.find(x=>x.id===id);
+  if(!r || !r.factura){ toast('Impresión no encontrada','err'); return; }
+  try{
+    const doc = buildInvoicePDF(r.factura);
+    if(doc) showPDFInTab(doc, 'Factura-'+(r.invoice_num||r.factura_id));
+  }catch(e){ toast('Error PDF: '+e.message,'err'); console.error(e); }
+}
+
+document.addEventListener('click', e=>{
+  const m = document.getElementById('printHistModal');
+  if(m && e.target===m) closePrintHistory();
+});
+
 function printInvoice(id){
   const o = DB.orders.find(x=>x.id===id);
   if(!o){ toast('Factura no encontrada','err'); return; }
-  marcarPagadaAlImprimir(o);
   openPrintWindow(o);
 }
 
@@ -2525,7 +2634,6 @@ async function printCurrentInvoice(){
   if(!o){ toast('Factura no encontrada','err'); return; }
   // Factura nueva: preguntar si se envía al cliente (la impresión sigue porque se pidió imprimir)
   if(wasNew) await askSendInvoiceToClient(o, {printOnNo:false});
-  marcarPagadaAlImprimir(o);
   openPrintWindow(o);
   openPirateShipLabel(o);
 }
@@ -2546,6 +2654,9 @@ function openPirateShipLabel(o){
 }
 
 function openPrintWindow(o){
+  // Toda impresión: pasa a "pagado" y queda en el historial de impresión (con copia de la factura)
+  marcarPagadaAlImprimir(o);
+  registrarImpresion(o);
   const co = getCompanyInfo();
   const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
   const logoSrc = (co._logoB64||co.logoB64||co.logo_b64||co.logo||'').trim();

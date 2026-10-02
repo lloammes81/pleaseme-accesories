@@ -270,7 +270,7 @@
   let nube = 'conectando';            // 'conectando' | 'conectada' | 'sin-conexion'
   let nubeError = '';
   let nubeHasta = 0;                  // tras un fallo no se reintenta hasta esta hora
-  const soloLocal = new Set([META]);  // tablas que no existen en Supabase
+  const soloLocal = new Set([META, 'impresiones']);  // tablas que no existen en Supabase (impresiones: historial de impresión de este equipo)
 
   function marcarNube(estado, error){
     nube = estado; nubeError = error || '';
