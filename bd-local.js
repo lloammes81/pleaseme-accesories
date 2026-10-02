@@ -5,9 +5,9 @@
 //  "pleaseme_bd_local"). No hay que instalar nada.
 //
 //  • Las páginas siguen llamando a SB_URL + '/rest/v1/<tabla>' (el mismo
-//    formato que usaba Supabase). Este archivo intercepta esas llamadas
-//    y las resuelve con la base local, así la lógica de las páginas no
-//    cambia.
+//    formato que usaba Supabase). Este archivo intercepta esas llamadas:
+//    con internet las sincroniza con Supabase (base principal) y siempre
+//    las resuelve con la base local, así funciona también sin internet.
 //  • pmAbrirBDLocal(): ventana "🗄 BD local" con:
 //      - Traer mis datos: copia todo lo de Supabase y lo guardado en este
 //        navegador a la base local (no borra nada; se puede repetir).
@@ -189,7 +189,7 @@
     });
   }
 
-  async function handleRest(table, params, method, headers, bodyText){
+  async function handleRest(table, params, method, headers, bodyText, info = {}){
     if(!/^[A-Za-z0-9_]+$/.test(table)) return respond(400, { message: 'Tabla inválida' });
     const pk = pkOf(table);
     const prefer = String(headers.get('prefer') || '');
@@ -228,6 +228,7 @@
         }
       }
       await write(ops);
+      info.saved = saved;
       return respond(201, pref.repr ? saved : null);
     }
 
@@ -241,6 +242,7 @@
     if(method === 'PUT'){
       const row = withDefaults(table, body || {}, rows);
       await write([{ put: [table, row] }]);
+      info.saved = [row];
       return pref.repr ? respond(200, [row]) : respond(204, null);
     }
 
@@ -253,7 +255,180 @@
     return respond(405, { message: 'Método no permitido' });
   }
 
-  // ── Interceptar fetch hacia la base local ───────────────────
+  // ══════════════════════════════════════════════════════════
+  //  SUPABASE (nube) — conexión automática
+  //
+  //  Con internet, Supabase es la base principal: cada lectura se pide a
+  //  Supabase y se copia a la base local; cada cambio se guarda primero en
+  //  la base local y se sube a Supabase en orden (cola "pendientes").
+  //  Sin internet se trabaja con la base local y la cola se sube sola al
+  //  volver la conexión.
+  // ══════════════════════════════════════════════════════════
+  const NUBE_TIMEOUT = 10000, NUBE_REINTENTO = 30000;
+  let nube = 'conectando';            // 'conectando' | 'conectada' | 'sin-conexion'
+  let nubeError = '';
+  let nubeHasta = 0;                  // tras un fallo no se reintenta hasta esta hora
+  const soloLocal = new Set([META]);  // tablas que no existen en Supabase
+
+  function marcarNube(estado, error){
+    nube = estado; nubeError = error || '';
+    if(estado === 'sin-conexion') nubeHasta = Date.now() + NUBE_REINTENTO;
+    pintarEstado();
+  }
+
+  async function nubeFetch(pathQuery, method, prefer, body, range){
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), NUBE_TIMEOUT);
+    const h = { apikey: LEGACY_SB_KEY, Authorization: 'Bearer ' + LEGACY_SB_KEY, 'Content-Type': 'application/json' };
+    if(prefer) h.Prefer = prefer;
+    if(range) h.Range = range;
+    try{ return await realFetch(LEGACY_SB_URL + pathQuery, { method, headers: h, body: body == null ? undefined : JSON.stringify(body), signal: ctl.signal }); }
+    finally{ clearTimeout(t); }
+  }
+  const tablaNoExiste = (r, txt) => r.status === 404 || /PGRST205|42P01|does not exist|Could not find the table/.test(txt);
+
+  // Envía un cambio a Supabase. Si Supabase no tiene alguna columna, la quita y reintenta
+  // (esa columna queda guardada solo en la base local).
+  async function nubeEscribir(op){
+    let body = op.body;
+    for(let i = 0; i < 20; i++){
+      if(body && !Array.isArray(body) && !Object.keys(body).length) return { ok: true };
+      const r = await nubeFetch(op.pq, op.method, op.prefer, body);
+      if(r.ok) return { ok: true };
+      const txt = await r.text().catch(() => '');
+      if(r.status >= 500 || r.status === 0) throw new Error('Supabase HTTP ' + r.status);
+      const m = txt.match(/Could not find the '([^']+)' column/);
+      if(m && body){ const quitar = o => { const c = { ...o }; delete c[m[1]]; return c; }; body = Array.isArray(body) ? body.map(quitar) : quitar(body); continue; }
+      if(tablaNoExiste(r, txt)) soloLocal.add(op.tabla);
+      return { ok: false, error: 'HTTP ' + r.status + ' ' + txt };
+    }
+    return { ok: false, error: 'demasiadas columnas desconocidas' };
+  }
+
+  // Cola de cambios pendientes de subir (se guarda en la base local)
+  let colaLock = Promise.resolve();
+  const conCola = fn => (colaLock = colaLock.then(fn, fn));
+  const leerCola = async () => ((await getMeta('pendientes_nube')) || {}).value || [];
+  let pendientes = 0;
+  function encolar(op){
+    return conCola(async () => { const q = await leerCola(); q.push(op); await setMeta('pendientes_nube', q); pendientes = q.length; pintarEstado(); });
+  }
+
+  let enviando = null;
+  // Devuelve true si la cola quedó vacía (todo está en Supabase)
+  function enviarPendientes(){
+    if(enviando) return enviando;
+    enviando = (async () => {
+      try{
+        for(;;){
+          const op = (await conCola(leerCola))[0];
+          if(!op){ pendientes = 0; return true; }
+          if(Date.now() < nubeHasta) return false;
+          let r;
+          try{ r = await nubeEscribir(op); }
+          catch(e){ marcarNube('sin-conexion', e.message); return false; }
+          if(!r.ok) console.warn('[Supabase] no se pudo subir un cambio de ' + op.tabla + ' (queda en la base local):', r.error);
+          await conCola(async () => { const q = await leerCola(); q.shift(); await setMeta('pendientes_nube', q); pendientes = q.length; });
+          if(nube !== 'conectada') marcarNube('conectada');
+        }
+      }finally{ enviando = null; pintarEstado(); }
+    })();
+    return enviando;
+  }
+
+  // Lee de Supabase y copia el resultado a la base local
+  async function nubeLeer(table, u, headers){
+    if(soloLocal.has(table) || Date.now() < nubeHasta) return;
+    if(!(await enviarPendientes())) return;            // primero suben los cambios hechos aquí
+    let r, txt;
+    try{
+      const q = new URLSearchParams(u.searchParams);
+      q.set('select', '*');                              // fila completa para la copia local
+      r = await nubeFetch(u.pathname + '?' + q.toString(), 'GET', null, null, headers.get('range'));
+      txt = await r.text();
+    }catch(e){ marcarNube('sin-conexion', e.name === 'AbortError' ? 'Supabase no responde' : e.message); return; }
+    if(r.status >= 500){ marcarNube('sin-conexion', 'Supabase HTTP ' + r.status); return; }
+    marcarNube('conectada');
+    subirLocalesUnaVez();
+    if(!r.ok){ if(tablaNoExiste(r, txt)) soloLocal.add(table); return; }
+    let rows; try{ rows = JSON.parse(txt); }catch{ return; }
+    const pk = pkOf(table);
+    if(Array.isArray(rows) && rows.length && rows.every(x => x && x[pk] != null)) await importRows(table, rows, 'nube');
+  }
+
+  // Una sola vez por equipo: sube a Supabase lo que solo está en la base local
+  // (facturas hechas sin conexión o mientras el sistema no usaba Supabase).
+  // Solo agrega lo que falta: nunca cambia ni borra nada en Supabase.
+  let subiendo = null;
+  function subirLocalesUnaVez(){
+    if(subiendo) return subiendo;
+    subiendo = (async () => {
+      if(await getMeta('subida_inicial')) return;
+      const tablas = Object.keys(await allTables()).filter(t => !soloLocal.has(t));
+      for(const t of tablas){
+        const pk = pkOf(t);
+        const cols = t === 'facturas' ? 'id,invoice_num,items' : pk;
+        const enNube = [];
+        for(let from = 0; ; from += 1000){
+          const r = await nubeFetch('/rest/v1/' + t + '?select=' + cols, 'GET', null, null, from + '-' + (from + 999));
+          if(!r.ok){ if(r.status >= 500) throw new Error('Supabase HTTP ' + r.status); soloLocal.add(t); break; }
+          const page = await r.json();
+          enNube.push(...page);
+          if(page.length < 1000) break;
+        }
+        if(soloLocal.has(t)) continue;
+        const ids = new Set(enNube.map(x => String(x[pk])));
+        const nums = new Set(enNube.map(numOf).filter(Boolean));
+        const sinArt = new Set(t === 'facturas' ? enNube.filter(x => !hasItems(x)).map(x => String(x.id)) : []);
+        for(const row of await allRows(t)){
+          const id = String(row[pk]);
+          if(ids.has(id)){
+            if(sinArt.has(id) && hasItems(row)) await encolar({ tabla: t, pq: '/rest/v1/facturas?id=eq.' + encodeURIComponent(id), method: 'PATCH', prefer: 'return=minimal', body: { items: itemsOf(row) } });
+            continue;
+          }
+          if(isDemo(t, { ...(row.record || {}), ...row })) continue;
+          if(t === 'facturas' && id.startsWith('fac-imp-') && nums.has(numOf(row))) continue;   // copia resumida de una factura que ya está
+          await encolar({ tabla: t, pq: '/rest/v1/' + t, method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: row });
+        }
+      }
+      await setMeta('subida_inicial', new Date().toISOString());
+      enviarPendientes();
+    })().catch(e => { console.warn('[Supabase] subida inicial:', e.message); subiendo = null; });
+    return subiendo;
+  }
+
+  // ── Indicador de conexión (Facturación y Admin) ─────────────
+  const conIndicador = !/tienda|account/i.test(location.pathname);
+  function pintarEstado(){
+    if(!conIndicador || !document.body) return;
+    let el = document.getElementById('pmNubeEstado');
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'pmNubeEstado';
+      el.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:99990;padding:5px 10px;border-radius:20px;font:600 11px system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4)';
+      el.onclick = () => { nubeHasta = 0; enviarPendientes(); alert(pmEstadoNube().texto + (nubeError ? '\n\nDetalle: ' + nubeError : '')); };
+      document.body.appendChild(el);
+    }
+    const e = pmEstadoNube();
+    el.textContent = e.icono + ' ' + e.corto;
+    el.title = e.texto;
+    el.style.background = e.estado === 'conectada' && !pendientes ? 'rgba(47,227,181,.15)' : 'rgba(212,175,55,.18)';
+    el.style.color = e.estado === 'conectada' && !pendientes ? '#2fe3b5' : '#e8c56e';
+    el.style.border = '1px solid ' + el.style.color;
+  }
+  function pmEstadoNube(){
+    const p = pendientes ? ' · ' + pendientes + ' cambio' + (pendientes === 1 ? '' : 's') + ' por subir' : '';
+    if(nube === 'conectada') return { estado: nube, icono: '☁', corto: 'Supabase conectado' + p, texto: 'Conectado a Supabase. Los datos se guardan en la nube y en este equipo.' + p };
+    if(nube === 'sin-conexion') return { estado: nube, icono: '⚠', corto: 'Sin conexión a Supabase' + p, texto: 'No hay conexión con Supabase. Se guarda en este equipo y se sube solo cuando vuelva internet.' + p };
+    return { estado: nube, icono: '…', corto: 'Conectando a Supabase' + p, texto: 'Conectando a Supabase…' };
+  }
+  window.pmEstadoNube = pmEstadoNube;
+  document.addEventListener('DOMContentLoaded', pintarEstado);
+  window.addEventListener('online', () => { nubeHasta = 0; enviarPendientes(); });
+  setInterval(() => { if(pendientes || nube !== 'conectada'){ enviarPendientes().then(ok => { if(ok && nube !== 'conectada') nubeFetch('/rest/v1/config?select=key&limit=1', 'GET').then(r => r.status < 500 && marcarNube('conectada'), () => {}); }); } }, 60000);
+  leerCola().then(q => { pendientes = q.length; pintarEstado(); }).catch(() => {});
+
+  // ── Interceptar fetch hacia la base de datos ────────────────
   window.fetch = async function(input, init){
     const url = typeof input === 'string' ? input : (input && input.url) || String(input);
     if(!url.startsWith(PM_DB_URL)) return realFetch(input, init);
@@ -263,8 +438,23 @@
       const headers = new Headers((init && init.headers) || (input && input.headers) || {});
       const bodyText = init && typeof init.body === 'string' ? init.body : null;
       if(!u.pathname.startsWith('/rest/v1/')) return respond(404, { message: 'Ruta no encontrada' });
-      if(u.pathname.startsWith('/rest/v1/facturas')) await autoItems;   // primero se recuperan los artículos del navegador
-      return await handleRest(u.pathname.slice('/rest/v1/'.length).replace(/\/+$/, ''), u.searchParams, method, headers, bodyText);
+      const table = u.pathname.slice('/rest/v1/'.length).replace(/\/+$/, '');
+      if(table === 'facturas') await autoItems;   // primero se recuperan los artículos del navegador
+      if(method === 'GET' || method === 'HEAD') await nubeLeer(table, u, headers);
+      const info = {};
+      const res = await handleRest(table, u.searchParams, method, headers, bodyText, info);
+      if(method !== 'GET' && method !== 'HEAD' && res.ok && !soloLocal.has(table) && /^[A-Za-z0-9_]+$/.test(table)){
+        const prefer = String(headers.get('prefer') || '').split(',').map(x => x.trim()).filter(x => x && !x.startsWith('return=')).concat('return=minimal').join(',');
+        let body = null;
+        if(info.saved) body = method === 'PUT' ? info.saved[0] : info.saved;          // con el ID que se le dio aquí
+        else if(bodyText){ try{ body = JSON.parse(bodyText); }catch{} }
+        const q = new URLSearchParams(u.searchParams);
+        if(method === 'PUT'){ q.set(pkOf(table), 'eq.' + body[pkOf(table)]); }
+        const pq = u.pathname + (method === 'POST' ? (q.has('on_conflict') ? '?on_conflict=' + encodeURIComponent(q.get('on_conflict')) : '') : '?' + q.toString());
+        await encolar({ tabla: table, pq, method: method === 'PUT' ? 'POST' : method, prefer: method === 'PUT' ? 'resolution=merge-duplicates,return=minimal' : prefer, body });
+        enviarPendientes();
+      }
+      return res;
     }catch(e){
       console.error('[BD local]', e);
       return respond(500, { message: 'Base de datos local: ' + (e && e.message || e) });
@@ -305,7 +495,10 @@
       let changed = false;
       const merged = { ...existing };
       for(const [k, v] of Object.entries(input)){
-        const take = mode === 'reemplazar' ? JSON.stringify(existing[k]) !== JSON.stringify(v) : (isEmpty(existing[k]) && !isEmpty(v));
+        const distinto = JSON.stringify(existing[k]) !== JSON.stringify(v);
+        // 'nube': manda Supabase, pero una factura sin artículos en la nube no borra los de aquí
+        const take = mode === 'nube' ? distinto && !(k === 'items' && isEmpty(v) && !isEmpty(existing[k]))
+          : mode === 'reemplazar' ? distinto : (isEmpty(existing[k]) && !isEmpty(v));
         if(take){ merged[k] = v; changed = true; }
       }
       if(changed){ byId.set(key, merged); ops.push({ put: [table, merged] }); actualizados++; }

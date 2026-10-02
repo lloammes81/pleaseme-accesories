@@ -1,13 +1,23 @@
-# Pleaseme — Base de datos local (sin Supabase y sin servidor)
+# Pleaseme — Supabase + base de datos local
 
-El sistema ya no usa Supabase ni necesita instalar nada. La aplicación crea su
-propia base de datos **dentro del navegador de cada equipo**, con IndexedDB.
-Funciona sin internet.
+El sistema se conecta **automáticamente a Supabase** cuando hay internet. No
+hay que pulsar nada.
 
-- Cada equipo, y cada navegador, tiene su propia base de datos.
-- Usa siempre **el mismo navegador** y **la misma dirección** para abrir el
-  sistema. Por ejemplo, siempre Chrome abriendo los mismos archivos o la misma
-  página. Si cambias de navegador o de dirección, verás una base vacía.
+- **Con internet**: todo se lee de Supabase y se guarda en Supabase. También se
+  guarda una copia en este equipo (IndexedDB, dentro del navegador).
+- **Sin internet**: se sigue trabajando con la copia de este equipo. Los
+  cambios quedan en espera y se suben solos a Supabase cuando vuelve internet.
+- Abajo a la izquierda (en Facturación y Admin) se ve el estado:
+  **☁ Supabase conectado** o **⚠ Sin conexión a Supabase · N cambios por
+  subir**. Pulsa el indicador para reintentar o ver el detalle del error.
+- La primera vez que un equipo se conecta, sube a Supabase las facturas,
+  clientes, etc. que solo estaban en ese equipo. Solo agrega lo que falta:
+  nunca cambia ni borra nada en Supabase.
+- Si Supabase no tiene alguna columna (por ejemplo, el casillero), ese dato se
+  guarda solo en el equipo y el resto sí se sube.
+- Si siempre sale "Sin conexión" aunque haya internet, el proyecto de Supabase
+  puede estar **pausado**. Entra a supabase.com, abre el proyecto y pulsa
+  **Restore project**.
 
 ## Pasar la información que ya tienes
 
