@@ -49,6 +49,24 @@ datos. Por eso:
 - **No uses** "Borrar datos de navegación / cookies y datos de sitios" en ese
   navegador.
 
+## Respaldo diario automático
+
+Facturación y Admin hacen solos un respaldo completo **una vez al día**, a la
+hora de cierre (**18:00** por defecto). Mientras trabaja aparece abajo a la
+derecha una notificación con barra de progreso:
+
+1. Lee toda la base de datos.
+2. Guarda una copia en este equipo (se conservan las últimas 7).
+3. Descarga el archivo `pleaseme-respaldo-AAAA-MM-DD.json` en Descargas. Si el
+   navegador no lo descargó, pulsa **⬇ Descargar de nuevo** en la notificación.
+
+Si la app estaba cerrada a esa hora, el respaldo se hace al abrirla. Aunque
+haya varias pestañas abiertas, solo se hace uno por día.
+
+En **🗄 BD local** puedes cambiar la hora, desactivarlo o elegir no descargar
+el archivo. **💾 Respaldar ahora** lo hace en el momento y **🕘 Copias
+diarias** lista las copias guardadas y permite restaurar una.
+
 ## Registro de facturas en Excel
 
 **⬇ Excel** (en Facturación) descarga el registro **completo** de facturas:
