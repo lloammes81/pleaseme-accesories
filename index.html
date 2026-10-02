@@ -145,6 +145,8 @@
     .kpi{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:12px;padding:14px 16px;transition:border-color .2s,transform .2s}
     .kpi:hover{transform:translateY(-1px)}
     .kpi[onclick]{cursor:pointer}
+    .inv-fecha{cursor:pointer;border-bottom:1px dashed rgba(212,175,55,.45);padding:0 1px}
+    .inv-fecha:hover{color:var(--gold)}
     .kpi[onclick]:hover{border-color:rgba(212,175,55,.45)}
     .kpi-val{font-family:Georgia,serif;font-size:22px;color:var(--gold);font-weight:700}
     .kpi-lbl{font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:5px}
@@ -406,7 +408,7 @@
         </div>
         <div class="field">
           <label class="lbl">Fecha</label>
-          <input id="f_date" type="date" />
+          <input id="f_date" type="date" onclick="try{this.showPicker()}catch(e){}" style="cursor:pointer" title="Haz clic para cambiar la fecha" />
         </div>
       </div>
     </div>
@@ -1659,7 +1661,7 @@ function collectData(){
     discountValue: disc,
     discountAmount:disc,
     total,
-    created_at:    g('f_date').value ? new Date(g('f_date').value).toISOString() : new Date().toISOString(),
+    created_at:    g('f_date').value ? fechaAISO(g('f_date').value) : new Date().toISOString(),
     updated_at:    new Date().toISOString(),
     currency:      'USD',
   };
@@ -2017,7 +2019,7 @@ function renderList(){
         <div>
           <div class="inv-num">${invNum}</div>
           <div class="inv-client">${esc(o.clientName||'Sin nombre')}</div>
-          <div class="inv-meta"><span>${date}</span><span class="status-badge s-${status}">${status}</span></div>
+          <div class="inv-meta"><span class="inv-fecha" onclick="event.stopPropagation();cambiarFechaFactura('${o.id}',this)" title="Clic para cambiar la fecha">📅 ${date}</span><span class="status-badge s-${status}">${status}</span></div>
           ${o.tracking_number?`<div style="font-size:10px;color:${o.tracking_delivered?'#2fe3b5':'var(--green)'};margin-top:3px">📦 ${esc(o.tracking_status||o.tracking_number)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
@@ -2118,7 +2120,7 @@ function renderModal(){
           </div>
           <div class="inv-client" style="margin:3px 0 2px">${esc(o.clientName||'Sin nombre')}</div>
           <div class="inv-meta" style="display:flex;gap:10px;flex-wrap:wrap">
-            <span>📅 ${date}</span>
+            <span class="inv-fecha" onclick="event.stopPropagation();cambiarFechaFactura('${o.id}',this)" title="Clic para cambiar la fecha">📅 ${date}</span>
             <span>🛍 ${nItems} artículo${nItems!==1?'s':''}</span>
             ${o.payment_method?`<span>💳 ${esc(o.payment_method)}</span>`:''}
             ${o.clientPhone?`<span>📞 ${esc(o.clientPhone)}</span>`:''}
@@ -2434,6 +2436,51 @@ document.addEventListener('keydown', e=>{
 // ══════════════════════════════════════════════════════
 //  IMPRIMIR FACTURA
 // ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+//  CAMBIAR LA FECHA DE UNA FACTURA (clic sobre la fecha en las listas)
+// ══════════════════════════════════════════════════════
+// "AAAA-MM-DD" → ISO al mediodía local, para que ninguna zona horaria la muestre un día antes
+function fechaAISO(ymd){ return new Date(ymd+'T12:00:00').toISOString(); }
+
+function cambiarFechaFactura(id, el){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o){ toast('Factura no encontrada','err'); return; }
+  const actual = o.invoice_date || (o.created_at ? (()=>{ const d=new Date(o.created_at); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })() : '');
+  const inp = document.createElement('input');
+  inp.type = 'date'; inp.value = actual;
+  const r = el.getBoundingClientRect();
+  inp.style.cssText = 'position:fixed;left:'+r.left+'px;top:'+r.bottom+'px;width:1px;height:1px;opacity:0;border:0;padding:0';
+  document.body.appendChild(inp);
+  const quitar = () => setTimeout(()=>inp.remove(), 300);
+  inp.addEventListener('change', ()=>{ if(inp.value && inp.value!==actual) guardarFechaFactura(id, inp.value); quitar(); });
+  inp.addEventListener('blur', quitar);
+  inp.focus();
+  try{ inp.showPicker(); }
+  catch(e){
+    // Navegador sin calendario emergente: pedir la fecha escrita
+    inp.remove();
+    const v = prompt('Nueva fecha para '+(o.invoice_num||'la factura')+' (AAAA-MM-DD):', actual);
+    if(v && /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) && v.trim()!==actual) guardarFechaFactura(id, v.trim());
+    else if(v) toast('Fecha no válida. Usa el formato AAAA-MM-DD','warn');
+  }
+}
+
+function guardarFechaFactura(id, ymd){
+  const o = DB.orders.find(x=>x.id===id);
+  if(!o) return;
+  const cambio = { created_at: fechaAISO(ymd), invoice_date: ymd };
+  const aplicar = x => Object.assign(x, cambio);
+  const pintar = () => { renderList(); updateKPIs(); if(g('invoicesModal').style.display!=='none') renderModal(); };
+  aplicar(o);
+  if(editingId===id && g('f_date')) g('f_date').value = ymd;
+  pintar();
+  toast('📅 '+(o.invoice_num||'Factura')+': fecha cambiada a '+new Date(ymd+'T12:00:00').toLocaleDateString('es'),'ok');
+  // Primero la base, después localStorage (así una recarga no trae la fecha vieja)
+  const fin = () => { const x = DB.orders.find(y=>y.id===id); if(x && x.invoice_date!==ymd){ aplicar(x); pintar(); } persist(); };
+  sbPATCH('facturas','id=eq.'+encodeURIComponent(id), {...cambio, updated_at:new Date().toISOString()})
+    .then(fin, e=>{ console.error('[SB] cambiar fecha:', e.message); fin(); });
+}
+
 // Al imprimir, la factura pasa de "pendiente"/"procesando" a "pagado" (antes de abrir la
 // ventana de impresión, para que la factura impresa ya diga PAGADO). Entregado/enviado/anulada no cambian.
 function marcarPagadaAlImprimir(o){
