@@ -145,7 +145,7 @@
     .kpi{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:12px;padding:14px 16px;transition:border-color .2s,transform .2s}
     .kpi:hover{transform:translateY(-1px)}
     .kpi[onclick]{cursor:pointer}
-    .lb-sel,#itemsSelAll,#transferMover{width:auto!important;flex:none;margin:0;padding:0;cursor:pointer}
+    .lb-sel,#itemsSelAll{width:auto!important;flex:none;margin:0;padding:0;cursor:pointer}
     .inv-fecha{cursor:pointer;border-bottom:1px dashed rgba(212,175,55,.45);padding:0 1px}
     .inv-fecha:hover{color:var(--gold)}
     .kpi[onclick]:hover{border-color:rgba(212,175,55,.45)}
@@ -657,9 +657,7 @@
         <div class="search-wrap" style="margin-bottom:8px">
           <input id="transferQ" placeholder="Buscar factura por número o cliente..." oninput="renderTransferList()" style="padding-left:34px" autocomplete="off"/>
         </div>
-        <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer">
-          <input type="checkbox" id="transferMover" checked style="accent-color:var(--gold)"> Quitar de esta factura (mover). Sin marcar: se copian.
-        </label>
+        <div style="font-size:11px;color:var(--muted)">Se envía una copia con la misma información y monto. Esta factura no cambia.</div>
       </div>
       <div id="transferList" style="flex:1;overflow-y:auto;padding:10px 18px;display:flex;flex-direction:column;gap:6px"></div>
     </div>
@@ -2569,7 +2567,6 @@ function openTransferItems(){
   g('transferResumen').innerHTML = '<b style="color:var(--text)">'+sel.length+' artículo'+(sel.length!==1?'s':'')+'</b> ('+
     esc(sel.slice(0,3).map(i=>(i.qty||1)+'× '+i.name).join(', ')+(sel.length>3?'…':''))+') · $'+sub.toFixed(2);
   g('transferQ').value = '';
-  g('transferMover').checked = true;
   g('transferModal').style.display = 'flex';
   renderTransferList();
   setTimeout(()=>g('transferQ').focus(), 50);
@@ -2603,13 +2600,8 @@ async function transferItemsTo(destId){
   if(!dest){ toast('Factura no encontrada','err'); return; }
   const sel = items.filter(it=>itemsSel.has(it));
   if(!sel.length) return;
-  const mover = g('transferMover').checked;
-  if(mover && sel.length===items.length){
-    toast('No puedes mover todos los artículos: la factura quedaría vacía. Desmarca "mover" para copiarlos.','warn');
-    return;
-  }
   const origen = g('f_invNum').value || 'esta factura';
-  if(!confirm((mover?'¿Mover ':'¿Copiar ')+sel.length+' artículo'+(sel.length!==1?'s':'')+' de '+origen+' a '+(dest.invoice_num||'la factura')+' ('+(dest.clientName||'')+')?')) return;
+  if(!confirm('¿Enviar '+sel.length+' artículo'+(sel.length!==1?'s':'')+' de '+origen+' a '+(dest.invoice_num||'la factura')+' ('+(dest.clientName||'')+')?\n\n'+origen+' se queda igual: se envía una copia con la misma información y monto.')) return;
 
   // 1) Factura destino: agregar los artículos y recalcular sus totales
   const copia = sel.map(it=>({...it}));
@@ -2624,20 +2616,13 @@ async function transferItemsTo(destId){
   Object.assign(dest, cambio);
   registrarProductosNuevos(copia);
 
-  // 2) Factura actual: quitar los artículos si se mueven, y guardar
-  if(mover){
-    items = items.filter(it=>!itemsSel.has(it));
-    itemsSel.clear();
-    renderItems();
-    if(editingId) await saveOnly({noPrompt:true});
-  } else {
-    toggleAllItemsSel(false);
-  }
+  // 2) La factura actual no cambia: solo se limpia la selección
+  toggleAllItemsSel(false);
   persist();
   renderList(); updateKPIs();
   if(g('invoicesModal').style.display!=='none') renderModal();
   closeTransferItems();
-  toast('↪ '+sel.length+' artículo'+(sel.length!==1?'s':'')+(mover?' movido':' copiado')+(sel.length!==1?'s':'')+' a '+(dest.invoice_num||'la factura')+' — nuevo total $'+cambio.total.toFixed(2),'ok');
+  toast('↪ '+sel.length+' artículo'+(sel.length!==1?'s':'')+' enviado'+(sel.length!==1?'s':'')+' a '+(dest.invoice_num||'la factura')+' — nuevo total $'+cambio.total.toFixed(2),'ok');
 }
 
 document.addEventListener('click', e=>{
