@@ -36,6 +36,9 @@ datos. Por eso:
 - Para recuperar los datos, o para pasarlos a otro equipo, usa
   **📂 Restaurar** y elige ese archivo.
 
+- **No uses** "Borrar datos de navegación / cookies y datos de sitios" en ese
+  navegador.
+
 ## Restaurar facturas desde Excel o CSV
 
 Si solo tienes el registro de facturas descargado con **⬇ CSV** (aunque lo
@@ -51,8 +54,6 @@ El Excel solo trae el resumen de cada factura (número, cliente, email,
 teléfono, total, estado y fecha), no los artículos. Para recuperar todo, usa
 un respaldo `.json`. Abrir un archivo `.xlsx` necesita internet; un `.csv`
 funciona sin internet.
-- **No uses** "Borrar datos de navegación / cookies y datos de sitios" en ese
-  navegador.
 
 ## Ten en cuenta
 
