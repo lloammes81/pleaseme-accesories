@@ -318,7 +318,7 @@
     <button class="btn btn-outline" onclick="pmAbrirBDLocal()" title="Base de datos local: traer tus datos, descargar o restaurar respaldo" style="border-color:rgba(47,227,181,.4);color:#2fe3b5">🗄 BD local</button>
     <button class="btn btn-outline" onclick="toggleCompanyPanel()" title="Información de la compañía & logo">ℹ️ Información Compañía</button>
     <button class="btn btn-outline" onclick="openNewInvoice()">＋ Nueva Factura</button>
-    <button class="btn btn-green" onclick="exportCSV()">⬇ CSV</button>
+    <button class="btn btn-green" onclick="exportCSV()" title="Descargar el registro completo de facturas (con artículos) en Excel">⬇ Excel</button>
     <button class="btn btn-outline" onclick="pmRestaurarArchivo()" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json">📂 Restaurar</button>
     <button class="btn btn-outline" onclick="window.close()" title="Cerrar ventana">✕ Cerrar</button>
   </div>
@@ -2564,24 +2564,12 @@ async function quickPDF(id){
 // ══════════════════════════════════════════════════════
 //  EXPORT CSV
 // ══════════════════════════════════════════════════════
-function exportCSV(){
-  const orders = DB.orders;
-  if(!orders.length){ toast('No hay facturas','warn'); return; }
-  const header = ['No. Factura','Cliente','Email','Teléfono','Total','Estado','Fecha'];
-  const rows = orders.map(o=>[
-    o.invoice_num||o.invoiceNum||'',
-    o.clientName||'',
-    o.clientEmail||'',
-    o.clientPhone||'',
-    Number(o.total||0).toFixed(2),
-    o.status||o.invoice_status||'',
-    (o.created_at||'').slice(0,10),
-  ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','));
-  const csv = [header.join(','), ...rows].join('\n');
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
-  a.download = 'facturas-'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click();
+async function exportCSV(){
+  // Registro COMPLETO (todas las columnas y los artículos) — ver pmExportarFacturas en bd-local.js
+  try{
+    const r = await pmExportarFacturas();
+    toast(r.total+' facturas exportadas a '+(r.archivo==='xlsx'?'Excel':'CSV (sin internet)'),'ok');
+  }catch(e){ toast(e.message,'warn'); }
 }
 
 // ══════════════════════════════════════════════════════

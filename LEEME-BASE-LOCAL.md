@@ -39,21 +39,33 @@ datos. Por eso:
 - **No uses** "Borrar datos de navegación / cookies y datos de sitios" en ese
   navegador.
 
+## Registro de facturas en Excel
+
+**⬇ Excel** (en Facturación) descarga el registro **completo** de facturas:
+
+- Hoja **Facturas**: una fila por factura con todos sus datos (cliente,
+  direcciones, casillero, artículos, subtotal, envío, descuento, total, método
+  de pago, tracking, notas…). La última columna, "Datos completos (no editar)",
+  guarda una copia exacta de la factura para poder restaurarla sin perder nada.
+- Hoja **Artículos**: una fila por artículo de cada factura.
+
+Sin internet se descarga un `.csv` con la hoja Facturas, que también se puede
+restaurar completo.
+
 ## Restaurar facturas desde Excel o CSV
 
-Si solo tienes el registro de facturas descargado con **⬇ CSV** (aunque lo
-hayas abierto y guardado en Excel):
-
-1. Pulsa **📂 Restaurar** (en Facturación junto a "⬇ CSV", en Admin junto a
+1. Pulsa **📂 Restaurar** (en Facturación junto a "⬇ Excel", en Admin junto a
    "📊 Exportar CSV", o dentro de **🗄 BD local**).
 2. Elige el archivo `.xlsx`, `.xls` o `.csv`.
 3. Se crean las facturas que falten. Las que ya existen no se cambian; solo
-   se completan los datos vacíos.
+   se completan los datos vacíos (por ejemplo, los artículos).
 
-El Excel solo trae el resumen de cada factura (número, cliente, email,
-teléfono, total, estado y fecha), no los artículos. Para recuperar todo, usa
-un respaldo `.json`. Abrir un archivo `.xlsx` necesita internet; un `.csv`
-funciona sin internet.
+Los archivos descargados **antes** de esta versión solo traen el resumen
+(número, cliente, email, teléfono, total, estado y fecha), sin artículos. Para
+recuperar esas facturas completas usa **🗄 BD local → ⇪ Traer mis datos**
+(con internet): copia las facturas completas que estaban en Supabase y las
+guardadas en el navegador, y reemplaza las copias resumidas sin duplicarlas.
+Abrir un archivo `.xlsx` necesita internet; un `.csv` funciona sin internet.
 
 ## Ten en cuenta
 

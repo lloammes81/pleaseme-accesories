@@ -283,10 +283,20 @@
     const byId = new Map(rows.map(r => [String(r[pk]), r]));
     const ops = [];
     let nuevos = 0, actualizados = 0;
+    // Facturas restauradas antes desde un Excel resumido (id "fac-imp-…"): la factura
+    // completa con el mismo número las reemplaza en vez de quedar duplicada.
+    const impByNum = new Map();
+    if(table === 'facturas') rows.forEach(r => { if(String(r.id).startsWith('fac-imp-') && r.invoice_num) impByNum.set(String(r.invoice_num).trim(), r); });
     list.forEach(input => {
       if(!input || typeof input !== 'object' || isEmpty(input[pk])) return;
       const key = String(input[pk]);
       const existing = byId.get(key);
+      const imp = !existing && !key.startsWith('fac-imp-') && input.invoice_num ? impByNum.get(String(input.invoice_num).trim()) : null;
+      if(imp && byId.get(String(imp.id)) === imp){
+        const row = { ...imp, ...Object.fromEntries(Object.entries(input).filter(([, v]) => !isEmpty(v))) };
+        byId.delete(String(imp.id)); byId.set(key, row);
+        ops.push({ del: [table, imp.id] }, { put: [table, row] }); actualizados++; return;
+      }
       if(!existing){
         const row = withDefaults(table, input, rows);
         byId.set(key, row); ops.push({ put: [table, row] }); nuevos++; return;
@@ -444,6 +454,14 @@
     payment_method:  ['metodopago', 'metododepago', 'formadepago', 'pago', 'paymentmethod'],
     fecha:           ['fecha', 'fechafactura', 'date', 'invoicedate', 'createdat'],
     notes:           ['notas', 'nota', 'notes', 'observaciones'],
+    shipping_address_usa: ['direccionusa', 'direccionenusa', 'shippingaddressusa', 'addressusa'],
+    casillero_number: ['casillero', 'nocasillero', 'casilleronumber'],
+    currency:        ['moneda', 'currency'],
+    tracking_number: ['tracking', 'notracking', 'numerotracking', 'trackingnumber', 'guia'],
+    tracking_status: ['estadotracking', 'estadoenvio', 'trackingstatus'],
+    void_reason:     ['motivoanulacion', 'motivocancelacion', 'voidreason'],
+    items_text:      ['articulos', 'productos', 'items'],
+    datos:           ['datoscompletosnoeditar', 'datoscompletos', 'datosnoeditar', 'datos'],
   };
   const NUMERIC = ['subtotal', 'shipping', 'discount_amount', 'total'];
 
@@ -480,12 +498,32 @@
     });
   }
 
-  async function readSheet(file){
-    if(/\.csv$/i.test(file.name)) return parseCSV(await file.text());
-    if(!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  const XLSX_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+
+  // Devuelve [{ nombre, filas }] — un CSV es una sola hoja
+  async function readSheets(file){
+    if(/\.csv$/i.test(file.name)) return [{ nombre: file.name, filas: parseCSV(await file.text()) }];
+    if(!window.XLSX) await loadScript(XLSX_SRC);
     const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    return window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+    return wb.SheetNames.map(n => ({ nombre: n, filas: window.XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }) }));
+  }
+
+  // Hoja "Artículos": una fila por artículo → { 'No. factura': [items] }
+  function itemsFromSheet(table){
+    const hIdx = table.slice(0, 10).findIndex(r => r.some(c => ['nofactura', 'factura'].includes(norm(c))) && r.some(c => ['articulo', 'producto', 'nombre'].includes(norm(c))));
+    if(hIdx < 0) return null;
+    const h = table[hIdx].map(norm);
+    const at = names => h.findIndex(c => names.includes(c));
+    const c = { num: at(['nofactura', 'factura']), name: at(['articulo', 'producto', 'nombre']), qty: at(['cantidad', 'qty']),
+      price: at(['precio', 'preciounitario', 'price']), size: at(['talla', 'tamano', 'size']), color: at(['color']) };
+    const out = {};
+    table.slice(hIdx + 1).forEach(r => {
+      const num = String(r[c.num] ?? '').trim(), name = String(r[c.name] ?? '').trim();
+      if(!num || !name) return;
+      (out[num] = out[num] || []).push({ name, qty: c.qty >= 0 ? toNumber(r[c.qty]) || 1 : 1, price: c.price >= 0 ? toNumber(r[c.price]) : 0,
+        size: c.size >= 0 ? String(r[c.size] ?? '').trim() : '', color: c.color >= 0 ? String(r[c.color] ?? '').trim() || '—' : '—' });
+    });
+    return out;
   }
 
   function toNumber(v){
@@ -519,7 +557,7 @@
     return '';
   }
 
-  function sheetToFacturas(table, existing){
+  function sheetToFacturas(table, existing, itemsByNum){
     const hIdx = table.slice(0, 10).findIndex(r => r.filter(c => Object.values(COLS).some(a => a.includes(norm(c)))).length >= 2);
     if(hIdx < 0) throw new Error('No encontré los encabezados (No. Factura, Cliente, Total, Fecha…) en el archivo.');
     const col = {};
@@ -538,16 +576,31 @@
       if(id && !id.startsWith('fac-') && !ids.has(id)){ if(!num) num = id; id = ''; }
       if(!id && num) id = byNum.get(num) || '';
       if(!id) id = 'fac-imp-' + (num ? num.replace(/[^A-Za-z0-9_-]/g, '') : '') + '-' + (i + 1);
+      let full = null;
+      if(txt('datos').startsWith('{')){ try{ full = JSON.parse(txt('datos')); }catch{} }
+      if(full && typeof full === 'object' && !Array.isArray(full)){
+        // Copia exacta de la factura (columna "Datos completos" de la exportación)
+        if(!full.id) full.id = id;
+        const same = full.invoice_num ? byNum.get(String(full.invoice_num).trim()) : null;
+        if(!ids.has(String(full.id)) && same && !String(same).startsWith('fac-imp-')) full.id = same;
+        ids.add(String(full.id));
+        if(full.invoice_num) byNum.set(String(full.invoice_num).trim(), full.id);
+        out.push(full);
+        return;
+      }
       const fecha = toDate(get('fecha'));
       const f = { id, invoice_num: num, client_name: txt('client_name'), client_email: txt('client_email'),
         client_phone: txt('client_phone'), client_address: txt('client_address'), status: txt('status').toLowerCase(),
         payment_method: txt('payment_method'), notes: txt('notes'), invoice_date: fecha,
+        shipping_address_usa: txt('shipping_address_usa'), casillero_number: txt('casillero_number'), currency: txt('currency'),
+        tracking_number: txt('tracking_number'), tracking_status: txt('tracking_status'), void_reason: txt('void_reason'),
         created_at: fecha ? fecha + 'T12:00:00.000Z' : '' };
+      if(itemsByNum && num && itemsByNum[num]) f.items = itemsByNum[num];
       NUMERIC.forEach(k => { if(col[k] !== undefined && txt(k) !== '') f[k] = toNumber(get(k)); });
       if(!f.client_name && !f.invoice_num && f.total === undefined) return;
       Object.keys(f).forEach(k => { if(f[k] === '') delete f[k]; });
       if(!ids.has(id)){
-        Object.assign(f, { status: f.status || 'pendiente', items: [], currency: 'USD',
+        Object.assign(f, { status: f.status || 'pendiente', items: f.items || [], currency: f.currency || 'USD',
           subtotal: f.subtotal ?? f.total ?? 0, total: f.total ?? 0, shipping: f.shipping ?? 0, discount_amount: f.discount_amount ?? 0,
           created_at: f.created_at || new Date().toISOString() });
         f.invoice_date = f.invoice_date || f.created_at.slice(0, 10);
@@ -558,6 +611,55 @@
     });
     return out;
   }
+
+  // ── Exportar el registro de facturas COMPLETO a Excel ───────
+  //  Hoja "Facturas": una fila por factura con todos sus datos, más la columna
+  //  "Datos completos" (copia exacta) para poder restaurarla sin perder nada.
+  //  Hoja "Artículos": una fila por artículo de cada factura.
+  //  Sin internet (no carga el lector de Excel) se descarga un CSV con la hoja Facturas.
+  const fmtItems = items => (Array.isArray(items) ? items : []).map(i => (i.qty || 1) + ' x ' + (i.name || '') +
+    (i.size && i.size !== '—' ? ' (' + i.size + ')' : '') + ' @ ' + Number(i.price || 0).toFixed(2)).join(' | ');
+  const itemsOf = f => { if(Array.isArray(f.items)) return f.items; try{ const v = JSON.parse(f.items || '[]'); return Array.isArray(v) ? v : []; }catch{ return []; } };
+
+  async function exportFacturas(){
+    const facturas = applyOrder(await allRows('facturas'), 'created_at.desc');
+    if(!facturas.length) throw new Error('No hay facturas en la base local.');
+    const head = ['No. Factura', 'Fecha', 'Estado', 'Cliente', 'Email', 'Teléfono', 'Dirección', 'Dirección USA', 'Casillero',
+      'Artículos', 'Subtotal', 'Envío', 'Descuento', 'Total', 'Método de pago', 'Moneda', 'Tracking', 'Estado tracking',
+      'Notas', 'Motivo anulación', 'ID', 'Datos completos (no editar)'];
+    const n = v => Number(v || 0);
+    const rows = facturas.map(f => [f.invoice_num || '', f.invoice_date || String(f.created_at || '').slice(0, 10), f.status || '',
+      f.client_name || '', f.client_email || '', f.client_phone || '', f.client_address || '', f.shipping_address_usa || '', f.casillero_number || '',
+      fmtItems(itemsOf(f)), n(f.subtotal), n(f.shipping), n(f.discount_amount), n(f.total), f.payment_method || '', f.currency || '',
+      f.tracking_number || '', f.tracking_status || '', f.notes || '', f.void_reason || '', f.id, JSON.stringify({ ...f, items: itemsOf(f) })]);
+    const fecha = new Date().toISOString().slice(0, 10);
+    const download = (blob, name) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    };
+    try{
+      if(!window.XLSX) await loadScript(XLSX_SRC);
+      const X = window.XLSX, wb = X.utils.book_new();
+      const ws = X.utils.aoa_to_sheet([head, ...rows]);
+      ws['!cols'] = head.map((h, i) => ({ wch: i === 9 ? 60 : i === head.length - 1 ? 20 : 16 }));
+      X.utils.book_append_sheet(wb, ws, 'Facturas');
+      const art = [['No. Factura', 'Fecha', 'Cliente', 'Artículo', 'Talla', 'Color', 'Cantidad', 'Precio', 'Importe']];
+      facturas.forEach(f => itemsOf(f).forEach(i => art.push([f.invoice_num || '', f.invoice_date || String(f.created_at || '').slice(0, 10),
+        f.client_name || '', i.name || '', i.size || '', i.color || '', n(i.qty) || 1, n(i.price), (n(i.qty) || 1) * n(i.price)])));
+      X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(art), 'Artículos');
+      download(new Blob([X.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'facturas-' + fecha + '.xlsx');
+      return { archivo: 'xlsx', total: facturas.length };
+    }catch(e){
+      console.warn('[BD local] Excel no disponible, se exporta CSV:', e && e.message);
+      const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+      const csv = [head, ...rows].map(r => r.map(q).join(',')).join('\r\n');
+      download(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }), 'facturas-' + fecha + '.csv');
+      return { archivo: 'csv', total: facturas.length };
+    }
+  }
+  window.pmExportarFacturas = exportFacturas;
 
   // Restaura un archivo: respaldo .json, o registro de facturas en Excel/CSV
   async function restoreFile(file, log){
@@ -576,13 +678,19 @@
     }
     if(!/\.(csv|xlsx|xls)$/i.test(file.name)) throw new Error('Formato no soportado. Elige un respaldo .json o un registro de facturas .xlsx, .xls o .csv');
     log('\nLeyendo ' + file.name + '…');
-    const facturas = sheetToFacturas(await readSheet(file), await allRows('facturas'));
+    const sheets = await readSheets(file);
+    let itemsByNum = null;
+    for(const sh of sheets){ const m = itemsFromSheet(sh.filas); if(m && Object.keys(m).length){ itemsByNum = m; break; } }
+    const main = sheets.find(sh => !/art[ií]culos/i.test(sh.nombre)) || sheets[0];
+    const facturas = sheetToFacturas(main.filas, await allRows('facturas'), itemsByNum);
     if(!facturas.length){ log('  (no se encontraron facturas en el archivo)'); return false; }
-    log('  · ' + facturas.length + ' facturas encontradas');
+    const conArticulos = facturas.filter(f => Array.isArray(f.items) && f.items.length).length;
+    log('  · ' + facturas.length + ' facturas encontradas (' + conArticulos + ' con artículos)');
     if(!confirm('Se van a restaurar ' + facturas.length + ' facturas desde ' + file.name + '.\n\nLas facturas que ya existen no se cambian: solo se completan los datos que les falten. ¿Continuar?')) return false;
     const r = await importRows('facturas', facturas, 'completar');
     log('  · facturas: ' + r.nuevos + ' nuevas, ' + r.actualizados + ' completadas');
-    log('\n✓ Facturas restauradas. El Excel/CSV solo trae el resumen (número, cliente, total, estado y fecha), no los artículos de cada factura.');
+    log('\n✓ Facturas restauradas.');
+    if(conArticulos < facturas.length) log('⚠ ' + (facturas.length - conArticulos) + ' facturas vienen sin artículos: ese archivo solo traía el resumen.\n  Para recuperarlas completas usa "⇪ Traer mis datos" (con internet) o un respaldo .json.');
     return true;
   }
 
