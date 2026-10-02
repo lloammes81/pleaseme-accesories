@@ -186,8 +186,9 @@
 
   function respond(status, body, headers = {}){
     const noBody = status === 204 || body === null || body === undefined;
+    // Sin cuerpo no se declara JSON: así response.json() no falla con "Unexpected end of input"
     return new Response(noBody ? null : JSON.stringify(body), {
-      status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
+      status, headers: noBody ? { ...headers } : { 'Content-Type': 'application/json; charset=utf-8', ...headers },
     });
   }
 
@@ -1038,7 +1039,7 @@
   //  abre. Solo se hace uno por día aunque haya varias pestañas abiertas.
   // ══════════════════════════════════════════════════════════
   const RESP_DB = 'pleaseme_respaldos', RESP_STORE = 'copias', RESP_MAX = 7;
-  const RESP_DEF = { activo: true, hora: '18:00', descargar: true };
+  const RESP_DEF = { activo: true, hora: '18:00', descargar: true, avisoDias: 2 };   // avisoDias: 0 = no avisar
   const autoRespaldo = !/tienda|account/i.test(location.pathname);
 
   let respDbP = null;
@@ -1251,6 +1252,7 @@
       }
       await sleep(300);
       await setMeta('respaldo_auto_ultimo', ahora.toISOString());
+      setTimeout(() => window.pmAvisoRespaldo && window.pmAvisoRespaldo(), 1200);   // si se guardó un archivo, el aviso desaparece
 
       // Botones de la notificación (un clic del usuario permite pedir permiso / elegir carpeta)
       const guardarEnCarpeta = async () => {
@@ -1295,8 +1297,45 @@
     }catch(e){ console.warn('[Respaldo diario]', e && e.message); }
     finally{ revisando = false; }
   }
+  // ── Aviso si pasan días sin respaldo ─────────────────────────
+  //  "Respaldo" = un archivo guardado FUERA del navegador (carpeta de respaldos,
+  //  Descargas o "Descargar respaldo"): la copia que queda dentro del navegador se
+  //  pierde si se borran sus datos. Si pasan N días (2 por defecto) aparece un
+  //  aviso arriba con el botón "Respaldar ahora".
+  const AVISO_ID = 'pmAvisoRespaldo', AVISO_LS = 'pm_aviso_resp_hasta';
+  async function revisarAvisoRespaldo(){
+    try{
+      const cfg = await respConfig();
+      const quitar = () => document.getElementById(AVISO_ID)?.remove();
+      const dias = Number(cfg.avisoDias);
+      if(!(dias > 0)){ quitar(); return; }
+      const u = await getMeta('ultimo_respaldo');
+      const transcurridos = u ? (Date.now() - new Date(u.value).getTime()) / 86400000 : Infinity;
+      if(transcurridos < dias){ quitar(); return; }
+      let hasta = 0; try{ hasta = Number(localStorage.getItem(AVISO_LS)) || 0; }catch(e){}
+      if(Date.now() < hasta || document.getElementById(AVISO_ID) || !document.body) return;
+      const n = Math.floor(transcurridos);
+      const el = document.createElement('div');
+      el.id = AVISO_ID;
+      el.setAttribute('role', 'alert');
+      el.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9000;width:min(680px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;border-radius:12px;background:#2a1c08;border:1px solid rgba(255,170,60,.65);box-shadow:0 10px 36px rgba(0,0,0,.65),0 0 24px rgba(255,170,60,.18);color:#ffe3b8;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif';
+      el.innerHTML = '<span style="font-size:20px">⚠️</span><div style="flex:1;min-width:210px"><b style="color:#ffb347">' +
+        (u ? 'Hace ' + n + ' día' + (n !== 1 ? 's' : '') + ' que no guardas un respaldo' : 'Todavía no has guardado ningún respaldo') + '</b><div style="font-size:11.5px;color:#d9c29b">' +
+        (u ? 'Último: ' + new Date(u.value).toLocaleDateString('es') + '. ' : '') + 'Si se borran los datos del navegador, se pierden las facturas.</div></div>' +
+        '<button data-a="ya" style="padding:8px 14px;border-radius:8px;border:none;background:#ffb347;color:#1b1204;font-weight:700;cursor:pointer;font-size:12px">💾 Respaldar ahora</button>' +
+        '<button data-a="luego" style="padding:8px 12px;border-radius:8px;border:1px solid rgba(255,179,71,.5);background:transparent;color:#ffcf8f;cursor:pointer;font-size:12px">Más tarde</button>';
+      document.body.appendChild(el);
+      el.querySelector('[data-a="luego"]').onclick = () => { try{ localStorage.setItem(AVISO_LS, String(Date.now() + 6 * 3600000)); }catch(e){} el.remove(); };
+      el.querySelector('[data-a="ya"]').onclick = async () => { el.remove(); await respaldoDiario('manual'); setTimeout(revisarAvisoRespaldo, 1200); };
+    }catch(e){ console.warn('[Aviso de respaldo]', e && e.message); }
+  }
+  window.pmAvisoRespaldo = revisarAvisoRespaldo;
+
   if(autoRespaldo){
-    const iniciar = () => { setTimeout(revisarRespaldo, 5000); setInterval(revisarRespaldo, 60000); };
+    const iniciar = () => {
+      setTimeout(revisarRespaldo, 5000); setInterval(revisarRespaldo, 60000);
+      setTimeout(revisarAvisoRespaldo, 7000); setInterval(revisarAvisoRespaldo, 5 * 60000);
+    };
     if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
   }
 
@@ -1320,6 +1359,7 @@
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="activo" style="accent-color:#d4af37"> Respaldo diario a las</label>
           <input type="time" data-c="hora" style="background:rgba(0,0,0,.35);border:1px solid rgba(212,175,55,.35);border-radius:6px;color:#e8e0cc;padding:3px 6px;font-size:12px">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="descargar" style="accent-color:#d4af37"> descargar a Descargas si no hay carpeta</label>
+          <label style="display:flex;align-items:center;gap:6px" title="Aparece un aviso si pasan estos días sin guardar un respaldo en un archivo. 0 = no avisar">Avisar tras <input type="number" data-c="avisoDias" min="0" max="30" style="width:52px;background:rgba(0,0,0,.35);border:1px solid rgba(212,175,55,.35);border-radius:6px;color:#e8e0cc;padding:3px 6px;font-size:12px"> días sin respaldo</label>
           <button data-a="carpeta" style="${BTN}" title="Elige la carpeta (dentro de Documentos) donde se guardan los respaldos, una subcarpeta por fecha">📁 Carpeta de respaldos</button>
           <span style="flex:1"></span>
           <button data-a="copias" style="${BTN}" title="Ver y restaurar las copias diarias guardadas en este equipo">🕘 Copias diarias</button>
@@ -1355,12 +1395,15 @@
     // Ajustes del respaldo diario
     const cfg = await respConfig();
     const ci = k => ov.querySelector('[data-c="' + k + '"]');
-    ci('activo').checked = cfg.activo; ci('hora').value = cfg.hora; ci('descargar').checked = cfg.descargar;
+    ci('activo').checked = cfg.activo; ci('hora').value = cfg.hora; ci('descargar').checked = cfg.descargar; ci('avisoDias').value = cfg.avisoDias;
     const guardarCfg = async () => {
-      await setMeta('respaldo_auto', { activo: ci('activo').checked, hora: ci('hora').value || RESP_DEF.hora, descargar: ci('descargar').checked });
+      const ad = Math.max(0, Math.min(30, Math.floor(Number(ci('avisoDias').value)) || 0));
+      await setMeta('respaldo_auto', { activo: ci('activo').checked, hora: ci('hora').value || RESP_DEF.hora, descargar: ci('descargar').checked, avisoDias: ad });
+      try{ localStorage.removeItem(AVISO_LS); }catch(e){}
+      revisarAvisoRespaldo();
       log('\n✓ Respaldo diario ' + (ci('activo').checked ? 'activo a las ' + (ci('hora').value || RESP_DEF.hora) + (ci('descargar').checked ? ', con descarga del archivo' : ', solo copia en este equipo') : 'desactivado'));
     };
-    ['activo', 'hora', 'descargar'].forEach(k => ci(k).onchange = guardarCfg);
+    ['activo', 'hora', 'descargar', 'avisoDias'].forEach(k => ci(k).onchange = guardarCfg);
 
     await run(async () => {
       log('Los datos se guardan en este navegador, en este equipo. No necesita servidor ni internet.');

@@ -31,7 +31,7 @@
     }
     .header-brand .title{font-family:Georgia,serif;font-size:18px;color:var(--gold);font-weight:700}
     .header-brand .subtitle{font-size:11px;color:var(--muted);margin-top:1px}
-    .header-actions{display:flex;gap:8px;align-items:center}
+    .header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 
     /* ── LAYOUT ── */
     .layout{display:grid;grid-template-columns:1fr 340px;gap:20px;padding:20px 24px;max-width:1300px;margin:0 auto}
@@ -148,7 +148,8 @@
     #toast.warn{background:#2a2210;border:1px solid #ffc800;color:#ffc800}
 
     /* ── KPI BAR ── */
-    .kpi-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .kpi-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+    @media(max-width:1100px){.kpi-bar{grid-template-columns:repeat(3,1fr)}}
     @media(max-width:700px){.kpi-bar{grid-template-columns:1fr 1fr}}
     .kpi{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:12px;padding:14px 16px;transition:border-color .2s,transform .2s}
     .kpi:hover{transform:translateY(-1px)}
@@ -574,6 +575,8 @@
     <button class="btn btn-green" onclick="exportCSV()" title="Descargar el registro completo de facturas (con artículos) en Excel">⬇ Excel</button>
     <button class="btn btn-outline" onclick="pmRestaurarArchivo()" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json">📂 Restaurar</button>
     <button class="btn btn-outline" onclick="openPrintHistory()" title="Ver todas las facturas impresas y abrirlas en PDF">🖨 Historial</button>
+    <button class="btn btn-outline" onclick="abrirClientes()" title="Lista de clientes y su ficha: compras, saldo y contacto">📇 Clientes</button>
+    <button class="btn btn-outline" id="btnTasa" onclick="abrirTasa()" title="Tasa de cambio USD/DOP" style="border-color:rgba(232,197,110,.5)">💱 Tasa</button>
     <button class="btn btn-outline" onclick="window.close()" title="Cerrar ventana">✕ Cerrar</button>
   </div>
 </header>
@@ -636,6 +639,7 @@
     <div class="kpi kpi-pending" onclick="openInvoicesModal('pendiente')" title="Ver facturas pendientes"><div class="kpi-val" id="kpiPendientes">0</div><div class="kpi-lbl">⏳ Pendientes</div></div>
     <div class="kpi kpi-paid" onclick="openInvoicesModal('pagadas')" title="Ver facturas pagadas o entregadas"><div class="kpi-val" id="kpiPagadas">0</div><div class="kpi-lbl">✅ Pagadas/Entregadas</div></div>
     <div class="kpi kpi-revenue" onclick="openInvoicesModal('ingresos')" title="Ver las facturas que suman los ingresos"><div class="kpi-val" id="kpiRevenue">$0</div><div class="kpi-lbl">💰 Ingresos Totales</div></div>
+    <div class="kpi kpi-cobrar" onclick="abrirCuentasPorCobrar()" title="Ver quién debe"><div class="kpi-val" id="kpiCobrar">$0.00</div><div class="kpi-lbl">💳 Por cobrar</div></div>
   </div>
 </div>
 
@@ -674,6 +678,7 @@
           <div style="display:flex;gap:6px">
             <input id="f_clientName" placeholder="Nombre del cliente" oninput="clientSearch(this.value)" autocomplete="off" />
             <button class="btn btn-icon btn-outline" onclick="openClientPicker()" title="Seleccionar cliente">👤</button>
+            <button class="btn btn-icon btn-outline" onclick="abrirFichaDesdeForm()" title="Ficha del cliente: historial, saldo y contacto">📇</button>
           </div>
           <div id="clientDropdown" style="display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:#0f0d08;border:1px solid var(--border);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.6)"></div>
         </div>
@@ -685,7 +690,7 @@
           <label class="lbl">Teléfono <span id="phoneCountry" style="color:var(--gold);font-weight:700;text-transform:none;letter-spacing:0"></span> · País y moneda</label>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input id="f_phone" type="tel" placeholder="+1 (000) 000-0000" oninput="formatPhoneInput(this)" style="width:178px;flex:none" />
-            <select id="f_country" onchange="aplicarMonedaForm()" style="width:auto;flex:none;padding:9px 10px" title="País del cliente: define la moneda de los montos de la factura">
+            <select id="f_country" onchange="cambiarPais()" style="width:auto;flex:none;padding:9px 10px" title="País del cliente: define la moneda de los montos de la factura">
               <option value="USA">USA</option>
               <option value="RD">RD</option>
             </select>
@@ -816,6 +821,13 @@
           <span class="label">TOTAL</span>
           <span class="value" id="tTotal">$0.00</span>
         </div>
+        <div class="totals-row" id="tAbonadoRow" style="display:none"><span class="label">Abonado</span><span class="value" id="tAbonado" style="color:#2fe3b5">$0.00</span></div>
+        <div class="totals-row" id="tSaldoRow" style="display:none"><span class="label" style="font-weight:700">Saldo pendiente</span><span class="value" id="tSaldo" style="font-weight:700">$0.00</span></div>
+        <div id="tEquiv" style="display:none;text-align:right;font-size:11px;color:var(--muted);margin-top:6px"></div>
+        <div id="cobroFila" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(212,175,55,.2);font-size:12px">
+          <span id="cobroTxt" style="color:var(--muted)">💳 Guarda la factura para poder registrar abonos</span>
+          <button class="btn btn-sm btn-outline" onclick="abrirAbonosForm()" title="Registrar abonos y ver el saldo de esta factura">💳 Abonos…</button>
+        </div>
       </div>
 
       <!-- ESTADO Y NOTAS -->
@@ -883,6 +895,7 @@
           <option value="active">Activas</option>
           <option value="">Todas</option>
           <option value="ingresos">Ingresos (no anuladas)</option>
+          <option value="saldo">Con saldo pendiente</option>
           <option value="pagadas">Pagadas/Entregadas</option>
           <option value="pendiente">Pendiente</option>
           <option value="pagado">Pagado</option>
@@ -1175,6 +1188,7 @@ let editingItemIdx = -1;   // índice del artículo que se está editando en la 
   if(editId) setTimeout(()=>{ loadForEdit(editId); }, 200);
   renderList();
   updateKPIs();
+  if(typeof pmCobrosIniciar==='function') pmCobrosIniciar();   // abonos y tasa de cambio
   loadCompanyFromSupabase();
   sbTest();
   window.addEventListener('storage', e=>{
@@ -1907,6 +1921,7 @@ function aplicarMonedaForm(){
   document.querySelectorAll('#formPanel .mon-sim').forEach(e=>e.textContent = sim);
   const opt = g('f_discType').querySelector('option[value="fixed"]'); if(opt) opt.textContent = sim;
   const b = g('monedaBadge'); if(b) b.textContent = c+' · '+sim;
+  window.__monPrev = c;
   renderItems();   // vuelve a pintar los montos de los artículos y los totales
 }
 
@@ -1922,6 +1937,8 @@ function recalc(){
   g('tShipping').textContent = fmtM(ship,mc);
   g('tDiscount').textContent = '−'+fmtM(disc,mc);
   g('tTotal').textContent    = fmtM(total,mc);
+  if(typeof pintarCobroForm==='function') pintarCobroForm(total);
+  if(typeof pintarEquivForm==='function') pintarEquivForm(total, mc);
 }
 
 // ══════════════════════════════════════════════════════
@@ -2467,7 +2484,7 @@ function renderList(){
         <div>
           <div class="inv-num">${invNum}</div>
           <div class="inv-client">${esc(o.clientName||'Sin nombre')}</div>
-          <div class="inv-meta"><span class="inv-fecha" onclick="event.stopPropagation();cambiarFechaFactura('${o.id}',this)" title="Clic para cambiar la fecha">📅 ${date}</span><span class="status-badge s-${status}">${status}</span></div>
+          <div class="inv-meta"><span class="inv-fecha" onclick="event.stopPropagation();cambiarFechaFactura('${o.id}',this)" title="Clic para cambiar la fecha">📅 ${date}</span><span class="status-badge s-${status}">${status}</span>${typeof cobroBadge==='function'?cobroBadge(o):''}</div>
           ${o.tracking_number?`<div style="font-size:10px;color:${o.tracking_delivered?'#2fe3b5':'var(--green)'};margin-top:3px">📦 ${esc(o.tracking_status||o.tracking_number)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
@@ -2523,6 +2540,8 @@ function renderModal(){
     list = list.filter(o=>{ const s=o.status||o.invoice_status||''; return s!=='cancelado'&&s!=='anulado'; });
   } else if(st==='ingresos'){
     list = list.filter(o=>(o.status||o.invoice_status)!=='cancelado');
+  } else if(st==='saldo'){
+    list = list.filter(o=>typeof saldoDe==='function' && saldoDe(o)>0.005);
   } else if(st==='pagadas'){
     list = list.filter(o=>['entregado','pagado'].includes(o.status||o.invoice_status));
   } else if(st==='cancelado'){
@@ -2539,9 +2558,9 @@ function renderModal(){
 
   const countEl = g('modalCount');
   if(countEl) countEl.textContent = list.length+' factura'+(list.length!==1?'s':'');
-  const TITLES = {'':'🧾 Todas las facturas', pendiente:'⏳ Facturas pendientes', pagadas:'✅ Pagadas/Entregadas', ingresos:'💰 Ingresos totales'};
+  const TITLES = {'':'🧾 Todas las facturas', pendiente:'⏳ Facturas pendientes', pagadas:'✅ Pagadas/Entregadas', ingresos:'💰 Ingresos totales', saldo:'💳 Con saldo pendiente'};
   if(g('modalTitle')) g('modalTitle').textContent = TITLES[st] || '📋 Facturas';
-  if(g('modalSum')) g('modalSum').textContent = 'Total: '+sumaPorMoneda(list.filter(o=>(o.status||o.invoice_status)!=='cancelado'));
+  if(g('modalSum')) g('modalSum').textContent = st==='saldo' && typeof sumaSaldos==='function' ? 'Por cobrar: '+sumaSaldos(list) : 'Total: '+sumaPorMoneda(list.filter(o=>(o.status||o.invoice_status)!=='cancelado'));
 
   const el = g('modalInvoiceList');
   if(!list.length){
@@ -2569,6 +2588,7 @@ function renderModal(){
           <div class="inv-meta" style="display:flex;gap:10px;flex-wrap:wrap">
             <span class="inv-fecha" onclick="event.stopPropagation();cambiarFechaFactura('${o.id}',this)" title="Clic para cambiar la fecha">📅 ${date}</span>
             <span>🛍 ${nItems} artículo${nItems!==1?'s':''}</span>
+            ${typeof cobroBadge==='function'?cobroBadge(o):''}
             ${o.payment_method?`<span>💳 ${esc(o.payment_method)}</span>`:''}
             ${o.clientPhone?`<span>📞 ${esc(o.clientPhone)}</span>`:''}
           </div>
@@ -2771,6 +2791,7 @@ function updateKPIs(){
   g('kpiPendientes').textContent = orders.filter(o=>(o.status||o.invoice_status)==='pendiente').length;
   g('kpiPagadas').textContent    = orders.filter(o=>['entregado','pagado'].includes(o.status||o.invoice_status)).length;
   g('kpiRevenue').textContent    = sumaPorMoneda(orders.filter(o=>(o.status||o.invoice_status)!=='cancelado'));
+  if(typeof pintarKpiCobros==='function') pintarKpiCobros();
 }
 
 // ══════════════════════════════════════════════════════
@@ -3040,6 +3061,7 @@ function guardarFechaFactura(id, ymd){
 function marcarPagadaAlImprimir(o){
   const st = o.status||o.invoice_status||'pendiente';
   if(st!=='pendiente' && st!=='procesando') return;
+  if(typeof infoCobro==='function'){ const cb = infoCobro(o); if(cb.credito && cb.saldo>0.005) return; }   // a crédito con saldo: sigue sin pagarse
   const id = o.id;
   const aplicar = x => { x.status = 'pagado'; x.invoice_status = 'pagado'; };
   const pintar = () => {
@@ -3070,6 +3092,8 @@ function registrarImpresion(o){
   let copia;
   try{ copia = JSON.parse(JSON.stringify(o)); }catch(e){ copia = {...o}; }
   delete copia.pending_sync;
+  if(typeof infoCobro==='function'){ const cb = infoCobro(o); if(cb.credito) copia._cobro = {abonado:cb.abonado, saldo:cb.saldo}; }
+  if(typeof tasaVigente==='function'){ const tv = tasaVigente(o.invoice_date||(o.created_at||'').slice(0,10)); if(tv) copia._tasa = tv; }
   const ahora = new Date().toISOString();
   const reg = {
     id: 'imp-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
@@ -3196,6 +3220,8 @@ function openPrintWindow(o){
   const ship = Number(o.shipping||o.shipping_cost||0);
   const disc = Number(o.discountAmount||o.discountValue||o.discount_amount||0);
   const total = o.total||0;
+  const cbp = typeof cobroImpresion==='function' ? cobroImpresion(o) : null;
+  const eqp = typeof equivalenteTexto==='function' ? equivalenteTexto(o) : '';
   const statusLabels = {pendiente:'Pendiente',procesando:'Procesando',enviado:'Enviado',entregado:'Entregado',pagado:'Pagado',cancelado:'ANULADA'};
   const statusColors = {pendiente:'#b8860b',procesando:'#4169e1',enviado:'#0090b8',entregado:'#1e8449',pagado:'#1e8449',cancelado:'#c0392b'};
   const st = o.status||o.invoice_status||'pendiente';
@@ -3302,6 +3328,8 @@ function openPrintWindow(o){
       ${ship>0?`<div class="total-row"><span>Envío</span><span>${fmtM(ship,o.currency)}</span></div>`:''}
       ${disc>0?`<div class="total-row" style="color:#c0392b;font-size:10px;opacity:.85;padding-bottom:1px"><span></span><span style="padding-right:0">${sub>0?Math.round((disc/sub)*10000)/100:0}%</span></div><div class="total-row" style="color:#c0392b"><span>Descuento</span><span>(-${fmtM(disc,o.currency)})</span></div>`:''}
       <div class="total-final"><span>TOTAL</span><span>${fmtM(total,o.currency)}</span></div>
+      ${cbp?`<div class="total-row" style="margin-top:6px"><span>Abonado</span><span>${fmtM(cbp.abonado,o.currency)}</span></div><div class="total-row" style="font-weight:700;color:${cbp.saldo>0.005?'#c0392b':'#1e8449'}"><span>${cbp.saldo>0.005?'Saldo pendiente':'Saldada'}</span><span>${fmtM(cbp.saldo,o.currency)}</span></div>`:''}
+      ${eqp?`<div class="total-row" style="font-size:10px;opacity:.7;justify-content:flex-end"><span>${eqp}</span></div>`:''}
     </div>
   </div>
   ${o.notes?`<div style="margin-top:14px;background:#f9f6f0;border:1px solid #e0d8c8;border-radius:6px;padding:10px"><span style="font-size:10px;font-weight:700;color:#b48226;text-transform:uppercase">Notas: </span><span style="font-size:12px;color:#555">${o.notes}</span></div>`:''}
@@ -3584,6 +3612,13 @@ function buildInvoicePDF(o){
     doc.text('TOTAL',totX,y+4);
     doc.text(fmtMoney(o.total||0),W-M-2,y+4,{align:'right'});
     y+=14;
+    var cbp=(typeof cobroImpresion==='function')?cobroImpresion(o):null;
+    if(cbp){
+      addTotRow('Abonado:',fmtMoney(cbp.abonado));
+      addTotRow(cbp.saldo>0.005?'Saldo pendiente:':'Saldada:',fmtMoney(cbp.saldo),true,cbp.saldo>0.005?[180,60,40]:[35,145,70]);
+    }
+    var eqp=(typeof equivalenteTexto==='function')?equivalenteTexto(o):'';
+    if(eqp){ y=checkY(y,6); doc.setFont('helvetica','italic'); doc.setFontSize(7); tr.apply(null,GRAY); doc.text(eqp,W-M-2,y,{align:'right'}); y+=6; }
 
     if(o.notes){
       y=checkY(y,14);
@@ -3733,6 +3768,7 @@ const PHONE_COUNTRY_CODES = [
 
 function detectPhoneCountry(digits){
   if(!digits) return '';
+  if(digits.length===10) digits = '1'+digits;   // 10 dígitos sin código de país = EE.UU./RD (si no, 829… se tomaba por Corea)
   if(digits[0]==='1'){
     if(digits.length < 4) return '';
     const area = digits.slice(1,4);
@@ -3999,6 +4035,7 @@ document.addEventListener('click', e=>{
 });
 
 </script>
+<script src="cobros.js"></script>
 </body>
 </html>
 
