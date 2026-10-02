@@ -263,6 +263,7 @@
       const headers = new Headers((init && init.headers) || (input && input.headers) || {});
       const bodyText = init && typeof init.body === 'string' ? init.body : null;
       if(!u.pathname.startsWith('/rest/v1/')) return respond(404, { message: 'Ruta no encontrada' });
+      if(u.pathname.startsWith('/rest/v1/facturas')) await autoItems;   // primero se recuperan los artículos del navegador
       return await handleRest(u.pathname.slice('/rest/v1/'.length).replace(/\/+$/, ''), u.searchParams, method, headers, bodyText);
     }catch(e){
       console.error('[BD local]', e);
@@ -661,6 +662,66 @@
   }
   window.pmExportarFacturas = exportFacturas;
 
+  // ── Recuperar los artículos de las facturas ─────────────────
+  //  Busca los artículos en todas las bases donde se guardaron en este equipo
+  //  y completa SOLO las facturas que no tienen (por ID o por No. factura).
+  //  Nunca cambia una factura que ya tiene artículos.
+  const hasItems = o => itemsOf(o).length > 0;
+  const numOf = o => String(pick(o.invoice_num, o.invoiceNum) ?? '').trim();
+  const flat = o => (o && o.record && typeof o.record === 'object') ? { ...o.record, ...o, items: hasItems(o) ? o.items : o.record.items } : o;
+
+  // localStorage se copia al cargar el archivo, antes de que la página lo sobrescriba
+  const LS_ORDER_KEYS = ['pm_orders_v1', 'pm_orders', 'pm_orders_v2'];
+  const lsSnapshot = LS_ORDER_KEYS.map(k => ({ nombre: 'Navegador → localStorage "' + k + '"', filas: lsArray(k) }));
+
+  async function browserSources(){
+    const idb = await readOldIndexedDB();
+    const now = LS_ORDER_KEYS.map(k => ({ nombre: 'Navegador → localStorage "' + k + '"', filas: lsArray(k) }));
+    return [{ nombre: 'Navegador → IndexedDB "pleaseme_facturacion"', filas: idb.facturas || [] },
+      ...lsSnapshot.map((s, i) => ({ nombre: s.nombre, filas: [...s.filas, ...now[i].filas] }))];
+  }
+
+  async function fillItems(sources, log){
+    const sin = (await allRows('facturas')).filter(f => !hasItems(f));
+    const byId = new Map(sin.map(f => [String(f.id), f]));
+    const byNum = new Map(sin.filter(f => numOf(f)).map(f => [numOf(f), f]));
+    const found = new Map();
+    for(const s of sources){
+      const con = s.filas.map(flat).filter(o => o && typeof o === 'object' && hasItems(o));
+      let sirven = 0;
+      con.forEach(o => {
+        const f = byId.get(String(o.id)) || (numOf(o) && byNum.get(numOf(o)));
+        if(f && !found.has(String(f.id))){ found.set(String(f.id), { ...f, items: itemsOf(o) }); sirven++; }
+      });
+      if(log) log('  · ' + s.nombre + ': ' + s.filas.length + ' registros, ' + con.length + ' con artículos' + (sirven ? ' → ' + sirven + ' sirven para completar' : ''));
+    }
+    await write([...found.values()].map(f => ({ put: ['facturas', f] })));
+    return { sin: sin.length, completadas: found.size };
+  }
+
+  // Al abrir la página se completan solas con lo que haya en este navegador
+  const autoItems = browserSources().then(s => fillItems(s))
+    .then(r => { if(r.completadas) console.log('[BD local] artículos recuperados del navegador en ' + r.completadas + ' facturas'); })
+    .catch(e => console.warn('[BD local] recuperar artículos:', e && e.message));
+
+  async function recoverItems(log){
+    const facturas = await allRows('facturas');
+    const sinAntes = facturas.filter(f => !hasItems(f)).length;
+    log('\nFacturas en la base local: ' + facturas.length + ' · sin artículos: ' + sinAntes);
+    if(!sinAntes){ log('✓ Todas las facturas tienen sus artículos.'); return false; }
+    log('\nBuscando los artículos en este equipo y en Supabase…');
+    const sources = [];
+    for(const t of ['facturas', 'pedidos']){
+      try{ const rows = await readLegacyTable(t); if(rows) sources.push({ nombre: 'Supabase (nube) → tabla "' + t + '"', filas: rows }); }
+      catch(e){ log('  ⚠ Supabase "' + t + '": ' + e.message + ' (¿sin internet?)'); }
+    }
+    sources.push(...await browserSources());
+    const r = await fillItems(sources, log);
+    log(r.completadas ? '\n✓ ' + r.completadas + ' facturas completadas con sus artículos.' : '\n(no se encontraron artículos para esas facturas)');
+    if(r.sin > r.completadas) log('⚠ ' + (r.sin - r.completadas) + ' facturas siguen sin artículos: no están en ninguna de las bases de este equipo.\n  Si tienes un respaldo .json o un Excel nuevo (con la hoja "Artículos"), restáuralo con 📂 Restaurar.');
+    return r.completadas > 0;
+  }
+
   // Restaura un archivo: respaldo .json, o registro de facturas en Excel/CSV
   async function restoreFile(file, log){
     if(/\.json$/i.test(file.name)){
@@ -711,6 +772,7 @@
         </div>
         <pre id="pmBDLog" style="margin:0;padding:14px 20px;overflow:auto;flex:1;min-height:120px;font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:#cfc6b0"></pre>
         <div style="padding:12px 20px;border-top:1px solid rgba(212,175,55,.2);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+          <button data-a="articulos" style="${BTN}" title="Busca los artículos de las facturas que no los tienen (Supabase y este navegador)">🔎 Recuperar artículos</button>
           <button data-a="restaurar" style="${BTN}" title="Respaldo .json o registro de facturas en Excel (.xlsx/.xls) o CSV">📂 Restaurar (respaldo o Excel)</button>
           <button data-a="respaldo" style="${BTN}">💾 Descargar respaldo</button>
           <button data-a="migrar" style="${BTN_MAIN}">⇪ Traer mis datos (Supabase + navegador)</button>
@@ -759,12 +821,20 @@
       for(const [t, rows] of Object.entries(sb.tablas)) add(t, await importRows(t, rows, first ? 'reemplazar' : 'completar'));
       for(const [t, rows] of Object.entries(br)) add(t, await importRows(t, rows, 'completar'));
       Object.entries(total).forEach(([t, r]) => log('  · ' + t + ': ' + r.nuevos + ' nuevos, ' + r.actualizados + ' actualizados'));
+      const fuentes = ['facturas', 'pedidos'].filter(t => sb.tablas[t]).map(t => ({ nombre: 'Supabase "' + t + '"', filas: sb.tablas[t] }));
+      const art = await fillItems([...fuentes, ...await browserSources()]);
+      if(art.completadas) log('  · artículos recuperados en ' + art.completadas + ' facturas');
+      if(art.sin > art.completadas) log('  ⚠ ' + (art.sin - art.completadas) + ' facturas siguen sin artículos (usa 🔎 Recuperar artículos para ver dónde se buscó)');
       if(Object.keys(sb.tablas).length && sb.ok) await setMeta('migracion_supabase', new Date().toISOString());
       changed = true;
       await showTotals('\nTotal en la base local:');
       log(Object.keys(sb.tablas).length
         ? '\n✓ Listo. Te recomendamos descargar un respaldo ahora.'
         : '\n⚠ No se pudo leer Supabase (¿sin internet?). Se guardó lo que había en el navegador; vuelve a intentarlo con internet.');
+    });
+
+    ov.querySelector('[data-a="articulos"]').onclick = () => run(async () => {
+      if(await recoverItems(log)){ changed = true; await showTotals('\nTotal en la base local:'); }
     });
 
     ov.querySelector('[data-a="respaldo"]').onclick = () => run(async () => {
