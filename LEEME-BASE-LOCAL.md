@@ -111,6 +111,15 @@ archivo. Si el sistema nuevo se abre desde otro lugar, no la puede ver.
    Solo se completan los artículos que faltan y se agregan las facturas que no
    están.
 
+### Restaurar desde el respaldo de Supabase
+
+Si descargaste el respaldo de la base de datos desde el panel de Supabase
+(archivo `db_cluster-….backup.gz`), pulsa **🗄 BD local → 📂 Restaurar** y
+elige ese archivo tal cual, sin descomprimirlo. Se completan los artículos de
+las facturas que no los tienen y se agregan las facturas que falten.
+📂 Restaurar reconoce cada archivo por su contenido, así que funciona aunque el
+navegador lo haya guardado con otro nombre o sin extensión.
+
 ## Ten en cuenta
 
 - La **tienda online** y **Mi cuenta** también usan la base local. Solo ven los
