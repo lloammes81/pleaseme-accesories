@@ -39,6 +39,11 @@
     .saldo-chip{font-size:10px;padding:1px 7px;border-radius:20px;background:rgba(255,154,77,.14);color:#ff9a4d;border:1px solid rgba(255,154,77,.4);font-weight:700;white-space:nowrap}
     .saldo-chip.ok{background:rgba(47,227,181,.12);color:#2fe3b5;border-color:rgba(47,227,181,.35)}
     .kpi-cobrar{border-left-color:#ff9a4d}.kpi-cobrar .kpi-val{color:#ff9a4d}
+    .cb-t1{border-color:rgba(255,200,60,.85)!important;background:linear-gradient(100deg,rgba(255,196,48,.22),rgba(255,196,48,.04))!important;box-shadow:0 0 14px rgba(255,196,48,.18)}
+    .cb-t2{border-color:rgba(176,124,255,.75)!important;background:linear-gradient(100deg,rgba(150,95,255,.20),rgba(150,95,255,.04))!important}
+    .cb-t3{border-color:rgba(47,200,227,.6)!important;background:linear-gradient(100deg,rgba(47,200,227,.15),rgba(47,200,227,.03))!important}
+    .cb-nivel{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.4px;padding:1px 7px;border-radius:99px;margin-left:6px;vertical-align:middle}
+    .cb-nivel.t1{background:#ffc430;color:#2a1c00}.cb-nivel.t2{background:#b07cff;color:#1d0b3a}.cb-nivel.t3{background:#2fc8e3;color:#00262d}
     .cb-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
     .cb-chip{flex:1;min-width:110px;background:rgba(212,175,55,.06);border:1px solid var(--border);border-radius:10px;padding:8px 12px}
     .cb-chip small{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
@@ -93,7 +98,7 @@
   // ══════════════════════════════════════════════════════════
   let TASAS = [];     // [{f:'AAAA-MM-DD', t:59.5}] ordenado por fecha
   const LS_TASAS = 'pm_tasas_usd_dop';
-  const ordenarTasas = a => a.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.f) && num(x.t) > 0).map(x => ({ f: x.f, t: num(x.t) })).sort((a, b) => a.f.localeCompare(b.f));
+  const ordenarTasas = a => a.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.f) && num(x.t) > 0).map(x => ({ f: x.f, t: num(x.t), ...(x.a ? { a: 1 } : {}) })).sort((a, b) => a.f.localeCompare(b.f));
 
   async function cargarTasas(){
     let arr = null;
@@ -167,12 +172,46 @@
     aplicarMonedaForm();
   }
 
+  // Tasa en línea (se actualiza sola; una tasa escrita a mano para hoy no se pisa)
+  const LS_TASA_TS = 'pm_tasa_auto_ts';
+  const FUENTES_TASA = [
+    ['https://open.er-api.com/v6/latest/USD', j => j && j.rates && j.rates.DOP],
+    ['https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', j => j && j.usd && j.usd.dop],
+    ['https://latest.currency-api.pages.dev/v1/currencies/usd.json', j => j && j.usd && j.usd.dop],
+  ];
+  async function tasaOnline(forzar){
+    const hoy = hoyISO();
+    const ya = TASAS.find(x => x.f === hoy);
+    if(!forzar){
+      if(ya && !ya.a) return false;                                  // hoy la escribió el usuario
+      let ts = 0; try{ ts = Number(localStorage.getItem(LS_TASA_TS)) || 0; }catch(e){}
+      if(ya && ya.a && Date.now() - ts < 3 * 3600000) return false;  // ya se actualizó hace poco
+    }
+    for(const [url, leer] of FUENTES_TASA){
+      try{
+        const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 8000);
+        const r = await fetch(url, { signal: ctl.signal }); clearTimeout(to);
+        const v = num(leer(await r.json()));
+        if(!(v > 20 && v < 500)) continue;                           // descarta datos absurdos
+        TASAS = ordenarTasas([...TASAS.filter(x => x.f !== hoy), { f: hoy, t: r2(v), a: 1 }]);
+        try{ localStorage.setItem(LS_TASA_TS, String(Date.now())); }catch(e){}
+        await guardarTasas(); refrescarTodo();
+        return true;
+      }catch(e){ /* sin internet o fuente caída: se prueba la siguiente */ }
+    }
+    return false;
+  }
+
   function abrirTasa(){
     const M = modal('tasaModal', '💱 Tasa de cambio USD / DOP', 460);
     const pintar = () => {
       const t = tasaVigente(hoyISO());
       M.cuerpo.innerHTML = `
         <div style="font-size:13px;margin-bottom:10px">${t ? 'Hoy: <b style="color:var(--gold)">1 USD = RD$ ' + t.toFixed(2) + '</b>' : '<span class="cb-muted">Todavía no hay una tasa registrada.</span>'}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <button class="btn btn-outline btn-sm" id="tsOnline">🌐 Actualizar desde internet</button>
+          <span class="cb-muted" id="tsOnlineEstado">${(TASAS.find(x => x.f === hoyISO()) || {}).a ? 'La tasa de hoy se cargó sola desde internet.' : 'Se actualiza sola al abrir la app.'}</span>
+        </div>
         <div class="cb-box" style="margin-top:0">
           <b style="font-size:12px">Registrar la tasa</b>
           <div class="cb-grid">
@@ -192,6 +231,12 @@
         ${TASAS.length ? `<div style="margin-top:12px"><b style="font-size:12px">Historial</b>${[...TASAS].reverse().slice(0, 12).map(x => `
           <div class="cb-row"><span>${fechaCorta(x.f)}</span><b style="color:var(--gold)">RD$ ${x.t.toFixed(2)}</b>
           <button class="btn btn-sm btn-red" data-del="${x.f}" title="Quitar esta tasa">🗑</button></div>`).join('')}</div>` : ''}`;
+      $('tsOnline').onclick = async () => {
+        $('tsOnline').disabled = true; $('tsOnlineEstado').textContent = 'Consultando…';
+        const ok = await tasaOnline(true);
+        if(ok){ toast('🌐 Tasa actualizada: 1 USD = RD$ ' + tasaVigente(hoyISO()).toFixed(2), 'ok'); pintar(); }
+        else { $('tsOnline').disabled = false; $('tsOnlineEstado').textContent = 'No se pudo consultar (¿sin internet?). Puedes escribirla a mano.'; }
+      };
       $('tsGuardar').onclick = async () => {
         const v = num(parseMoney($('tsValor').value)), f = $('tsFecha').value;
         if(!(v > 0) || !f){ toast('Escribe la tasa y la fecha', 'warn'); return; }
@@ -403,6 +448,16 @@
     return { n: vivas.length, anuladas: c.facturas.length - vivas.length, total, saldo, primera: fechas[0] || '', ultima: fechas[fechas.length - 1] || '',
       top: [...prod.values()].sort((a, b) => b.qty - a.qty).slice(0, 5), ordenadas: [...c.facturas].sort((a, b) => fechaFactura(b).localeCompare(fechaFactura(a))) };
   }
+  // Nivel del cliente según lo comprado (posición entre todos): 1 = top 10 %, 2 = siguiente 15 %, 3 = hasta la mitad
+  const NIVELES = { 1: ['💎 VIP', 'Mejores clientes (top 10 %)'], 2: ['⭐ Frecuente', 'Siguiente 15 %'], 3: ['🙂 Habitual', 'Hasta la mitad'] };
+  function nivelesClientes(){
+    const t = tasaVigente(hoyISO()) || 1;
+    const lista = clientes().map(c => { const s = estadisticas(c); return { k: c.clave, v: s.total.USD + s.total.DOP / t }; }).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+    const m = new Map(), n = lista.length;
+    lista.forEach((x, i) => { const p = (i + 1) / n; m.set(x.k, p <= 0.10 || i === 0 ? 1 : p <= 0.25 ? 2 : p <= 0.5 ? 3 : 0); });
+    return m;
+  }
+  const insignia = nv => nv ? `<span class="cb-nivel t${nv}" title="${NIVELES[nv][1]}">${NIVELES[nv][0]}</span>` : '';
   const iniciales = n => nombreLimpio(n).split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase() || '?';
   const abrirChat = (phone, texto) => {
     const n = whatsappNumber(phone);
@@ -428,7 +483,7 @@
         <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">
           <div class="cb-avatar">${esc(iniciales(c.nombre))}</div>
           <div style="min-width:0">
-            <div style="font-size:17px;font-weight:700">${esc(c.nombre)}</div>
+            <div style="font-size:17px;font-weight:700">${esc(c.nombre)}${insignia(nivelesClientes().get(c.clave) || 0)}</div>
             <div class="cb-muted">${[c.phone && '📞 ' + esc(c.phone), c.email && '✉ ' + esc(c.email)].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</div>
             ${c.address ? '<div class="cb-muted">📍 ' + esc(c.address) + '</div>' : ''}
           </div>
@@ -508,14 +563,15 @@
       const val = ({ s }) => s.total.USD + s.total.DOP / (tasaVigente(hoyISO()) || 1);
       const deb = ({ s }) => s.saldo.USD + s.saldo.DOP / (tasaVigente(hoyISO()) || 1);
       lista.sort((a, b) => orden === 'az' ? a.c.nombre.localeCompare(b.c.nombre, 'es') : orden === 'compra' ? val(b) - val(a) : orden === 'saldo' ? deb(b) - deb(a) : (b.s.ultima || '').localeCompare(a.s.ultima || ''));
-      $('clResumen').textContent = lista.length + ' cliente' + (lista.length !== 1 ? 's' : '') + (lista.some(x => deb(x) > EPS) ? ' · ' + lista.filter(x => deb(x) > EPS).length + ' con saldo pendiente' : '');
-      $('clLista').innerHTML = lista.map(({ c, s }) => `<div class="invoice-card" data-k="${esc(c.clave)}" style="cursor:pointer;padding:9px 12px">
+      $('clResumen').innerHTML = esc(lista.length + ' cliente' + (lista.length !== 1 ? 's' : '') + (lista.some(x => deb(x) > EPS) ? ' · ' + lista.filter(x => deb(x) > EPS).length + ' con saldo pendiente' : '')) + ' &nbsp;·&nbsp; Nivel por compras: ' + insignia(1) + insignia(2) + insignia(3);
+      const nivs = nivelesClientes();
+      $('clLista').innerHTML = lista.map(({ c, s }) => { const nv = nivs.get(c.clave) || 0; return `<div class="invoice-card${nv ? ' cb-t' + nv : ''}" data-k="${esc(c.clave)}" style="cursor:pointer;padding:9px 12px">
         <div style="display:flex;align-items:center;gap:10px;justify-content:space-between">
           <div style="display:flex;align-items:center;gap:10px;min-width:0"><div class="cb-avatar" style="width:38px;height:38px;font-size:14px">${esc(iniciales(c.nombre))}</div>
-            <div style="min-width:0"><div style="font-weight:600;font-size:13px">${esc(c.nombre)}</div><div class="cb-muted">${esc(c.phone || 'Sin teléfono')} · ${s.n} factura${s.n !== 1 ? 's' : ''}${s.ultima ? ' · última ' + fechaCorta(s.ultima) : ''}</div></div></div>
+            <div style="min-width:0"><div style="font-weight:600;font-size:13px">${esc(c.nombre)}${insignia(nv)}</div><div class="cb-muted">${esc(c.phone || 'Sin teléfono')} · ${s.n} factura${s.n !== 1 ? 's' : ''}${s.ultima ? ' · última ' + fechaCorta(s.ultima) : ''}</div></div></div>
           <div style="text-align:right;flex-shrink:0"><div class="inv-total" style="font-size:13px">${sumaMapa(s.total)}</div>
             ${(s.saldo.USD > EPS || s.saldo.DOP > EPS) ? '<span class="saldo-chip">💳 Debe ' + sumaMapa(s.saldo) + '</span>' : ''}</div>
-        </div></div>`).join('') || '<div class="items-empty" style="padding:20px;text-align:center;color:var(--muted)">Sin clientes que coincidan</div>';
+        </div></div>`; }).join('') || '<div class="items-empty" style="padding:20px;text-align:center;color:var(--muted)">Sin clientes que coincidan</div>';
       $('clLista').querySelectorAll('[data-k]').forEach(el => el.onclick = () => abrirFicha(el.dataset.k));
     };
     $('clBuscar').oninput = e => { q = e.target.value; pintar(); };
@@ -582,9 +638,11 @@
   async function iniciar(){
     await Promise.all([cargarPagos(), cargarTasas()]);
     refrescarTodo();
+    tasaOnline(false);
+    setInterval(() => tasaOnline(false), 3600000);
   }
 
-  Object.assign(window, { cargarPagos, cargarTasas, tasaVigente, convertir, equivalenteTexto, pintarEquivForm, cambiarPais, abrirTasa,
+  Object.assign(window, { cargarPagos, cargarTasas, tasaVigente, convertir, equivalenteTexto, pintarEquivForm, cambiarPais, abrirTasa, tasaOnline,
     infoCobro, saldoDe, cobroImpresion, cobroBadge, sumaSaldos, pintarKpiCobros, pintarCobroForm, abrirAbonos, abrirAbonosForm,
     abrirFicha, abrirFichaDesdeForm, abrirClientes, abrirCuentasPorCobrar, sincronizarEstadoCobro, pmCobrosIniciar: iniciar,
     pmCobrosTasaActual: () => TASAS.slice() });
