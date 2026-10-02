@@ -465,8 +465,8 @@
       <!-- Número de factura -->
       <div class="grid-2">
         <div class="field">
-          <label class="lbl">No. Factura</label>
-          <input id="f_invNum" placeholder="F-2025-00001" />
+          <label class="lbl">No. Factura 🔒</label>
+          <input id="f_invNum" placeholder="F-2025-00001" readonly tabindex="-1" style="cursor:not-allowed;opacity:.9;font-weight:700" title="El número de factura se asigna solo y no se puede cambiar" />
         </div>
         <div class="field">
           <label class="lbl">Fecha</label>
@@ -494,8 +494,15 @@
           <input id="f_email" type="email" placeholder="cliente@correo.com" />
         </div>
         <div class="field" style="grid-column:1 / -1">
-          <label class="lbl">Teléfono <span id="phoneCountry" style="color:var(--gold);font-weight:700;text-transform:none;letter-spacing:0"></span></label>
-          <input id="f_phone" type="tel" placeholder="+1 (000) 000-0000" oninput="formatPhoneInput(this)" />
+          <label class="lbl">Teléfono <span id="phoneCountry" style="color:var(--gold);font-weight:700;text-transform:none;letter-spacing:0"></span> · País y moneda</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input id="f_phone" type="tel" placeholder="+1 (000) 000-0000" oninput="formatPhoneInput(this)" style="width:178px;flex:none" />
+            <select id="f_country" onchange="aplicarMonedaForm()" style="width:auto;flex:none;padding:9px 10px" title="País del cliente: define la moneda de los montos de la factura">
+              <option value="USA">USA</option>
+              <option value="RD">RD</option>
+            </select>
+            <span id="monedaBadge" style="font-size:11px;color:var(--muted);white-space:nowrap">USD · $</span>
+          </div>
         </div>
         <div class="field" style="position:relative;grid-column:1 / -1">
           <label class="lbl">Dirección del cliente</label>
@@ -587,7 +594,7 @@
       <!-- TOTALES INPUTS -->
       <div class="grid-3" style="margin-bottom:12px">
         <div class="field">
-          <label class="lbl">Envío ($)</label>
+          <label class="lbl">Envío (<span class="mon-sim">$</span>)</label>
           <input id="f_shipping" type="text" inputmode="decimal" class="money-input" autocomplete="off" value="0.00" oninput="recalc()" />
         </div>
         <div class="field">
@@ -1397,6 +1404,7 @@ async function resetForm(){
   g('f_clientName').value = '';
   g('f_email').value = '';
   g('f_phone').value = '';
+  g('f_country').value = 'USA';
   updatePhoneCountryBadge();
   g('f_address').value = '';
   g('f_address_usa').value = '';
@@ -1410,7 +1418,7 @@ async function resetForm(){
   g('f_notes').value = '';
   setDefaultDate();
   await generateInvNum();
-  renderItems();
+  aplicarMonedaForm();   // símbolo del país (USA por defecto) + vuelve a pintar artículos y totales
   recalc();
   document.querySelectorAll('.invoice-card').forEach(c=>c.classList.remove('active'));
   applyFormLockState();
@@ -1457,7 +1465,7 @@ function renderItems(){
         />
       </div>`;
     const priceCell = formReadOnly
-      ? `<div class="lb-price">$${Number(it.price||0).toFixed(2)}</div>`
+      ? `<div class="lb-price">${fmtM(it.price,monedaActual())}</div>`
       : `<div class="lb-price">
         <input class="lb-input money-input" type="text" inputmode="decimal" autocomplete="off" value="${Number(it.price||0).toFixed(2)}" style="text-align:right" title="Editar precio"
           oninput="updateItemField(${i},'price',this.value)"
@@ -1472,7 +1480,7 @@ function renderItems(){
       <div style="display:flex;align-items:flex-start;gap:7px;min-width:0">${formReadOnly ? '' : `<input type="checkbox" class="lb-sel" ${itemsSel.has(it)?'checked':''} onclick="event.stopPropagation();toggleItemSel(${i},this.checked)" title="Seleccionar para enviar a otra factura" style="accent-color:var(--gold);margin-top:2px;flex-shrink:0">`}<div style="min-width:0"><div class="lb-name" title="${esc(it.name)}">${esc(it.name)}</div>${sizeLabel}</div></div>
       ${qtyCell}
       ${priceCell}
-      <div class="lb-total" id="lbtotal-${i}">$${lineTotal}</div>
+      <div class="lb-total" id="lbtotal-${i}">${simMoneda(monedaActual())}${lineTotal}</div>
       ${delBtn}
     </div>`;
   }).join('');
@@ -1489,7 +1497,7 @@ function updateListboxFooter(){
   const sub = items.reduce((s, i) => s + Number(i.price||0)*Number(i.qty||1), 0);
   footerEl.style.display = 'flex';
   g('listboxCount').textContent = items.length + ' artículo' + (items.length !== 1 ? 's' : '');
-  g('listboxSubtotal').textContent = '$' + sub.toFixed(2);
+  g('listboxSubtotal').textContent = fmtM(sub,monedaActual());
 }
 
 // Edición en línea de cantidad/precio — actualiza totales sin redibujar la lista (no se pierde el foco)
@@ -1499,7 +1507,7 @@ function updateItemField(i, field, value){
   if(field === 'qty')   it.qty   = Math.max(1, Math.floor(Number(value)) || 1);
   if(field === 'price') it.price = Math.max(0, parseMoney(value));
   const totEl = g('lbtotal-'+i);
-  if(totEl) totEl.textContent = '$' + (Number(it.price||0) * Number(it.qty||1)).toFixed(2);
+  if(totEl) totEl.textContent = fmtM(Number(it.price||0) * Number(it.qty||1), monedaActual());
   if(i === editingItemIdx){
     if(field === 'qty')   g('newItemQty').value   = it.qty;
     if(field === 'price') g('newItemPrice').value = Number(it.price||0).toFixed(2);
@@ -1694,6 +1702,26 @@ function registrarProductosNuevos(lista){
   return nuevos.length;
 }
 
+// ══════════════════════════════════════════════════════
+//  MONEDA POR PAÍS — USA → USD ($) · RD → DOP (RD$)
+//  Solo cambia el símbolo/etiqueta de los montos: no se convierte ningún valor.
+//  Se guarda en la factura como "currency" (USD o DOP).
+// ══════════════════════════════════════════════════════
+const monedaDePais = p => p==='RD' ? 'DOP' : 'USD';
+const paisDeMoneda = c => c==='DOP' ? 'RD' : 'USA';
+const simMoneda    = c => c==='DOP' ? 'RD$' : '$';
+const fmtM         = (n,c) => simMoneda(c)+Number(n||0).toFixed(2);
+function monedaActual(){ const el = g('f_country'); return el ? monedaDePais(el.value) : 'USD'; }
+
+// Aplica la moneda del país elegido a todo el formulario
+function aplicarMonedaForm(){
+  const c = monedaActual(), sim = simMoneda(c);
+  document.querySelectorAll('#formPanel .mon-sim').forEach(e=>e.textContent = sim);
+  const opt = g('f_discType').querySelector('option[value="fixed"]'); if(opt) opt.textContent = sim;
+  const b = g('monedaBadge'); if(b) b.textContent = c+' · '+sim;
+  renderItems();   // vuelve a pintar los montos de los artículos y los totales
+}
+
 function recalc(){
   const sub   = items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
   const ship  = parseMoney(g('f_shipping').value);
@@ -1701,10 +1729,11 @@ function recalc(){
   const dt    = g('f_discType').value;
   const disc  = dt==='pct' ? sub*(dv/100) : dv;
   const total = Math.max(0, sub+ship-disc);
-  g('tSubtotal').textContent = '$'+sub.toFixed(2);
-  g('tShipping').textContent = '$'+ship.toFixed(2);
-  g('tDiscount').textContent = '−$'+disc.toFixed(2);
-  g('tTotal').textContent    = '$'+total.toFixed(2);
+  const mc = monedaActual();
+  g('tSubtotal').textContent = fmtM(sub,mc);
+  g('tShipping').textContent = fmtM(ship,mc);
+  g('tDiscount').textContent = '−'+fmtM(disc,mc);
+  g('tTotal').textContent    = fmtM(total,mc);
 }
 
 // ══════════════════════════════════════════════════════
@@ -1817,7 +1846,7 @@ function collectData(){
     total,
     created_at:    g('f_date').value ? fechaAISO(g('f_date').value) : new Date().toISOString(),
     updated_at:    new Date().toISOString(),
-    currency:      'USD',
+    currency:      monedaActual(),
   };
 }
 
@@ -1853,6 +1882,8 @@ function validate(data){
 // Devuelve true si se creó una factura NUEVA.
 async function saveOnly(opts={}){
   const data = collectData();
+  // El número de una factura ya guardada nunca cambia
+  if(editingId){ const ex = DB.orders.find(o=>o.id===editingId); if(ex && (ex.invoice_num||ex.invoiceNum)) data.invoice_num = ex.invoice_num||ex.invoiceNum; }
   if(!validate(data)) return false;
   const wasNew = !editingId;
 
@@ -1996,7 +2027,7 @@ function whatsappNumber(phone){
 
 function invoiceWhatsAppText(o){
   const co = getCompanyInfo();
-  const money = n => '$' + Number(n||0).toFixed(2);
+  const money = n => fmtM(n, o.currency);
   const lines = (o.items||[]).map(i => '• ' + (i.qty||1) + ' x ' + i.name + (i.size && i.size!=='—' ? ' (' + i.size + ')' : '') + ' — ' + money(Number(i.price||0)*Number(i.qty||1)));
   return [
     'Hola ' + (o.clientName||'') + ', gracias por tu compra en ' + (co.name||'Pleaseme') + ' ✨',
@@ -2058,7 +2089,7 @@ function abrirEnvioWhatsApp(o){
         <button data-a="x" style="background:none;border:none;color:var(--muted,#a59c86);font-size:20px;cursor:pointer;line-height:1">✕</button>
       </div>
       <div style="font-size:13px;color:var(--text,#e8e0cc);line-height:1.6;margin-bottom:12px">
-        Factura <b>${esc(o.invoice_num||'')}</b> · <b>${esc(o.clientName||'')}</b> · <b>$${Number(o.total||0).toFixed(2)}</b>
+        Factura <b>${esc(o.invoice_num||'')}</b> · <b>${esc(o.clientName||'')}</b> · <b>${fmtM(o.total,o.currency)}</b>
       </div>
       <label class="lbl" style="display:block;margin-bottom:4px">Enviar al número</label>
       <input id="waTel" value="${esc(tel)}" placeholder="Ej: 829-578-6444" autocomplete="off" inputmode="tel" style="margin-bottom:6px"/>
@@ -2162,6 +2193,7 @@ function loadForEdit(id, readOnly){
   g('f_clientName').value   = o.clientName||'';
   g('f_email').value        = o.clientEmail||o.email||'';
   g('f_phone').value        = o.clientPhone||o.phone||'';
+  g('f_country').value      = paisDeMoneda(o.currency);
   updatePhoneCountryBadge();
   g('f_address').value      = o.address||o.shipping_address||'';
   g('f_address_usa').value  = o.address_usa||o.shipping_address_usa||'';
@@ -2182,7 +2214,7 @@ function loadForEdit(id, readOnly){
   const isVoided = o.status==='cancelado'||o.status==='anulado';
   formReadOnly = !!readOnly || isVoided;
 
-  renderItems();
+  aplicarMonedaForm();   // símbolo del país en todo el formulario (vuelve a pintar artículos y totales)
   recalc();
 
   const voidBanner = g('voidBanner') || (() => {
@@ -2251,7 +2283,7 @@ function renderList(){
           ${o.tracking_number?`<div style="font-size:10px;color:${o.tracking_delivered?'#2fe3b5':'var(--green)'};margin-top:3px">📦 ${esc(o.tracking_status||o.tracking_number)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-          <div class="inv-total">$${Number(o.total||0).toFixed(2)}</div>
+          <div class="inv-total">${fmtM(o.total,o.currency)}</div>
           <div style="display:flex;gap:4px">
             <button class="btn btn-sm btn-green" onclick="event.stopPropagation();quickPDF('${o.id}')" title="Ver PDF">🧾</button>
             <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openTrackingModal('${o.id}')" title="${o.tracking_number?'Ver/editar tracking':'Agregar tracking'}">${o.tracking_number?'📦':'📦+'}</button>
@@ -2321,8 +2353,7 @@ function renderModal(){
   if(countEl) countEl.textContent = list.length+' factura'+(list.length!==1?'s':'');
   const TITLES = {'':'🧾 Todas las facturas', pendiente:'⏳ Facturas pendientes', pagadas:'✅ Pagadas/Entregadas', ingresos:'💰 Ingresos totales'};
   if(g('modalTitle')) g('modalTitle').textContent = TITLES[st] || '📋 Facturas';
-  const sum = list.filter(o=>(o.status||o.invoice_status)!=='cancelado').reduce((a,o)=>a+Number(o.total||0),0);
-  if(g('modalSum')) g('modalSum').textContent = 'Total: $'+sum.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(g('modalSum')) g('modalSum').textContent = 'Total: '+sumaPorMoneda(list.filter(o=>(o.status||o.invoice_status)!=='cancelado'));
 
   const el = g('modalInvoiceList');
   if(!list.length){
@@ -2356,7 +2387,7 @@ function renderModal(){
           ${detail?`<div class="inv-meta" style="margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(detail)}</div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          <div class="inv-total">$${Number(o.total||0).toFixed(2)}</div>
+          <div class="inv-total">${fmtM(o.total,o.currency)}</div>
           <div style="display:flex;gap:4px">
             <button class="btn btn-sm btn-green" onclick="event.stopPropagation();modalOpenPDF('${o.id}')" title="Ver PDF">🧾 PDF</button>
             <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openTrackingModal('${o.id}')" title="${o.tracking_number?'Ver/editar tracking':'Agregar tracking'}">${o.tracking_number?'📦':'📦+'}</button>
@@ -2537,13 +2568,21 @@ async function updateTrackingStatus(id, statusText, delivered){
 // ══════════════════════════════════════════════════════
 //  KPIS
 // ══════════════════════════════════════════════════════
+// Suma los totales sin mezclar monedas: "$1,200.00" o "$1,200.00 + RD$5,000.00"
+function sumaPorMoneda(lista){
+  const t = {};
+  lista.forEach(o=>{ const c = o.currency==='DOP' ? 'DOP' : 'USD'; t[c] = (t[c]||0) + Number(o.total||0); });
+  const f = (n,c) => simMoneda(c)+n.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const partes = ['USD','DOP'].filter(c=>t[c]!==undefined && (t[c]>0 || Object.keys(t).length===1)).map(c=>f(t[c],c));
+  return partes.length ? partes.join(' + ') : '$0.00';
+}
+
 function updateKPIs(){
   const orders = DB.orders;
   g('kpiTotal').textContent      = orders.length;
   g('kpiPendientes').textContent = orders.filter(o=>(o.status||o.invoice_status)==='pendiente').length;
   g('kpiPagadas').textContent    = orders.filter(o=>['entregado','pagado'].includes(o.status||o.invoice_status)).length;
-  const rev = orders.filter(o=>(o.status||o.invoice_status)!=='cancelado').reduce((a,o)=>a+Number(o.total||0),0);
-  g('kpiRevenue').textContent    = '$'+rev.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
+  g('kpiRevenue').textContent    = sumaPorMoneda(orders.filter(o=>(o.status||o.invoice_status)!=='cancelado'));
 }
 
 // ══════════════════════════════════════════════════════
@@ -2696,7 +2735,7 @@ function openTransferItems(){
   const sel = items.filter(it=>itemsSel.has(it));
   const sub = sel.reduce((a,i)=>a+Number(i.price||0)*Number(i.qty||1),0);
   g('transferResumen').innerHTML = '<b style="color:var(--text)">'+sel.length+' artículo'+(sel.length!==1?'s':'')+'</b> ('+
-    esc(sel.slice(0,3).map(i=>(i.qty||1)+'× '+i.name).join(', ')+(sel.length>3?'…':''))+') · $'+sub.toFixed(2);
+    esc(sel.slice(0,3).map(i=>(i.qty||1)+'× '+i.name).join(', ')+(sel.length>3?'…':''))+') · '+fmtM(sub,monedaActual());
   g('transferQ').value = '';
   g('transferModal').style.display = 'flex';
   renderTransferList();
@@ -2721,7 +2760,7 @@ function renderTransferList(){
         <div style="min-width:0"><div class="inv-num">${esc(o.invoice_num||'—')}</div>
           <div class="inv-client" style="margin:2px 0">${esc(o.clientName||'Sin nombre')}</div>
           <div class="inv-meta"><span>📅 ${date}</span><span>🛍 ${n}</span></div></div>
-        <div class="inv-total">$${Number(o.total||0).toFixed(2)}</div>
+        <div class="inv-total">${fmtM(o.total,o.currency)}</div>
       </div></div>`;
   }).join('');
 }
@@ -2732,7 +2771,9 @@ async function transferItemsTo(destId){
   const sel = items.filter(it=>itemsSel.has(it));
   if(!sel.length) return;
   const origen = g('f_invNum').value || 'esta factura';
-  if(!confirm('¿Enviar '+sel.length+' artículo'+(sel.length!==1?'s':'')+' de '+origen+' a '+(dest.invoice_num||'la factura')+' ('+(dest.clientName||'')+')?\n\n'+origen+' se queda igual: se envía una copia con la misma información y monto.')) return;
+  const monO = monedaActual(), monD = dest.currency||'USD';
+  const aviso = monO!==monD ? '\n\n⚠ Las facturas tienen distinta moneda ('+monO+' → '+monD+'): los precios se copian tal cual, NO se convierten.' : '';
+  if(!confirm('¿Enviar '+sel.length+' artículo'+(sel.length!==1?'s':'')+' de '+origen+' a '+(dest.invoice_num||'la factura')+' ('+(dest.clientName||'')+')?\n\n'+origen+' se queda igual: se envía una copia con la misma información y monto.'+aviso)) return;
 
   // 1) Factura destino: agregar los artículos y recalcular sus totales
   const copia = sel.map(it=>({...it}));
@@ -2753,7 +2794,7 @@ async function transferItemsTo(destId){
   renderList(); updateKPIs();
   if(g('invoicesModal').style.display!=='none') renderModal();
   closeTransferItems();
-  toast('↪ '+sel.length+' artículo'+(sel.length!==1?'s':'')+' enviado'+(sel.length!==1?'s':'')+' a '+(dest.invoice_num||'la factura')+' — nuevo total $'+cambio.total.toFixed(2),'ok');
+  toast('↪ '+sel.length+' artículo'+(sel.length!==1?'s':'')+' enviado'+(sel.length!==1?'s':'')+' a '+(dest.invoice_num||'la factura')+' — nuevo total '+fmtM(cambio.total,dest.currency),'ok');
 }
 
 document.addEventListener('click', e=>{
@@ -2850,6 +2891,7 @@ function registrarImpresion(o){
     total: Number(o.total||0),
     status: o.status||o.invoice_status||'',
     items_count: (o.items||[]).reduce((a,i)=>a+(Number(i.qty)||1),0),
+    currency: o.currency||'USD',
     impreso_at: ahora,
     created_at: ahora,
     factura: copia,
@@ -2895,7 +2937,7 @@ function renderPrintHistory(){
           <div class="inv-meta" style="display:flex;gap:10px;flex-wrap:wrap"><span>🖨 ${cuando}</span><span>🛍 ${n} artículo${n!==1?'s':''}</span></div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          <div class="inv-total">$${Number(r.total||0).toFixed(2)}</div>
+          <div class="inv-total">${fmtM(r.total,r.currency)}</div>
           <button class="btn btn-sm btn-green" onclick="printHistoryPDF('${r.id}')" title="Abrir en PDF la factura tal como se imprimió">🧾 PDF</button>
           ${existe?`<button class="btn btn-sm btn-outline" onclick="closePrintHistory();loadForEdit('${r.factura_id}')" title="Abrir la factura para hacer cambios">✏️</button>`:''}
         </div>
@@ -2978,8 +3020,8 @@ function openPrintWindow(o){
         ${item.name||''}${item.size&&item.size!=='—'?`<br><span style="font-size:10px;color:#888">Talla: ${item.size}</span>`:''}
       </td>
       <td style="padding:7px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e8e0d0">${item.qty||1}</td>
-      <td style="padding:7px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e8e0d0">$${Number(item.price||0).toFixed(2)}</td>
-      <td style="padding:7px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e8e0d0;font-weight:600">$${(Number(item.price||0)*Number(item.qty||1)).toFixed(2)}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e8e0d0">${fmtM(item.price,o.currency)}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e8e0d0;font-weight:600">${fmtM(Number(item.price||0)*Number(item.qty||1),o.currency)}</td>
     </tr>`).join('');
 
   const html = `<!doctype html><html><head><meta charset="utf-8"/>
@@ -3068,10 +3110,10 @@ function openPrintWindow(o){
   </table>
   <div class="totals-section">
     <div class="totals-box">
-      <div class="total-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
-      ${ship>0?`<div class="total-row"><span>Envío</span><span>$${ship.toFixed(2)}</span></div>`:''}
-      ${disc>0?`<div class="total-row" style="color:#c0392b;font-size:10px;opacity:.85;padding-bottom:1px"><span></span><span style="padding-right:0">${sub>0?Math.round((disc/sub)*10000)/100:0}%</span></div><div class="total-row" style="color:#c0392b"><span>Descuento</span><span>(-$${disc.toFixed(2)})</span></div>`:''}
-      <div class="total-final"><span>TOTAL</span><span>$${Number(total).toFixed(2)}</span></div>
+      <div class="total-row"><span>Subtotal</span><span>${fmtM(sub,o.currency)}</span></div>
+      ${ship>0?`<div class="total-row"><span>Envío</span><span>${fmtM(ship,o.currency)}</span></div>`:''}
+      ${disc>0?`<div class="total-row" style="color:#c0392b;font-size:10px;opacity:.85;padding-bottom:1px"><span></span><span style="padding-right:0">${sub>0?Math.round((disc/sub)*10000)/100:0}%</span></div><div class="total-row" style="color:#c0392b"><span>Descuento</span><span>(-${fmtM(disc,o.currency)})</span></div>`:''}
+      <div class="total-final"><span>TOTAL</span><span>${fmtM(total,o.currency)}</span></div>
     </div>
   </div>
   ${o.notes?`<div style="margin-top:14px;background:#f9f6f0;border:1px solid #e0d8c8;border-radius:6px;padding:10px"><span style="font-size:10px;font-weight:700;color:#b48226;text-transform:uppercase">Notas: </span><span style="font-size:12px;color:#555">${o.notes}</span></div>`:''}
