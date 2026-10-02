@@ -94,6 +94,23 @@ en cada uno y completa solo las facturas que no tienen artículos. Las que ya
 los tienen no cambian. Al abrir Facturación también se completan solas con lo
 que haya en el navegador.
 
+### Si "Recuperar artículos" no encuentra nada
+
+El archivo anterior de Facturación guardaba los artículos en el navegador
+(`localStorage "pm_orders_v1"`). Esa copia solo se ve desde **el mismo
+navegador** y **la misma carpeta o dirección** desde donde se abría ese
+archivo. Si el sistema nuevo se abre desde otro lugar, no la puede ver.
+
+1. Copia `rescatar-facturas.html` en la misma carpeta donde estaba el archivo
+   anterior y ábrelo en el mismo navegador de siempre. Si lo abrías desde una
+   dirección web, ábrelo desde esa misma dirección.
+2. La página dice cuántas facturas con artículos encontró. Pulsa
+   **💾 Descargar respaldo de facturas**. Si no encuentra ninguna, prueba en
+   otro navegador (Chrome, Edge…).
+3. En Facturación pulsa **🗄 BD local → 📂 Restaurar** y elige ese archivo.
+   Solo se completan los artículos que faltan y se agregan las facturas que no
+   están.
+
 ## Ten en cuenta
 
 - La **tienda online** y **Mi cuenta** también usan la base local. Solo ven los
