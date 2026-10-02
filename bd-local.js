@@ -13,6 +13,8 @@
 //        navegador a la base local (no borra nada; se puede repetir).
 //      - Descargar respaldo (.json) y Restaurar: respaldo .json o el
 //        registro de facturas descargado en Excel (.xlsx/.xls) o CSV.
+//      - Respaldo diario automático a la hora de cierre, con notificación
+//        y barra de progreso (copia en el equipo + archivo .json).
 //
 //  Debe cargarse ANTES que cualquier otro script de la página.
 // ══════════════════════════════════════════════════════════════
@@ -1010,6 +1012,196 @@
     return true;
   }
 
+  // ══════════════════════════════════════════════════════════
+  //  RESPALDO DIARIO AUTOMÁTICO (Facturación y Admin)
+  //
+  //  Al llegar la hora de cierre (18:00 por defecto) la app hace un
+  //  respaldo completo de la base local y muestra una notificación con
+  //  barra de progreso:
+  //    1. guarda una copia en este equipo (IndexedDB "pleaseme_respaldos",
+  //       se conservan las últimas 7), y
+  //    2. descarga el archivo .json (carpeta Descargas).
+  //  Si la app estaba cerrada a esa hora, el respaldo se hace en cuanto se
+  //  abre. Solo se hace uno por día aunque haya varias pestañas abiertas.
+  // ══════════════════════════════════════════════════════════
+  const RESP_DB = 'pleaseme_respaldos', RESP_STORE = 'copias', RESP_MAX = 7;
+  const RESP_DEF = { activo: true, hora: '18:00', descargar: true };
+  const autoRespaldo = !/tienda|account/i.test(location.pathname);
+
+  let respDbP = null;
+  function openRespDB(){
+    if(respDbP) return respDbP;
+    respDbP = new Promise((resolve, reject) => {
+      const req = indexedDB.open(RESP_DB, 1);
+      req.onupgradeneeded = () => { if(!req.result.objectStoreNames.contains(RESP_STORE)) req.result.createObjectStore(RESP_STORE, { keyPath: 'id' }); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => { respDbP = null; reject(req.error); };
+    });
+    return respDbP;
+  }
+  async function listarCopias(){
+    const db = await openRespDB();
+    const all = await reqP(db.transaction(RESP_STORE, 'readonly').objectStore(RESP_STORE).getAll());
+    return all.sort((a, b) => String(b.id).localeCompare(String(a.id)));
+  }
+
+  async function respConfig(){ return { ...RESP_DEF, ...((await getMeta('respaldo_auto')) || {}).value }; }
+  const diaLocal = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // Momento programado más reciente que ya pasó (hoy a la hora de cierre, o ayer)
+  function ultimoCierre(hora){
+    const [h, m] = String(hora || RESP_DEF.hora).split(':').map(Number);
+    const c = new Date(); c.setHours(h || 0, m || 0, 0, 0);
+    if(c > new Date()) c.setDate(c.getDate() - 1);
+    return c;
+  }
+
+  // ── Notificación con barra de progreso ──────────────────────
+  function notificacion(){
+    document.getElementById('pmRespNotif')?.remove();
+    const el = document.createElement('div');
+    el.id = 'pmRespNotif';
+    el.setAttribute('role', 'status');
+    el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:100001;width:min(340px,calc(100vw - 32px));background:#15120a;border:1px solid rgba(212,175,55,.45);border-radius:12px;padding:14px 16px;color:#e8e0cc;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.6);transition:opacity .4s';
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+        <b data-r="titulo" style="color:#d4af37">💾 Respaldo diario</b>
+        <button data-r="x" title="Cerrar" style="background:none;border:none;color:#aaa;font-size:15px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div data-r="texto" style="font-size:12px;color:#cfc6b0;margin-bottom:8px">Preparando…</div>
+      <div style="height:8px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden">
+        <div data-r="barra" style="height:100%;width:0;background:linear-gradient(90deg,#c9963a,#e8c56e);border-radius:6px;transition:width .25s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:#9c9380">
+        <span data-r="paso"></span><span data-r="pct">0%</span>
+      </div>`;
+    document.body.appendChild(el);
+    const q = k => el.querySelector('[data-r="' + k + '"]');
+    let timer = null;
+    const cerrar = () => { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); };
+    q('x').onclick = cerrar;
+    return {
+      progreso(pct, texto, paso){
+        pct = Math.max(0, Math.min(100, Math.round(pct)));
+        q('barra').style.width = pct + '%'; q('pct').textContent = pct + '%';
+        if(texto) q('texto').textContent = texto;
+        if(paso !== undefined) q('paso').textContent = paso;
+      },
+      listo(texto, boton){
+        this.progreso(100, texto, '✓ Completado');
+        q('barra').style.background = '#2fe3b5';
+        if(boton){
+          const b = document.createElement('button');
+          b.textContent = boton.texto; b.title = boton.titulo || '';
+          b.style.cssText = 'margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid rgba(212,175,55,.4);background:rgba(212,175,55,.1);color:#e8c56e;font-weight:600;cursor:pointer;font-size:12px';
+          b.onclick = boton.accion;
+          el.appendChild(b);
+        }
+        timer = setTimeout(cerrar, 15000);
+        el.onmouseenter = () => clearTimeout(timer);
+      },
+      error(texto, reintentar){
+        clearTimeout(timer);
+        q('titulo').textContent = '⚠ Respaldo diario'; q('titulo').style.color = '#ff6b6b';
+        q('barra').style.background = '#ff6b6b';
+        q('texto').textContent = texto; q('paso').textContent = '';
+        if(reintentar){
+          const b = document.createElement('button');
+          b.textContent = 'Reintentar';
+          b.style.cssText = 'margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid rgba(212,175,55,.4);background:rgba(212,175,55,.1);color:#e8c56e;font-weight:600;cursor:pointer;font-size:12px';
+          b.onclick = reintentar;
+          el.appendChild(b);
+        }
+      },
+    };
+  }
+
+  // Hace el respaldo mostrando el progreso. motivo: 'auto' | 'manual'
+  async function respaldoDiario(motivo){
+    const cfg = await respConfig();
+    const n = notificacion();
+    try{
+      n.progreso(3, 'Leyendo la base de datos…', 'Paso 1 de 3');
+      const db = await openDB();
+      const recs = await reqP(db.transaction(STORE, 'readonly').objectStore(STORE).getAll());
+      const tablas = {};
+      const total = recs.length || 1;
+      for(let i = 0; i < recs.length; i++){
+        const r = recs[i];
+        if(r.tabla !== META) (tablas[r.tabla] = tablas[r.tabla] || []).push(r.datos);
+        if(i % 200 === 0){ n.progreso(3 + 47 * i / total, 'Leyendo registros… ' + i.toLocaleString('es') + ' de ' + recs.length.toLocaleString('es')); await sleep(0); }
+      }
+      const registros = Object.values(tablas).reduce((a, t) => a + t.length, 0);
+      n.progreso(50, registros.toLocaleString('es') + ' registros en ' + Object.keys(tablas).length + ' tablas', 'Paso 1 de 3');
+      await sleep(250);
+
+      n.progreso(55, 'Guardando la copia en este equipo…', 'Paso 2 de 3');
+      const ahora = new Date(), dia = diaLocal(ahora);
+      const datos = { app: 'pleaseme', exportado: ahora.toISOString(), tablas };
+      const rdb = await openRespDB();
+      await new Promise((res, rej) => {
+        const tx = rdb.transaction(RESP_STORE, 'readwrite');
+        tx.objectStore(RESP_STORE).put({ id: dia, fecha: ahora.toISOString(), registros, motivo, datos });
+        tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+      });
+      const viejas = (await listarCopias()).slice(RESP_MAX);
+      if(viejas.length){
+        const tx = rdb.transaction(RESP_STORE, 'readwrite');
+        viejas.forEach(c => tx.objectStore(RESP_STORE).delete(c.id));
+      }
+      n.progreso(75, 'Copia guardada en este equipo (se conservan las últimas ' + RESP_MAX + ')', 'Paso 2 de 3');
+      await sleep(250);
+
+      const archivo = 'pleaseme-respaldo-' + dia + '.json';
+      const descargar = () => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(datos)], { type: 'application/json' }));
+        a.download = archivo;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        setMeta('ultimo_respaldo', new Date().toISOString()).catch(() => {});
+      };
+      if(cfg.descargar){
+        n.progreso(80, 'Descargando el archivo de respaldo…', 'Paso 3 de 3');
+        descargar();
+        await sleep(300);
+      }
+      await setMeta('respaldo_auto_ultimo', ahora.toISOString());
+      n.listo('Respaldo del ' + ahora.toLocaleDateString('es') + ' listo: ' + registros.toLocaleString('es') + ' registros.' +
+        (cfg.descargar ? ' Archivo "' + archivo + '" en Descargas.' : ' Copia guardada en este equipo.'),
+        { texto: cfg.descargar ? '⬇ Descargar de nuevo' : '⬇ Descargar archivo', titulo: 'Por si el navegador no lo descargó', accion: descargar });
+      return true;
+    }catch(e){
+      console.error('[Respaldo diario]', e);
+      n.error('No se pudo hacer el respaldo: ' + (e && e.message || e), () => respaldoDiario(motivo));
+      return false;
+    }
+  }
+  window.pmRespaldoDiario = () => respaldoDiario('manual');
+
+  let revisando = false;
+  async function revisarRespaldo(){
+    if(revisando) return;
+    revisando = true;
+    try{
+      const cfg = await respConfig();
+      if(!cfg.activo) return;
+      const cierre = ultimoCierre(cfg.hora);
+      const tocaRespaldo = async () => { const u = await getMeta('respaldo_auto_ultimo'); return !u || new Date(u.value) < cierre; };
+      if(!(await tocaRespaldo())) return;
+      // Una sola pestaña hace el respaldo
+      const hacer = async () => { if(await tocaRespaldo()) await respaldoDiario('auto'); };
+      if(navigator.locks && navigator.locks.request) await navigator.locks.request('pm-respaldo-diario', { ifAvailable: true }, lock => lock && hacer());
+      else await hacer();
+    }catch(e){ console.warn('[Respaldo diario]', e && e.message); }
+    finally{ revisando = false; }
+  }
+  if(autoRespaldo){
+    const iniciar = () => { setTimeout(revisarRespaldo, 5000); setInterval(revisarRespaldo, 60000); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+  }
+
   // ── Ventana "BD local" ──────────────────────────────────────
   const BTN = 'padding:8px 14px;border-radius:8px;border:1px solid rgba(212,175,55,.35);background:rgba(212,175,55,.08);color:#e8c56e;font-weight:600;cursor:pointer;font-size:12px';
   const BTN_MAIN = 'padding:8px 14px;border-radius:8px;border:none;background:#d4af37;color:#000;font-weight:700;cursor:pointer;font-size:12px';
@@ -1026,6 +1218,14 @@
           <button data-a="cerrar" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer">✕</button>
         </div>
         <pre id="pmBDLog" style="margin:0;padding:14px 20px;overflow:auto;flex:1;min-height:120px;font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:#cfc6b0"></pre>
+        <div style="padding:10px 20px;border-top:1px solid rgba(212,175,55,.2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="activo" style="accent-color:#d4af37"> Respaldo diario a las</label>
+          <input type="time" data-c="hora" style="background:rgba(0,0,0,.35);border:1px solid rgba(212,175,55,.35);border-radius:6px;color:#e8e0cc;padding:3px 6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="descargar" style="accent-color:#d4af37"> descargar archivo</label>
+          <span style="flex:1"></span>
+          <button data-a="copias" style="${BTN}" title="Ver y restaurar las copias diarias guardadas en este equipo">🕘 Copias diarias</button>
+          <button data-a="ahora" style="${BTN}" title="Hacer el respaldo diario ahora">💾 Respaldar ahora</button>
+        </div>
         <div style="padding:12px 20px;border-top:1px solid rgba(212,175,55,.2);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button data-a="articulos" style="${BTN}" title="Busca los artículos de las facturas que no los tienen (Supabase y este navegador)">🔎 Recuperar artículos</button>
           <button data-a="restaurar" style="${BTN}" title="Respaldo .json o registro de facturas en Excel (.xlsx/.xls) o CSV">📂 Restaurar (respaldo o Excel)</button>
@@ -1053,10 +1253,22 @@
     const close = () => { ov.remove(); if(changed) location.reload(); };
     ov.querySelector('[data-a="cerrar"]').onclick = () => { if(!busy) close(); };
 
+    // Ajustes del respaldo diario
+    const cfg = await respConfig();
+    const ci = k => ov.querySelector('[data-c="' + k + '"]');
+    ci('activo').checked = cfg.activo; ci('hora').value = cfg.hora; ci('descargar').checked = cfg.descargar;
+    const guardarCfg = async () => {
+      await setMeta('respaldo_auto', { activo: ci('activo').checked, hora: ci('hora').value || RESP_DEF.hora, descargar: ci('descargar').checked });
+      log('\n✓ Respaldo diario ' + (ci('activo').checked ? 'activo a las ' + (ci('hora').value || RESP_DEF.hora) + (ci('descargar').checked ? ', con descarga del archivo' : ', solo copia en este equipo') : 'desactivado'));
+    };
+    ['activo', 'hora', 'descargar'].forEach(k => ci(k).onchange = guardarCfg);
+
     await run(async () => {
       log('Los datos se guardan en este navegador, en este equipo. No necesita servidor ni internet.');
       const last = await getMeta('ultimo_respaldo');
       log('Último respaldo descargado: ' + (last ? new Date(last.value).toLocaleString('es') : 'nunca'));
+      const auto = await getMeta('respaldo_auto_ultimo');
+      log('Respaldo diario: ' + (cfg.activo ? 'activo a las ' + cfg.hora : 'desactivado') + ' · último: ' + (auto ? new Date(auto.value).toLocaleString('es') : 'nunca'));
       await showTotals('\nContenido actual:');
     });
 
@@ -1095,6 +1307,31 @@
     ov.querySelector('[data-a="respaldo"]').onclick = () => run(async () => {
       await exportBackup();
       log('\n✓ Respaldo descargado. Guárdalo en un lugar seguro (USB, nube…).');
+    });
+
+    ov.querySelector('[data-a="ahora"]').onclick = () => run(async () => {
+      log('\nHaciendo el respaldo diario…');
+      log(await respaldoDiario('manual') ? '✓ Respaldo hecho.' : '✖ No se pudo hacer el respaldo.');
+    });
+
+    ov.querySelector('[data-a="copias"]').onclick = () => run(async () => {
+      const copias = await listarCopias();
+      log('\nCopias diarias guardadas en este equipo (' + copias.length + ' de ' + RESP_MAX + ' máximo):');
+      if(!copias.length){ log('  (ninguna todavía)'); return; }
+      copias.forEach((c, i) => log('  ' + (i + 1) + '. ' + new Date(c.fecha).toLocaleString('es') + ' — ' + Number(c.registros || 0).toLocaleString('es') + ' registros'));
+      const elegida = prompt('Escribe el número de la copia que quieres restaurar (o cancela):\n\n' +
+        copias.map((c, i) => (i + 1) + '. ' + new Date(c.fecha).toLocaleString('es') + ' — ' + c.registros + ' registros').join('\n'));
+      const c = copias[Number(elegida) - 1];
+      if(!c) return;
+      const reemplazar = confirm('¿Reemplazar los registros existentes con los de la copia del ' + new Date(c.fecha).toLocaleString('es') + '?\n\nAceptar = la copia manda\nCancelar = solo agregar lo que falte');
+      log('\nRestaurando la copia del ' + new Date(c.fecha).toLocaleString('es') + '…');
+      for(const [t, rows] of Object.entries(c.datos.tablas || {})){
+        if(!/^[A-Za-z0-9_]+$/.test(t) || !Array.isArray(rows) || t === META) continue;
+        const r = await importRows(t, rows, reemplazar ? 'reemplazar' : 'completar');
+        log('  · ' + t + ': ' + r.nuevos + ' nuevos, ' + r.actualizados + ' actualizados');
+      }
+      changed = true;
+      log('\n✓ Copia restaurada.');
     });
 
     ov.querySelector('[data-a="restaurar"]').onclick = () => run(async () => {
