@@ -136,7 +136,7 @@
   function pintarTasaBtn(){
     const b = $('btnTasa'); if(!b) return;
     const t = tasaVigente(hoyISO());
-    b.textContent = t ? '💱 RD$' + t.toFixed(2) : '💱 Tasa';
+    const sl = b.querySelector('.sl'); if(sl) sl.textContent = t ? 'RD$' + t.toFixed(2) : 'Tasa'; else b.textContent = t ? '💱 RD$' + t.toFixed(2) : '💱 Tasa';
     b.title = t ? '1 USD = RD$ ' + t.toFixed(2) + ' (clic para cambiarla)' : 'Configurar la tasa de cambio USD/DOP';
   }
   // Texto "Equivale a …" para la factura impresa / PDF

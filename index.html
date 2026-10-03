@@ -33,6 +33,40 @@
     .header-brand .subtitle{font-size:11px;color:var(--muted);margin-top:1px}
     .header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 
+
+    /* ── MENÚ LATERAL ── */
+    :root{--hh:66px;--sbw:228px}
+    body.side-colapsado{--sbw:64px}
+    body{padding-left:var(--sbw);transition:padding-left .2s}
+    .side-toggle{width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:rgba(212,175,55,.08);color:var(--gold);font-size:18px;cursor:pointer;flex:none}
+    .side-toggle:hover{background:rgba(212,175,55,.18)}
+    .header{margin-left:calc(-1 * var(--sbw));transition:margin-left .2s}
+    .header-brand .logo{flex:none}
+    .side{position:fixed;left:0;top:var(--hh);bottom:0;width:var(--sbw);z-index:90;background:var(--surface);border-right:1px solid var(--border);
+      display:flex;flex-direction:column;gap:4px;padding:10px 10px 56px;overflow-y:auto;overflow-x:hidden;transition:width .2s,transform .2s}
+    .side-group{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px;white-space:nowrap}
+    .side-btn{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--gold);
+      font-size:13px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;transition:.15s}
+    .side-btn:hover,.side-btn:focus-visible{background:rgba(212,175,55,.12);border-color:var(--c,var(--border2));outline:none}
+    .side-btn .si{width:24px;flex:none;text-align:center;font-size:17px}
+    .side-btn .sl{overflow:hidden;text-overflow:ellipsis}
+    body.side-colapsado .side-group{font-size:0;padding:6px 0 2px;border-top:1px solid var(--border);margin-top:6px}
+    body.side-colapsado .side-group:first-child{border-top:none;margin-top:0}
+    body.side-colapsado .side-btn{padding:10px 0;justify-content:center}
+    body.side-colapsado .side-btn .sl{display:none}
+    body.side-colapsado .side-btn#btnTasa .sl{display:block;position:absolute;left:-9999px}
+    .side-backdrop{display:none}
+    @media(max-width:900px){
+      body,body.side-colapsado{padding-left:0}
+      .header,body.side-colapsado .header{margin-left:0;padding-left:16px}
+      .side,body.side-colapsado .side{width:250px;transform:translateX(-102%);z-index:120;top:0;box-shadow:0 0 40px rgba(0,0,0,.7)}
+      body.side-abierto .side{transform:none}
+      body.side-abierto .side-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:115}
+      body.side-colapsado .side-btn{padding:10px;justify-content:flex-start}
+      body.side-colapsado .side-btn .sl{display:inline}
+      body.side-colapsado .side-group{font-size:10px;padding:12px 10px 4px;border-top:none;margin-top:0}
+    }
+
     /* ── LAYOUT ── */
     .layout{display:grid;grid-template-columns:1fr 340px;gap:20px;padding:20px 24px;max-width:1300px;margin:0 auto}
     @media(max-width:900px){.layout{grid-template-columns:1fr;padding:12px}}
@@ -562,24 +596,53 @@
 <!-- ── HEADER ── -->
 <header class="header">
   <div class="header-brand">
+    <button class="side-toggle" id="sideToggle" onclick="toggleSideMenu()" title="Mostrar u ocultar el menú" aria-label="Menú" aria-controls="sideMenu" aria-expanded="true">☰</button>
     <div class="logo">✦</div>
     <div>
       <div class="title">Facturación</div>
       <div class="subtitle">Pleaseme Admin</div>
     </div>
   </div>
-  <div class="header-actions">
-    <button class="btn btn-outline" onclick="pmAbrirBDLocal()" title="Base de datos local: traer tus datos, descargar o restaurar respaldo" style="border-color:rgba(47,227,181,.4);color:#2fe3b5">🗄 BD local</button>
-    <button class="btn btn-outline" onclick="toggleCompanyPanel()" title="Información de la compañía & logo">ℹ️ Información Compañía</button>
-    <button class="btn btn-outline btn-parpadeo" onclick="openNewInvoice()">＋ Nueva Factura</button>
-    <button class="btn btn-green" onclick="exportCSV()" title="Descargar el registro completo de facturas (con artículos) en Excel">⬇ Excel</button>
-    <button class="btn btn-outline" onclick="pmRestaurarArchivo()" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json">📂 Restaurar</button>
-    <button class="btn btn-outline" onclick="openPrintHistory()" title="Ver todas las facturas impresas y abrirlas en PDF">🖨 Historial</button>
-    <button class="btn btn-outline" onclick="abrirClientes()" title="Lista de clientes y su ficha: compras, saldo y contacto">📇 Clientes</button>
-    <button class="btn btn-outline" id="btnTasa" onclick="abrirTasa()" title="Tasa de cambio USD/DOP" style="border-color:rgba(232,197,110,.5)">💱 Tasa</button>
-    <button class="btn btn-outline" onclick="window.close()" title="Cerrar ventana">✕ Cerrar</button>
-  </div>
 </header>
+
+<!-- ── MENÚ LATERAL ── -->
+<div class="side-backdrop" id="sideBackdrop" onclick="toggleSideMenu(false)"></div>
+<nav class="side" id="sideMenu" aria-label="Menú principal">
+  <div class="side-group">Facturas</div>
+  <button class="side-btn btn-parpadeo" onclick="sideGo(openNewInvoice)" title="Nueva factura"><span class="si">＋</span><span class="sl">Nueva Factura</span></button>
+  <button class="side-btn" onclick="sideGo(openPrintHistory)" title="Ver todas las facturas impresas y abrirlas en PDF"><span class="si">🖨</span><span class="sl">Historial</span></button>
+  <button class="side-btn" onclick="sideGo(abrirClientes)" title="Lista de clientes y su ficha: compras, saldo y contacto"><span class="si">📇</span><span class="sl">Clientes</span></button>
+  <button class="side-btn" id="btnTasa" onclick="sideGo(abrirTasa)" title="Tasa de cambio USD/DOP" style="--c:rgba(232,197,110,.55)"><span class="si">💱</span><span class="sl">Tasa</span></button>
+  <div class="side-group">Datos</div>
+  <button class="side-btn" onclick="sideGo(exportCSV)" title="Descargar el registro completo de facturas (con artículos) en Excel" style="--c:rgba(47,227,181,.5);color:#2fe3b5"><span class="si">⬇</span><span class="sl">Excel</span></button>
+  <button class="side-btn" onclick="sideGo(pmRestaurarArchivo)" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json"><span class="si">📂</span><span class="sl">Restaurar</span></button>
+  <button class="side-btn" onclick="sideGo(pmAbrirBDLocal)" title="Base de datos local: traer tus datos, descargar o restaurar respaldo" style="--c:rgba(47,227,181,.5);color:#2fe3b5"><span class="si">🗄</span><span class="sl">BD local</span></button>
+  <div class="side-group">Ajustes</div>
+  <button class="side-btn" onclick="sideGo(toggleCompanyPanel)" title="Información de la compañía & logo"><span class="si">ℹ️</span><span class="sl">Información Compañía</span></button>
+  <div style="flex:1"></div>
+  <button class="side-btn" onclick="window.close()" title="Cerrar ventana"><span class="si">✕</span><span class="sl">Cerrar</span></button>
+</nav>
+
+
+<script>
+// Menú lateral: se pliega a solo iconos (se recuerda) y en pantallas pequeñas es un cajón
+function toggleSideMenu(abrir){
+  const b = document.body, movil = window.matchMedia('(max-width:900px)').matches;
+  if(movil){
+    const v = typeof abrir === 'boolean' ? abrir : !b.classList.contains('side-abierto');
+    b.classList.toggle('side-abierto', v);
+    document.getElementById('sideToggle').setAttribute('aria-expanded', String(v));
+  }else{
+    const col = typeof abrir === 'boolean' ? !abrir : !b.classList.contains('side-colapsado');
+    b.classList.toggle('side-colapsado', col);
+    try{ localStorage.setItem('pm_menu_colapsado', col ? '1' : '0'); }catch(e){}
+    document.getElementById('sideToggle').setAttribute('aria-expanded', String(!col));
+  }
+}
+function sideGo(fn){ document.body.classList.remove('side-abierto'); try{ fn(); }catch(e){ console.error(e); } }
+try{ if(localStorage.getItem('pm_menu_colapsado') === '1') document.body.classList.add('side-colapsado'); }catch(e){}
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.body.classList.contains('side-abierto')){ e.stopPropagation(); toggleSideMenu(false); } }, true);
+</script>
 
 <!-- ── VENTANA EMERGENTE: INFORMACIÓN COMPAÑÍA ── -->
 <div id="companyPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;align-items:center;justify-content:center" onclick="if(event.target===this)toggleCompanyPanel()">
