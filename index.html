@@ -35,36 +35,71 @@
 
 
     /* ── MENÚ LATERAL ── */
-    :root{--hh:66px;--sbw:228px}
-    body.side-colapsado{--sbw:64px}
-    body{padding-left:var(--sbw);transition:padding-left .2s}
+    :root{--sbw:248px}
+    body.side-colapsado{--sbw:72px}
+    body{padding-left:var(--sbw);transition:padding-left .22s ease}
+    .header{display:none}
     .side-toggle{width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:rgba(212,175,55,.08);color:var(--gold);font-size:18px;cursor:pointer;flex:none}
-    .side-toggle:hover{background:rgba(212,175,55,.18)}
-    .header{margin-left:calc(-1 * var(--sbw));transition:margin-left .2s}
-    .header-brand .logo{flex:none}
-    .side{position:fixed;left:0;top:var(--hh);bottom:0;width:var(--sbw);z-index:90;background:var(--surface);border-right:1px solid var(--border);
-      display:flex;flex-direction:column;gap:4px;padding:10px 10px 56px;overflow-y:auto;overflow-x:hidden;transition:width .2s,transform .2s}
-    .side-group{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px;white-space:nowrap}
-    .side-btn{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--gold);
-      font-size:13px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;transition:.15s}
-    .side-btn:hover,.side-btn:focus-visible{background:rgba(212,175,55,.12);border-color:var(--c,var(--border2));outline:none}
-    .side-btn .si{width:24px;flex:none;text-align:center;font-size:17px}
-    .side-btn .sl{overflow:hidden;text-overflow:ellipsis}
-    body.side-colapsado .side-group{font-size:0;padding:6px 0 2px;border-top:1px solid var(--border);margin-top:6px}
-    body.side-colapsado .side-group:first-child{border-top:none;margin-top:0}
-    body.side-colapsado .side-btn{padding:10px 0;justify-content:center}
-    body.side-colapsado .side-btn .sl{display:none}
-    body.side-colapsado .side-btn#btnTasa .sl{display:block;position:absolute;left:-9999px}
+    .side{position:fixed;left:0;top:0;bottom:0;width:var(--sbw);z-index:90;display:flex;flex-direction:column;
+      background:linear-gradient(180deg,#14110a 0%,#0e0c07 100%);border-right:1px solid var(--border);
+      box-shadow:6px 0 28px rgba(0,0,0,.35);transition:width .22s ease,transform .22s ease;overflow:hidden}
+    .side-top{display:flex;align-items:center;gap:12px;padding:18px 16px 16px;border-bottom:1px solid var(--border);min-height:74px}
+    .side-top .logo{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#b48226,#e8c56e);display:grid;place-items:center;font-size:19px;font-weight:900;color:#13100a;flex:none;box-shadow:0 4px 14px rgba(212,175,55,.25)}
+    .side-top .nm{min-width:0;flex:1;white-space:nowrap;overflow:hidden}
+    .side-top .nm b{display:block;font-family:Georgia,serif;font-size:17px;color:var(--gold);letter-spacing:.3px}
+    .side-top .nm small{display:block;font-size:10.5px;color:var(--muted);letter-spacing:1.4px;text-transform:uppercase;margin-top:2px}
+    .side-fold{width:28px;height:28px;flex:none;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center;transition:.15s}
+    .side-fold:hover{color:var(--gold);border-color:var(--border2);background:rgba(212,175,55,.08)}
+    .side-fold svg{transition:transform .22s}
+    body.side-colapsado .side-fold svg{transform:rotate(180deg)}
+    .side-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px 12px 12px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin}
+    .side-group{font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#6f6a5c;font-weight:700;padding:16px 12px 6px;white-space:nowrap}
+    .side-btn{position:relative;display:flex;align-items:center;gap:13px;width:100%;height:42px;padding:0 12px;border-radius:10px;border:1px solid transparent;background:transparent;
+      color:#cdbf92;font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
+    .side-btn svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+    .side-btn .sl{flex:1;overflow:hidden;text-overflow:ellipsis}
+    .side-btn:hover,.side-btn:focus-visible{background:rgba(212,175,55,.10);color:#f3dc8f;outline:none}
+    .side-btn:hover::before,.side-btn:focus-visible::before{content:"";position:absolute;left:-12px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--gold)}
+    .side-btn.verde{color:#79e6c9}.side-btn.verde:hover{background:rgba(47,227,181,.10);color:#9af1dc}
+    .side-btn.verde:hover::before{background:#2fe3b5}
+    .side-btn.cta{height:46px;margin:4px 0 2px;background:linear-gradient(135deg,#b48226,#d9b445);color:#171106;border:none;box-shadow:0 6px 18px rgba(212,175,55,.22)}
+    .side-btn.cta:hover,.side-btn.cta:focus-visible{background:linear-gradient(135deg,#c4902c,#e8c458);color:#171106}
+    .side-btn.cta::before{display:none}
+    @keyframes pmCta{0%,100%{box-shadow:0 6px 18px rgba(212,175,55,.22)}50%{box-shadow:0 0 0 3px rgba(232,197,110,.28),0 8px 26px rgba(232,197,110,.55);filter:brightness(1.12)}}
+    .side-btn.cta.btn-parpadeo{animation:pmCta 1.8s ease-in-out infinite}
+    .side-btn.cta.btn-parpadeo:hover,.side-btn.cta.btn-parpadeo:focus-visible{animation:none}
+    @media (prefers-reduced-motion:reduce){.side-btn.cta.btn-parpadeo{animation:none}}
+    .side-btn.cta svg{stroke-width:2.2;opacity:1}
+    .side-btn .sb-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(232,197,110,.14);color:var(--gold);border:1px solid rgba(232,197,110,.3);flex:none}
+    .side-btn .sb-badge:empty{display:none}
+    .side-foot{padding:10px 12px 56px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
+    .side-btn.salir{color:#a7a08a}.side-btn.salir:hover{background:rgba(255,85,85,.10);color:#ff8a8a}.side-btn.salir:hover::before{background:#ff5555}
+    /* Plegado: solo iconos, con rótulo flotante al pasar el mouse */
+    body.side-colapsado .side-top{padding:18px 0 16px;justify-content:center;flex-direction:column;gap:10px;min-height:0}
+    body.side-colapsado .side-top .nm{display:none}
+    body.side-colapsado .side-group{font-size:0;padding:8px 0 4px;margin:6px 8px 0;border-top:1px solid var(--border)}
+    body.side-colapsado .side-scroll .side-group:first-child{border-top:none;margin-top:0}
+    body.side-colapsado .side-btn{justify-content:center;padding:0}
+    body.side-colapsado .side-btn .sl,body.side-colapsado .side-btn .sb-badge{display:none}
+    body.side-colapsado .side-scroll,body.side-colapsado .side{overflow:visible}
+    body.side-colapsado .side-scroll{overflow-y:auto;overflow-x:visible}
+    .side-btn[data-tip]:hover::after{display:none}
+    body.side-colapsado .side-btn[data-tip]:hover::after{display:block;content:attr(data-tip);position:fixed;left:calc(var(--sbw) + 8px);margin-top:0;transform:translateY(0);padding:6px 10px;border-radius:8px;background:#1d1910;border:1px solid var(--border2);color:#f0e2b0;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 8px 22px rgba(0,0,0,.55);z-index:200;pointer-events:none}
     .side-backdrop{display:none}
     @media(max-width:900px){
       body,body.side-colapsado{padding-left:0}
+      .header{display:flex}
       .header,body.side-colapsado .header{margin-left:0;padding-left:16px}
-      .side,body.side-colapsado .side{width:250px;transform:translateX(-102%);z-index:120;top:0;box-shadow:0 0 40px rgba(0,0,0,.7)}
+      .side,body.side-colapsado .side{width:272px;transform:translateX(-102%);z-index:120;box-shadow:0 0 50px rgba(0,0,0,.75)}
       body.side-abierto .side{transform:none}
       body.side-abierto .side-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:115}
-      body.side-colapsado .side-btn{padding:10px;justify-content:flex-start}
-      body.side-colapsado .side-btn .sl{display:inline}
-      body.side-colapsado .side-group{font-size:10px;padding:12px 10px 4px;border-top:none;margin-top:0}
+      .side-fold{display:none}
+      body.side-colapsado .side-top{padding:18px 16px 16px;flex-direction:row;justify-content:flex-start;min-height:74px}
+      body.side-colapsado .side-top .nm{display:block}
+      body.side-colapsado .side-btn{justify-content:flex-start;padding:0 12px}
+      body.side-colapsado .side-btn .sl{display:block}
+      body.side-colapsado .side-btn .sb-badge{display:inline-block}
+      body.side-colapsado .side-group{font-size:10px;padding:16px 12px 6px;margin:0;border-top:none}
     }
 
     /* ── LAYOUT ── */
@@ -185,26 +220,37 @@
     .kpi-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
     @media(max-width:1100px){.kpi-bar{grid-template-columns:repeat(3,1fr)}}
     @media(max-width:700px){.kpi-bar{grid-template-columns:1fr 1fr}}
-    .kpi{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:12px;padding:14px 16px;transition:border-color .2s,transform .2s}
-    .kpi:hover{transform:translateY(-1px)}
+    .kpi{--glow:rgba(212,175,55,.22);position:relative;border:1px solid var(--border);border-left:3px solid var(--border);border-radius:14px;padding:14px 16px;
+      background:linear-gradient(165deg,rgba(255,255,255,.085) 0%,rgba(255,255,255,0) 46%),linear-gradient(180deg,#1d1911 0%,#100d08 100%);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -3px 6px rgba(0,0,0,.45),0 10px 20px -6px rgba(0,0,0,.75),0 0 20px -2px var(--glow);
+      transform:perspective(800px) rotateX(0deg);transform-style:preserve-3d;
+      transition:border-color .2s,transform .2s,box-shadow .2s}
+    .kpi::after{content:"";position:absolute;left:10px;right:10px;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);pointer-events:none}
+    .kpi:hover{transform:perspective(800px) translateY(-3px) rotateX(4deg);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -3px 6px rgba(0,0,0,.45),0 16px 26px -8px rgba(0,0,0,.8),0 0 30px 0 var(--glow)}
+    .kpi:active{transform:perspective(800px) translateY(0) rotateX(0deg)}
+    .kpi-val{text-shadow:0 0 14px var(--glow),0 2px 2px rgba(0,0,0,.6)}
+    .kpi-wrap{padding:20px 24px 12px;max-width:1300px;margin:0 auto;position:sticky;top:0;z-index:80;
+      background:linear-gradient(180deg,var(--bg) 86%,rgba(0,0,0,0));}
+    .kpi-wrap .kpi-bar{margin-bottom:0}
+    @media(max-width:900px){.kpi-wrap{position:static;padding:12px 12px 0;background:none}}
     .kpi[onclick]{cursor:pointer}
     .lb-sel,#itemsSelAll{width:auto!important;flex:none;margin:0;padding:0;cursor:pointer}
     .inv-fecha{cursor:pointer;border-bottom:1px dashed rgba(212,175,55,.45);padding:0 1px}
     .inv-fecha:hover{color:var(--gold)}
-    .kpi[onclick]:hover{border-color:rgba(212,175,55,.45)}
+    .kpi[onclick]:hover{border-color:rgba(232,197,110,.65)}
     .kpi-val{font-family:Georgia,serif;font-size:22px;color:var(--gold);font-weight:700}
     .kpi-lbl{font-size:10px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:5px}
-    .kpi-total{border-left-color:var(--gold)}
-    .kpi-pending{border-left-color:#ffc800}
+    .kpi-total{border-left-color:var(--gold);--glow:rgba(232,197,110,.30)}
+    .kpi-pending{border-left-color:#ffc800;--glow:rgba(255,200,0,.28)}
     .kpi-pending .kpi-val{color:#ffc800}
-    .kpi-paid{border-left-color:#2fe3b5}
+    .kpi-paid{border-left-color:#2fe3b5;--glow:rgba(47,227,181,.28)}
     .kpi-paid .kpi-val{color:#2fe3b5}
-    .kpi-revenue{border-left-color:var(--gold);background:linear-gradient(135deg,rgba(212,175,55,.09),var(--surface) 70%)}
+    .kpi-revenue{border-left-color:var(--gold);--glow:rgba(232,197,110,.34)}
 
     /* ── PANEL DERECHO ── */
     .right-panel{
-      position:sticky;top:80px;
-      height:calc(100vh - 96px);
+      position:sticky;top:calc(var(--kpih,0px) + 12px);
+      height:calc(100vh - var(--kpih,0px) - 28px);
       display:flex;flex-direction:column;
     }
 
@@ -608,19 +654,27 @@
 <!-- ── MENÚ LATERAL ── -->
 <div class="side-backdrop" id="sideBackdrop" onclick="toggleSideMenu(false)"></div>
 <nav class="side" id="sideMenu" aria-label="Menú principal">
-  <div class="side-group">Facturas</div>
-  <button class="side-btn btn-parpadeo" onclick="sideGo(openNewInvoice)" title="Nueva factura"><span class="si">＋</span><span class="sl">Nueva Factura</span></button>
-  <button class="side-btn" onclick="sideGo(openPrintHistory)" title="Ver todas las facturas impresas y abrirlas en PDF"><span class="si">🖨</span><span class="sl">Historial</span></button>
-  <button class="side-btn" onclick="sideGo(abrirClientes)" title="Lista de clientes y su ficha: compras, saldo y contacto"><span class="si">📇</span><span class="sl">Clientes</span></button>
-  <button class="side-btn" id="btnTasa" onclick="sideGo(abrirTasa)" title="Tasa de cambio USD/DOP" style="--c:rgba(232,197,110,.55)"><span class="si">💱</span><span class="sl">Tasa</span></button>
+  <div class="side-top">
+    <div class="logo">✦</div>
+    <div class="nm"><b>Pleaseme</b><small>Facturación</small></div>
+    <button class="side-fold" onclick="toggleSideMenu()" title="Plegar o desplegar el menú" aria-label="Plegar menú"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+  </div>
+  <div class="side-scroll">
+  <button class="side-btn cta btn-parpadeo" onclick="sideGo(openNewInvoice)" title="Crear una factura nueva" data-tip="Nueva Factura"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="sl">Nueva Factura</span></button>
+  <div class="side-group">Facturación</div>
+  <button class="side-btn " onclick="sideGo(openPrintHistory)" title="Ver todas las facturas impresas y abrirlas en PDF" data-tip="Historial"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7" rx="1"/><path d="M6 17H4a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2"/></svg><span class="sl">Historial</span></button>
+  <button class="side-btn " onclick="sideGo(abrirClientes)" title="Lista de clientes y su ficha: compras, saldo y contacto" data-tip="Clientes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="sl">Clientes</span></button>
+  <button class="side-btn " id="btnTasa" onclick="sideGo(abrirTasa)" title="Tasa de cambio USD/DOP" data-tip="Tasa dólar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg><span class="sl">Tasa dólar</span><span class="sb-badge"></span></button>
   <div class="side-group">Datos</div>
-  <button class="side-btn" onclick="sideGo(exportCSV)" title="Descargar el registro completo de facturas (con artículos) en Excel" style="--c:rgba(47,227,181,.5);color:#2fe3b5"><span class="si">⬇</span><span class="sl">Excel</span></button>
-  <button class="side-btn" onclick="sideGo(pmRestaurarArchivo)" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json"><span class="si">📂</span><span class="sl">Restaurar</span></button>
-  <button class="side-btn" onclick="sideGo(pmAbrirBDLocal)" title="Base de datos local: traer tus datos, descargar o restaurar respaldo" style="--c:rgba(47,227,181,.5);color:#2fe3b5"><span class="si">🗄</span><span class="sl">BD local</span></button>
+  <button class="side-btn verde" onclick="sideGo(exportCSV)" title="Descargar el registro completo de facturas (con artículos) en Excel" data-tip="Exportar Excel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></svg><span class="sl">Exportar Excel</span></button>
+  <button class="side-btn " onclick="sideGo(pmRestaurarArchivo)" title="Restaurar facturas desde Excel (.xlsx/.xls), CSV o un respaldo .json" data-tip="Restaurar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5L12 11l2.5 2.5"/></svg><span class="sl">Restaurar</span></button>
+  <button class="side-btn verde" onclick="sideGo(pmAbrirBDLocal)" title="Base de datos local: traer tus datos, descargar o restaurar respaldo" data-tip="Base de datos local"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span class="sl">Base de datos local</span></button>
   <div class="side-group">Ajustes</div>
-  <button class="side-btn" onclick="sideGo(toggleCompanyPanel)" title="Información de la compañía & logo"><span class="si">ℹ️</span><span class="sl">Información Compañía</span></button>
-  <div style="flex:1"></div>
-  <button class="side-btn" onclick="window.close()" title="Cerrar ventana"><span class="si">✕</span><span class="sl">Cerrar</span></button>
+  <button class="side-btn " onclick="sideGo(toggleCompanyPanel)" title="Información de la compañía & logo" data-tip="Información Compañía"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6M9 10h.01M15 10h.01M12 10h.01"/></svg><span class="sl">Información Compañía</span></button>
+  </div>
+  <div class="side-foot">
+  <button class="side-btn salir" onclick="sideGo(function(){window.close()})" title="Cerrar ventana" data-tip="Cerrar ventana"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span class="sl">Cerrar ventana</span></button>
+  </div>
 </nav>
 
 
@@ -639,6 +693,13 @@ function toggleSideMenu(abrir){
     document.getElementById('sideToggle').setAttribute('aria-expanded', String(!col));
   }
 }
+// Las tarjetas de arriba quedan fijas al bajar: el panel derecho se acomoda debajo de ellas
+document.addEventListener('DOMContentLoaded', function(){
+  const w = document.getElementById('kpiWrap'); if(!w) return;
+  const medir = () => document.documentElement.style.setProperty('--kpih', getComputedStyle(w).position === 'sticky' ? w.offsetHeight + 'px' : '0px');
+  if(window.ResizeObserver) new ResizeObserver(medir).observe(w);
+  window.addEventListener('resize', medir); medir();
+});
 function sideGo(fn){ document.body.classList.remove('side-abierto'); try{ fn(); }catch(e){ console.error(e); } }
 try{ if(localStorage.getItem('pm_menu_colapsado') === '1') document.body.classList.add('side-colapsado'); }catch(e){}
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.body.classList.contains('side-abierto')){ e.stopPropagation(); toggleSideMenu(false); } }, true);
@@ -696,7 +757,7 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.bo
 </div>
 
 <!-- ── KPI BAR ── -->
-<div style="padding:20px 24px 0;max-width:1300px;margin:0 auto">
+<div class="kpi-wrap" id="kpiWrap">
   <div class="kpi-bar">
     <div class="kpi kpi-total" onclick="openInvoicesModal('')" title="Ver todas las facturas"><div class="kpi-val" id="kpiTotal">0</div><div class="kpi-lbl">🧾 Total Facturas</div></div>
     <div class="kpi kpi-pending" onclick="openInvoicesModal('pendiente')" title="Ver facturas pendientes"><div class="kpi-val" id="kpiPendientes">0</div><div class="kpi-lbl">⏳ Pendientes</div></div>

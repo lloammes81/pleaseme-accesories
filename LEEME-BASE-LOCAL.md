@@ -210,10 +210,11 @@ ahora** o **Más tarde** (6 horas).
 
 ## Menú lateral
 
-Todos los botones están ahora en un menú a la izquierda, agrupados en Facturas,
-Datos y Ajustes. El botón **☰** lo pliega a solo iconos (se recuerda al
-recargar). En pantallas pequeñas el menú es un cajón que se abre con **☰** y se
-cierra con Esc o tocando fuera.
+Todas las acciones están en un menú a la izquierda, con la marca arriba,
+grupos (Facturación, Datos, Ajustes), iconos de línea y la tasa del día junto a
+"Tasa dólar". La flecha de arriba lo pliega a solo iconos (con rótulo al pasar
+el mouse; se recuerda al recargar). En pantallas pequeñas es un cajón que se
+abre con **☰** y se cierra con Esc o tocando fuera.
 
 ## Ten en cuenta
 
