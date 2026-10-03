@@ -173,8 +173,8 @@ pagos parciales o marcar la factura como "a crédito". Se muestra el abonado y e
 saldo, y la factura lleva una etiqueta *Debe $X*. Una factura con saldo no se
 marca "pagado" al imprimirla. El indicador **Por cobrar** y el filtro de la lista
 suman todos los saldos. Los abonos se guardan en la tabla `pagos` (solo en la
-base local, salvo que la crees en Supabase:
-`create table pagos (id text primary key, factura_id text, monto numeric, tipo text, fecha text, metodo text, nota text, created_at timestamptz default now());`).
+base local, salvo que ejecutes `supabase-clientes-pagos.sql` en Supabase → SQL Editor,
+que también agrega las columnas nuevas de clientes y de la dirección de las facturas).
 Las facturas sin abonos se comportan igual que antes.
 
 ## Tasa de cambio USD/DOP
@@ -190,7 +190,10 @@ una factura se pregunta si se convierten los precios.
 
 El botón **📇 Clientes** lista a los clientes (buscar y ordenar). Cada ficha
 muestra facturas, total comprado, saldo pendiente, lo que más compra, WhatsApp,
-"Recordar el saldo" y **＋ Nueva factura** con los datos ya llenos. También se
+"Recordar el saldo" y **＋ Nueva factura** con los datos ya llenos. El botón **＋ Nuevo cliente** de esa
+ventana abre el registro (nombre, teléfono, país, correo, dirección, ciudad,
+estado, código postal y notas); el código postal llena ciudad y estado, avisa si
+el cliente o el teléfono ya existen y al guardar abre su ficha. También se
 abre con el 📇 junto al nombre en el formulario. Las tarjetas cambian de tono
 según lo comprado: 💎 VIP (top 10 %, dorado), ⭐ Frecuente (siguiente 15 %,
 violeta) y 🙂 Habitual (hasta la mitad, turquesa).
