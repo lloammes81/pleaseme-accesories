@@ -205,6 +205,21 @@ el código postal (5 dígitos, USA o RD) se llenan ciudad y estado desde interne
 y al elegir una dirección del buscador se llenan los cuatro campos. En la
 factura impresa sale la dirección completa en una línea.
 
+### Clientes en USA y en RD, ciudad y courier
+
+- La ventana **📇 Clientes** tiene dos pestañas: **Clientes en USA** y **Clientes en RD**
+  (cada una con su cantidad). El país sale del registro del cliente; si no lo
+  tiene, de su última factura (RD$ = RD), de un teléfono 809/829/849 o, si no, USA.
+- El botón **📍 Ciudad** filtra la lista por la ciudad del cliente.
+- En el registro de un cliente, si el país es **RD** la dirección es **una sola
+  línea** y la ciudad se elige con el botón **📍 Seleccionar ciudad**; si es USA
+  se usan dirección, código postal, ciudad (con 📍) y estado. Lo mismo ocurre en
+  la factura: al elegir RD desaparece la fila de ciudad/estado/código postal.
+- El botón **📦 Información del courier** (en el registro y en la ficha) guarda el
+  nombre, la dirección en USA, el casillero, el teléfono y notas del courier. Al
+  crear una factura desde la ficha, esos datos llenan "Dirección de envío (USA)" y
+  el casillero.
+
 ## Aviso si pasan días sin respaldo
 
 Si pasan 2 días (configurable en **🗄 BD local → Avisar tras N días**; 0 lo

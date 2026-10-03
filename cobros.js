@@ -44,6 +44,15 @@
     .cb-t3{border-color:rgba(47,200,227,.6)!important;background:linear-gradient(100deg,rgba(47,200,227,.15),rgba(47,200,227,.03))!important}
     .cb-nivel{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.4px;padding:1px 7px;border-radius:99px;margin-left:6px;vertical-align:middle}
     .cb-nivel.t1{background:#ffc430;color:#2a1c00}.cb-nivel.t2{background:#b07cff;color:#1d0b3a}.cb-nivel.t3{background:#2fc8e3;color:#00262d}
+    .cb-tabs{display:flex;gap:8px;margin-bottom:10px}
+    .cb-tab{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:rgba(212,175,55,.05);color:#d8c690;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+    .cb-tab:hover{background:rgba(212,175,55,.12)}
+    .cb-tab.on{background:linear-gradient(135deg,#b48226,#d9b445);color:#171106;border-color:transparent;box-shadow:0 4px 14px rgba(212,175,55,.25)}
+    .cb-tab small{font-size:11px;padding:1px 8px;border-radius:99px;background:rgba(0,0,0,.28);color:inherit}
+    .cb-tab.on small{background:rgba(0,0,0,.2)}
+    .cb-opt{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:rgba(212,175,55,.04);color:var(--text);font-size:13px;cursor:pointer;text-align:left}
+    .cb-opt:hover,.cb-opt:focus-visible{background:rgba(212,175,55,.14);outline:none;border-color:var(--border2)}
+    .cb-opt small{color:var(--muted)}
     .cb-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
     .cb-chip{flex:1;min-width:110px;background:rgba(212,175,55,.06);border:1px solid var(--border);border-radius:10px;padding:8px 12px}
     .cb-chip small{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
@@ -422,7 +431,7 @@
     const mapa = new Map();
     (DB.clients || []).forEach(c => {
       const k = normNombre(c.name); if(!k) return;
-      mapa.set(k, { clave: k, nombre: nombreLimpio(c.name), email: c.email || '', phone: c.phone || '', address: c.address || c.shipping_address || '', facturas: [] });
+      mapa.set(k, { clave: k, reg: c, nombre: nombreLimpio(c.name), email: c.email || '', phone: c.phone || '', address: c.address || c.shipping_address || '', facturas: [] });
     });
     DB.orders.forEach(o => {
       const nm = o.clientName || o.client_name || ''; const k = normNombre(nm); if(!k) return;
@@ -433,8 +442,18 @@
       if(!c.address && o.address) c.address = o.address;
       c.facturas.push(o);
     });
-    return [...mapa.values()];
+    const lista = [...mapa.values()];
+    lista.forEach(c => {
+      const reg = c.reg || {};
+      const vivas = c.facturas.filter(o => !cancelada(o)).sort((a, b) => fechaFactura(b).localeCompare(fechaFactura(a)));
+      c.pais = reg.country || (vivas[0] && vivas[0].currency === 'DOP' ? 'RD' : (telRD(c.phone) ? 'RD' : 'USA'));
+      c.ciudad = reg.city || (vivas.find(o => o.city) || {}).city || '';
+      c.courier = { nombre: reg.courier_name || '', direccion: reg.courier_address || '', casillero: reg.courier_casillero || '', telefono: reg.courier_phone || '', notas: reg.courier_notes || '' };
+    });
+    return lista;
   }
+  const telRD = t => { let d = String(t || '').replace(/\D/g, ''); if(d.length === 11 && d[0] === '1') d = d.slice(1); return d.length === 10 && ['809', '829', '849'].includes(d.slice(0, 3)); };
+  const tieneCourier = cu => !!(cu && (cu.nombre || cu.direccion || cu.casillero || cu.telefono || cu.notas));
   function estadisticas(c){
     const vivas = c.facturas.filter(o => !cancelada(o));
     const total = { USD: 0, DOP: 0 }, saldo = { USD: 0, DOP: 0 };
@@ -486,7 +505,14 @@
             <div style="font-size:17px;font-weight:700">${esc(c.nombre)}${insignia(nivelesClientes().get(c.clave) || 0)}</div>
             <div class="cb-muted">${[c.phone && '📞 ' + esc(c.phone), c.email && '✉ ' + esc(c.email)].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</div>
             ${c.address ? '<div class="cb-muted">📍 ' + esc(c.address) + '</div>' : ''}
+            <div class="cb-muted">${c.pais === 'RD' ? 'Cliente en RD' : 'Cliente en USA'}${c.ciudad ? ' · ' + esc(c.ciudad) : ''}</div>
           </div>
+        </div>
+        <div class="cb-box" style="margin-top:0;margin-bottom:12px;padding:10px 12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:12px">📦 Courier</b>
+            <button class="btn btn-outline btn-sm" id="fcCourier">${tieneCourier(c.courier) ? '✏ Editar' : '＋ Agregar'}</button></div>
+          ${tieneCourier(c.courier) ? `<div style="font-size:13px;margin-top:6px;line-height:1.55">${[c.courier.nombre && '<b>' + esc(c.courier.nombre) + '</b>', c.courier.casillero && 'Casillero: ' + esc(c.courier.casillero), c.courier.telefono && '📞 ' + esc(c.courier.telefono)].filter(Boolean).join(' · ')}
+            ${c.courier.direccion ? '<div class="cb-muted">📍 ' + esc(c.courier.direccion) + '</div>' : ''}${c.courier.notas ? '<div class="cb-muted">' + esc(c.courier.notas) + '</div>' : ''}</div>` : '<div class="cb-muted" style="margin-top:4px">Todavía no tiene información del courier.</div>'}
         </div>
         <div class="cb-chips">
           <div class="cb-chip"><small>Facturas</small><b>${s.n}</b></div>
@@ -514,6 +540,7 @@
       $('fcChat').onclick = () => abrirChat(c.phone);
       if($('fcRecordar')) $('fcRecordar').onclick = () => abrirChat(c.phone, textoRecordatorio(c));
       $('fcNueva').onclick = () => nuevaFacturaPara(c, s);
+      $('fcCourier').onclick = () => abrirCourier(c.courier, d => guardarCourierCliente(c, d), c.nombre);
       M.cuerpo.querySelectorAll('[data-fid]').forEach(el => el.onclick = () => { cerrarTodas(); loadForEdit(el.dataset.fid); });
       M.cuerpo.querySelectorAll('[data-pdf]').forEach(b => b.onclick = e => { e.stopPropagation(); quickPDF(b.dataset.pdf); });
       M.cuerpo.querySelectorAll('[data-ab]').forEach(b => b.onclick = e => { e.stopPropagation(); abrirAbonos(b.dataset.ab); });
@@ -527,16 +554,16 @@
     await resetForm();
     fillClient(c.nombre, c.email, c.phone, c.address);
     const ult = s.ordenadas[0];
-    if(ult){      // repite lo que casi no cambia: país/moneda, dirección en USA y casillero
-      $('f_country').value = (typeof paisDeMoneda === 'function') ? paisDeMoneda(ult.currency) : 'USA';
+    // país/moneda: el del registro del cliente; si no lo tiene, el de su última factura
+    $('f_country').value = (c.reg && c.reg.country) || (ult && (typeof paisDeMoneda === 'function') ? paisDeMoneda(ult.currency) : c.pais);
+    if(tieneCourier(c.courier) && (c.courier.direccion || c.courier.casillero)){
+      $('f_address_usa').value = c.courier.direccion; $('f_casillero').value = c.courier.casillero;
+    }else if(ult){    // repite lo que casi no cambia: dirección en USA y casillero
       $('f_address_usa').value = ult.address_usa || ult.shipping_address_usa || '';
       $('f_casillero').value = ult.casillero || ult.casillero_number || '';
-      aplicarMonedaForm();
-      try{ checkCourierBadge(); }catch(e){}
-    }else{            // cliente sin facturas: usa el país con el que se registró
-      const reg = (DB.clients || []).find(x => normNombre(x.name) === c.clave);
-      if(reg && reg.country){ $('f_country').value = reg.country; aplicarMonedaForm(); }
     }
+    aplicarMonedaForm();
+    try{ checkCourierBadge(); }catch(e){}
     window.scrollTo({ top: 0, behavior: 'smooth' });
     $('f_clientName').focus();
   }
@@ -549,43 +576,142 @@
     abrirFicha(k);
   }
 
+  // ── Ciudades, courier y registro de clientes ──────────────
+  const CIUDADES = {
+    USA: [['Miami','FL'],['Hialeah','FL'],['Miami Beach','FL'],['Doral','FL'],['Homestead','FL'],['Fort Lauderdale','FL'],['Hollywood','FL'],['West Palm Beach','FL'],['Orlando','FL'],['Kissimmee','FL'],['Tampa','FL'],['Jacksonville','FL'],['New York','NY'],['Brooklyn','NY'],['Bronx','NY'],['Queens','NY'],['Newark','NJ'],['Paterson','NJ'],['Providence','RI'],['Lawrence','MA'],['Boston','MA'],['Philadelphia','PA'],['Atlanta','GA'],['Houston','TX'],['Dallas','TX'],['Chicago','IL'],['Los Angeles','CA']],
+    RD: ['Santo Domingo','Santo Domingo Este','Santo Domingo Oeste','Santo Domingo Norte','Santiago','La Romana','San Pedro de Macorís','Puerto Plata','Punta Cana','Higüey','Bávaro','San Francisco de Macorís','La Vega','Moca','Bonao','Baní','San Cristóbal','Boca Chica','Haina','Azua','Barahona','Jarabacoa','Constanza','Samaná','Sosúa','Cabarete','Nagua','Mao','Cotuí','Monte Plata','Hato Mayor','El Seibo'].map(x => [x, '']),
+  };
+  // Selector de ciudad: las de tus clientes (con cuántos hay) + sugeridas + escribir otra
+  function abrirCiudades({ pais, titulo, alElegir, soloExistentes, todas }){
+    const M = modal('ciudadModal', titulo || '📍 Elegir ciudad', 420);
+    const cuenta = new Map();
+    clientes().filter(c => c.pais === pais && c.ciudad).forEach(c => cuenta.set(c.ciudad, (cuenta.get(c.ciudad) || 0) + 1));
+    const conocidas = CIUDADES[pais] || [];
+    const estadoDe = n => (conocidas.find(x => x[0].toLowerCase() === n.toLowerCase()) || [])[1] || '';
+    M.cuerpo.innerHTML = `<input id="cdBuscar" placeholder="Buscar o escribir otra ciudad…" autocomplete="off"/><div id="cdLista" style="margin-top:10px;display:flex;flex-direction:column;gap:5px;max-height:50vh;overflow-y:auto"></div>`;
+    const elegir = n => { M.cerrar(); alElegir(n, estadoDe(n)); };
+    const opt = (n, txt, extra) => `<button type="button" class="cb-opt" data-n="${esc(n)}"><span>${txt}</span>${extra ? '<small>' + extra + '</small>' : ''}</button>`;
+    const pintar = () => {
+      const t = $('cdBuscar').value.trim(), tl = t.toLowerCase(), f = x => !tl || x.toLowerCase().includes(tl);
+      const propias = [...cuenta.entries()].filter(([n]) => f(n)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es'));
+      const sug = soloExistentes ? [] : conocidas.filter(([n]) => !cuenta.has(n) && f(n));
+      let h = '';
+      if(todas && !tl) h += opt('', '🌎 Todas las ciudades', '');
+      if(propias.length) h += '<div class="cb-muted" style="margin-top:4px">Ciudades de tus clientes</div>' + propias.map(([n, k]) => opt(n, '📍 ' + esc(n), k + ' cliente' + (k !== 1 ? 's' : ''))).join('');
+      if(sug.length) h += '<div class="cb-muted" style="margin-top:6px">Sugeridas</div>' + sug.map(([n]) => opt(n, esc(n), '')).join('');
+      if(!soloExistentes && t && ![...cuenta.keys(), ...conocidas.map(x => x[0])].some(n => n.toLowerCase() === tl)) h += opt(t, '➕ Usar «' + esc(t) + '»', '');
+      if(!h || (todas && !tl && !propias.length)) h += '<div class="cb-muted" style="padding:8px 2px">' + (soloExistentes ? 'Todavía no hay ciudades registradas en esta lista.' : 'Sin resultados.') + '</div>';
+      $('cdLista').innerHTML = h;
+      $('cdLista').querySelectorAll('[data-n]').forEach(b => b.onclick = () => elegir(b.dataset.n));
+    };
+    $('cdBuscar').oninput = pintar;
+    $('cdBuscar').onkeydown = e => { if(e.key === 'Enter'){ e.preventDefault(); const p = $('cdLista').querySelector('[data-n]'); if(p) p.click(); } };
+    pintar();
+    setTimeout(() => $('cdBuscar') && $('cdBuscar').focus(), 50);
+  }
+
+  // Ventana de información del courier (del cliente)
+  function abrirCourier(inicial, alGuardar, quien){
+    const cu = inicial || {};
+    const M = modal('courierModal', '📦 Información del courier' + (quien ? ' · ' + esc(quien) : ''), 520);
+    M.cuerpo.innerHTML = `
+      <div class="cb-muted" style="margin-bottom:8px">El courier recibe los paquetes del cliente (casi siempre en Miami) y los lleva a su destino.</div>
+      <div class="cb-grid">
+        <div style="grid-column:1/-1"><label class="lbl">Nombre del courier</label><input id="cuNombre" placeholder="Ej: Best Way Courier" autocomplete="off" value="${esc(cu.nombre || '')}"/></div>
+        <div style="grid-column:1/-1"><label class="lbl">Dirección del courier (USA)</label><input id="cuDir" placeholder="Calle, ciudad y código postal" autocomplete="off" value="${esc(cu.direccion || '')}"/></div>
+        <div><label class="lbl">Casillero / # de cuenta</label><input id="cuCas" placeholder="Ej: PLS-1234" autocomplete="off" value="${esc(cu.casillero || '')}"/></div>
+        <div><label class="lbl">Teléfono del courier</label><input id="cuTel" type="tel" placeholder="+1 (000) 000-0000" autocomplete="off" oninput="formatPhoneInput(this)" value="${esc(cu.telefono || '')}"/></div>
+        <div style="grid-column:1/-1"><label class="lbl">Notas</label><input id="cuNotas" placeholder="Horario, persona de contacto, referencias…" autocomplete="off" value="${esc(cu.notas || '')}"/></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn btn-outline btn-sm" id="cuCancelar">Cancelar</button>
+        <button class="btn btn-gold btn-sm" id="cuGuardar">💾 Guardar courier</button>
+      </div>`;
+    $('cuCancelar').onclick = M.cerrar;
+    $('cuGuardar').onclick = async () => {
+      const d = { nombre: $('cuNombre').value.trim(), direccion: $('cuDir').value.trim(), casillero: $('cuCas').value.trim(), telefono: $('cuTel').value.trim(), notas: $('cuNotas').value.trim() };
+      if(!d.nombre && !d.direccion && !d.casillero){ toast('Escribe al menos el nombre, la dirección o el casillero del courier', 'warn'); $('cuNombre').focus(); return; }
+      $('cuGuardar').disabled = true;
+      M.cerrar();
+      await alGuardar(d);
+    };
+    setTimeout(() => $('cuNombre') && $('cuNombre').focus(), 50);
+  }
+  const campoCourier = d => ({ courier_name: d.nombre || null, courier_address: d.direccion || null, courier_casillero: d.casillero || null, courier_phone: d.telefono || null, courier_notes: d.notas || null });
+  // Guarda el courier en el registro del cliente (si solo existía por sus facturas, lo crea)
+  async function guardarCourierCliente(c, d){
+    const campos = campoCourier(d), ahora = new Date().toISOString();
+    let reg = (DB.clients || []).find(x => normNombre(x.name) === c.clave), pendiente = false;
+    if(reg){
+      try{ await sbPATCH('clientes', 'id=eq.' + encodeURIComponent(reg.id), { ...campos, updated_at: ahora }); }catch(e){ pendiente = true; console.error('[Courier]', e.message); }
+      Object.assign(reg, campos);
+    }else{
+      const fila = { id: 'cli-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: c.nombre, email: c.email || null, phone: c.phone || null, country: c.pais,
+        shipping_address: c.address || null, billing_address: null, preferred_payment: null, orders_count: 0, created_at: ahora, updated_at: ahora, ...campos };
+      try{ await sbPOST('clientes', fila, 'return=minimal'); }catch(e){ pendiente = true; console.error('[Courier]', e.message); }
+      DB.clients.push({ id: fila.id, name: c.nombre, email: c.email || '', phone: c.phone || '', country: c.pais, address: c.address || '', shipping_address: c.address || '', billing_address: '', preferred_payment: '', orders_count: 0, ...campos, ...(pendiente ? { pending_sync: true } : {}) });
+    }
+    try{ localStorage.setItem('pm_clients_v1', JSON.stringify(DB.clients)); }catch(e){}
+    toast(pendiente ? '⚠ Courier guardado solo en la base local' : '📦 Courier guardado', pendiente ? 'warn' : 'ok');
+    refrescarTodo();
+  }
+
   // ── Registro de un cliente nuevo ──────────────────────────
   const dirJunta = (calle, ciudad, estado, zip) => [calle, ciudad, [estado, zip].filter(Boolean).join(' ')].map(x => String(x || '').trim()).filter(Boolean).join(', ');
-  function abrirNuevoCliente(nombreInicial){
+  function abrirNuevoCliente(nombreInicial, paisInicial){
     const M = modal('clienteNuevoModal', '👤 Nuevo cliente', 600);
+    let courier = null, ciudadRD = '';
     M.cuerpo.innerHTML = `
       <div class="cb-grid">
         <div style="grid-column:1/-1"><label class="lbl">Nombre *</label><input id="ncNombre" placeholder="Nombre y apellido" autocomplete="off" value="${esc(nombreInicial && !/^\d+$/.test(nombreInicial) ? nombreInicial : '')}"/></div>
         <div><label class="lbl">Teléfono</label><input id="ncTel" type="tel" placeholder="+1 (000) 000-0000" autocomplete="off" oninput="formatPhoneInput(this)"/></div>
         <div><label class="lbl">País y moneda</label><select id="ncPais"><option value="USA">USA · USD $</option><option value="RD">RD · DOP RD$</option></select></div>
         <div style="grid-column:1/-1"><label class="lbl">Correo electrónico</label><input id="ncEmail" type="email" placeholder="cliente@correo.com" autocomplete="off"/></div>
+      </div>
+      <div id="ncUSA" class="cb-grid" style="margin-top:0">
         <div style="grid-column:1/-1"><label class="lbl">Dirección (calle y número)</label><input id="ncCalle" placeholder="Calle y número" autocomplete="off"/></div>
         <div><label class="lbl">Código postal</label><input id="ncZip" inputmode="numeric" placeholder="33101" maxlength="10" autocomplete="off"/></div>
-        <div><label class="lbl">Ciudad</label><input id="ncCiudad" placeholder="Ciudad" autocomplete="off"/></div>
+        <div><label class="lbl">Ciudad</label><div style="display:flex;gap:6px"><input id="ncCiudad" placeholder="Ciudad" autocomplete="off"/><button type="button" class="btn btn-outline btn-sm" id="ncCiudadBtn" title="Elegir la ciudad de una lista">📍</button></div></div>
         <div><label class="lbl">Estado</label><input id="ncEstado" placeholder="FL" maxlength="40" autocomplete="off"/></div>
         <div style="display:flex;align-items:flex-end"><span id="ncZipEst" class="cb-muted" style="min-height:18px"></span></div>
+      </div>
+      <div id="ncRD" class="cb-grid" style="margin-top:0;display:none">
+        <div style="grid-column:1/-1"><label class="lbl">Dirección (una sola línea)</label><input id="ncLinea" placeholder="Calle, número, sector…" autocomplete="off"/></div>
+        <div style="grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button type="button" class="btn btn-outline btn-sm" id="ncCiudadRDBtn">📍 Seleccionar ciudad</button><span id="ncCiudadRD" class="cb-muted">Sin ciudad</span></div>
+      </div>
+      <div class="cb-grid" style="margin-top:0">
+        <div style="grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button type="button" class="btn btn-outline btn-sm" id="ncCourierBtn">📦 Información del courier</button><span id="ncCourierRes" class="cb-muted">Sin courier</span></div>
         <div style="grid-column:1/-1"><label class="lbl">Notas</label><input id="ncNotas" placeholder="Gustos, tallas, referencias…" autocomplete="off"/></div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
         <button class="btn btn-outline btn-sm" id="ncCancelar">Cancelar</button>
         <button class="btn btn-gold btn-sm" id="ncGuardar">💾 Guardar cliente</button>
       </div>`;
+    const esRD = () => $('ncPais').value === 'RD';
+    const aplicarPais = () => {
+      $('ncUSA').style.display = esRD() ? 'none' : ''; $('ncRD').style.display = esRD() ? '' : 'none';
+      $('ncTel').placeholder = '+1 (000) 000-0000';
+    };
+    $('ncPais').value = paisInicial === 'RD' ? 'RD' : 'USA'; aplicarPais();
     let seq = 0, tm = null;
     $('ncZip').oninput = () => {
       clearTimeout(tm);
-      const pais = $('ncPais').value === 'RD' ? 'do' : 'us', zip = $('ncZip').value.replace(/\D/g, '').slice(0, 5), st = $('ncZipEst');
+      const zip = $('ncZip').value.replace(/\D/g, '').slice(0, 5), st = $('ncZipEst');
       if(zip.length !== 5){ st.textContent = ''; return; }
       st.textContent = '🔍 Buscando ciudad…'; const mi = ++seq;
       tm = setTimeout(async () => {
         try{
-          const r = await fetch('https://api.zippopotam.us/' + pais + '/' + zip); if(mi !== seq) return;
+          const r = await fetch('https://api.zippopotam.us/us/' + zip); if(mi !== seq) return;
           const pl = r.ok && ((await r.json()).places || [])[0]; if(!pl) throw new Error('nf');
           $('ncCiudad').value = pl['place name'] || ''; $('ncEstado').value = pl['state abbreviation'] || pl['state'] || '';
           st.textContent = '✓ ' + $('ncCiudad').value + ($('ncEstado').value ? ', ' + $('ncEstado').value : '');
         }catch(e){ if(mi === seq) st.textContent = 'No se encontró ese código postal — escribe ciudad y estado.'; }
       }, 350);
     };
-    $('ncPais').onchange = () => { if($('ncZip').value) $('ncZip').oninput(); };
+    $('ncPais').onchange = aplicarPais;
+    $('ncCiudadBtn').onclick = () => abrirCiudades({ pais: 'USA', alElegir: (n, e) => { $('ncCiudad').value = n; if(e) $('ncEstado').value = e; } });
+    $('ncCiudadRDBtn').onclick = () => abrirCiudades({ pais: 'RD', alElegir: n => { ciudadRD = n; $('ncCiudadRD').textContent = n ? '📍 ' + n : 'Sin ciudad'; } });
+    $('ncCourierBtn').onclick = () => abrirCourier(courier, async d => { courier = d; $('ncCourierRes').textContent = [d.nombre, d.casillero && 'Casillero ' + d.casillero].filter(Boolean).join(' · ') || 'Courier guardado'; $('ncCourierBtn').textContent = '✏ Courier'; });
     $('ncCancelar').onclick = M.cerrar;
     $('ncGuardar').onclick = async () => {
       const nombre = nombreLimpio($('ncNombre').value);
@@ -600,17 +726,21 @@
         const igual = clientes().find(c => c.phone && c.phone.replace(/\D/g, '') === digs);
         if(igual && !confirm('El teléfono ya pertenece a "' + igual.nombre + '".\n\n¿Guardar este cliente de todas formas?')) return;
       }
-      const calle = $('ncCalle').value.trim(), ciudad = $('ncCiudad').value.trim(), estado = $('ncEstado').value.trim(), zip = $('ncZip').value.trim();
+      const rd = esRD();
+      const calle = (rd ? $('ncLinea').value : $('ncCalle').value).trim(), ciudad = rd ? ciudadRD : $('ncCiudad').value.trim();
+      const estado = rd ? '' : $('ncEstado').value.trim(), zip = rd ? '' : $('ncZip').value.trim();
+      const linea = rd ? (ciudad && !calle.toLowerCase().includes(ciudad.toLowerCase()) ? [calle, ciudad].filter(Boolean).join(', ') : calle) : dirJunta(calle, ciudad, estado, zip);
       const ahora = new Date().toISOString();
       const fila = { id: 'cli-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: nombre, email: $('ncEmail').value.trim() || null, phone: tel || null,
         country: $('ncPais').value, street: calle || null, city: ciudad || null, state: estado || null, zip: zip || null,
-        shipping_address: dirJunta(calle, ciudad, estado, zip) || null, billing_address: null, preferred_payment: null, notes: $('ncNotas').value.trim() || null,
-        orders_count: 0, created_at: ahora, updated_at: ahora };
+        shipping_address: linea || null, billing_address: null, preferred_payment: null, notes: $('ncNotas').value.trim() || null,
+        ...(courier ? campoCourier(courier) : {}), orders_count: 0, created_at: ahora, updated_at: ahora };
       $('ncGuardar').disabled = true;
       let pendiente = false;
       try{ await sbPOST('clientes', fila, 'return=minimal'); }catch(e){ pendiente = true; console.error('[Cliente]', e.message); }
       DB.clients.push({ id: fila.id, name: nombre, email: fila.email || '', phone: fila.phone || '', country: fila.country, street: calle, city: ciudad, state: estado, zip, notes: fila.notes || '',
-        address: fila.shipping_address || '', shipping_address: fila.shipping_address || '', billing_address: '', preferred_payment: '', orders_count: 0, ...(pendiente ? { pending_sync: true } : {}) });
+        address: fila.shipping_address || '', shipping_address: fila.shipping_address || '', billing_address: '', preferred_payment: '', orders_count: 0,
+        ...(courier ? campoCourier(courier) : {}), ...(pendiente ? { pending_sync: true } : {}) });
       try{ localStorage.setItem('pm_clients_v1', JSON.stringify(DB.clients)); }catch(e){}
       toast(pendiente ? '⚠ Cliente guardado solo en la base local' : '👤 Cliente guardado: ' + nombre, pendiente ? 'warn' : 'ok');
       M.cerrar(); refrescarTodo(); abrirFicha(k);
@@ -620,10 +750,16 @@
 
   function abrirClientes(){
     const M = modal('clientesModal', '📇 Clientes', 820);
-    let q = '', orden = 'reciente';
+    let q = '', orden = 'reciente', ciudad = '', pais = 'USA';
+    try{ pais = localStorage.getItem('pm_cli_pais') === 'RD' ? 'RD' : 'USA'; }catch(e){}
     M.cuerpo.innerHTML = `
+      <div class="cb-tabs">
+        <button class="cb-tab" data-p="USA">Clientes en USA <small id="clN_USA">0</small></button>
+        <button class="cb-tab" data-p="RD">Clientes en RD <small id="clN_RD">0</small></button>
+      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <input id="clBuscar" placeholder="Buscar por nombre, teléfono o correo…" autocomplete="off" style="flex:1;min-width:200px"/>
+        <button class="btn btn-outline btn-sm" id="clCiudad" title="Filtrar por la ciudad del cliente">📍 Ciudad: Todas</button>
         <button class="btn btn-gold btn-sm" id="clNuevo" title="Registrar un cliente nuevo">＋ Nuevo cliente</button>
         <select id="clOrden" style="width:auto"><option value="reciente">Más recientes</option><option value="compra">Mayor compra</option><option value="saldo">Mayor saldo</option><option value="az">A – Z</option></select>
       </div>
@@ -631,23 +767,29 @@
       <div id="clLista" style="display:flex;flex-direction:column;gap:6px"></div>`;
     const pintar = () => {
       const t = q.toLowerCase();
-      let lista = clientes().map(c => ({ c, s: estadisticas(c) }))
+      const todos = clientes();
+      ['USA', 'RD'].forEach(p => { $('clN_' + p).textContent = todos.filter(c => c.pais === p).length; });
+      M.cuerpo.querySelectorAll('.cb-tab').forEach(b => b.classList.toggle('on', b.dataset.p === pais));
+      $('clCiudad').textContent = '📍 Ciudad: ' + (ciudad || 'Todas');
+      let lista = todos.filter(c => c.pais === pais && (!ciudad || c.ciudad === ciudad)).map(c => ({ c, s: estadisticas(c) }))
         .filter(({ c }) => !t || (c.nombre + ' ' + c.phone + ' ' + c.email).toLowerCase().includes(t));
       const val = ({ s }) => s.total.USD + s.total.DOP / (tasaVigente(hoyISO()) || 1);
       const deb = ({ s }) => s.saldo.USD + s.saldo.DOP / (tasaVigente(hoyISO()) || 1);
       lista.sort((a, b) => orden === 'az' ? a.c.nombre.localeCompare(b.c.nombre, 'es') : orden === 'compra' ? val(b) - val(a) : orden === 'saldo' ? deb(b) - deb(a) : (b.s.ultima || '').localeCompare(a.s.ultima || ''));
-      $('clResumen').innerHTML = esc(lista.length + ' cliente' + (lista.length !== 1 ? 's' : '') + (lista.some(x => deb(x) > EPS) ? ' · ' + lista.filter(x => deb(x) > EPS).length + ' con saldo pendiente' : '')) + ' &nbsp;·&nbsp; Nivel por compras: ' + insignia(1) + insignia(2) + insignia(3);
+      $('clResumen').innerHTML = esc(lista.length + ' cliente' + (lista.length !== 1 ? 's' : '') + ' en ' + pais + (ciudad ? ' · ' + ciudad : '') + (lista.some(x => deb(x) > EPS) ? ' · ' + lista.filter(x => deb(x) > EPS).length + ' con saldo pendiente' : '')) + ' &nbsp;·&nbsp; Nivel por compras: ' + insignia(1) + insignia(2) + insignia(3);
       const nivs = nivelesClientes();
       $('clLista').innerHTML = lista.map(({ c, s }) => { const nv = nivs.get(c.clave) || 0; return `<div class="invoice-card${nv ? ' cb-t' + nv : ''}" data-k="${esc(c.clave)}" style="cursor:pointer;padding:9px 12px">
         <div style="display:flex;align-items:center;gap:10px;justify-content:space-between">
           <div style="display:flex;align-items:center;gap:10px;min-width:0"><div class="cb-avatar" style="width:38px;height:38px;font-size:14px">${esc(iniciales(c.nombre))}</div>
-            <div style="min-width:0"><div style="font-weight:600;font-size:13px">${esc(c.nombre)}${insignia(nv)}</div><div class="cb-muted">${esc(c.phone || 'Sin teléfono')} · ${s.n} factura${s.n !== 1 ? 's' : ''}${s.ultima ? ' · última ' + fechaCorta(s.ultima) : ''}</div></div></div>
+            <div style="min-width:0"><div style="font-weight:600;font-size:13px">${esc(c.nombre)}${insignia(nv)}</div><div class="cb-muted">${esc(c.phone || 'Sin teléfono')}${c.ciudad ? ' · 📍 ' + esc(c.ciudad) : ''} · ${s.n} factura${s.n !== 1 ? 's' : ''}${s.ultima ? ' · última ' + fechaCorta(s.ultima) : ''}</div></div></div>
           <div style="text-align:right;flex-shrink:0"><div class="inv-total" style="font-size:13px">${sumaMapa(s.total)}</div>
             ${(s.saldo.USD > EPS || s.saldo.DOP > EPS) ? '<span class="saldo-chip">💳 Debe ' + sumaMapa(s.saldo) + '</span>' : ''}</div>
-        </div></div>`; }).join('') || '<div class="items-empty" style="padding:20px;text-align:center;color:var(--muted)">Sin clientes que coincidan</div>';
+        </div></div>`; }).join('') || '<div class="items-empty" style="padding:20px;text-align:center;color:var(--muted)">Sin clientes en ' + (pais === 'RD' ? 'RD' : 'USA') + (ciudad ? ' para esa ciudad' : ' que coincidan') + '</div>';
       $('clLista').querySelectorAll('[data-k]').forEach(el => el.onclick = () => abrirFicha(el.dataset.k));
     };
-    $('clNuevo').onclick = () => abrirNuevoCliente(q);
+    M.cuerpo.querySelectorAll('.cb-tab').forEach(b => b.onclick = () => { pais = b.dataset.p; ciudad = ''; try{ localStorage.setItem('pm_cli_pais', pais); }catch(e){} pintar(); });
+    $('clCiudad').onclick = () => abrirCiudades({ pais, titulo: '📍 Ciudad de los clientes en ' + pais, soloExistentes: true, todas: true, alElegir: n => { ciudad = n; pintar(); } });
+    $('clNuevo').onclick = () => abrirNuevoCliente(q, pais);
     $('clBuscar').oninput = e => { q = e.target.value; pintar(); };
     $('clOrden').onchange = e => { orden = e.target.value; pintar(); };
     M.alRefrescar(pintar);
@@ -718,6 +860,6 @@
 
   Object.assign(window, { cargarPagos, cargarTasas, tasaVigente, convertir, equivalenteTexto, pintarEquivForm, cambiarPais, abrirTasa, tasaOnline,
     infoCobro, saldoDe, cobroImpresion, cobroBadge, sumaSaldos, pintarKpiCobros, pintarCobroForm, abrirAbonos, abrirAbonosForm,
-    abrirFicha, abrirFichaDesdeForm, abrirClientes, abrirNuevoCliente, abrirCuentasPorCobrar, sincronizarEstadoCobro, pmCobrosIniciar: iniciar,
+    abrirFicha, abrirFichaDesdeForm, abrirClientes, abrirNuevoCliente, abrirCiudades, abrirCourier, abrirCuentasPorCobrar, sincronizarEstadoCobro, pmCobrosIniciar: iniciar,
     pmCobrosTasaActual: () => TASAS.slice() });
 })();

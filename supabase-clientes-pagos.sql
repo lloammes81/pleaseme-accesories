@@ -9,6 +9,12 @@ ALTER TABLE clientes ADD COLUMN IF NOT EXISTS city    text;
 ALTER TABLE clientes ADD COLUMN IF NOT EXISTS state   text;
 ALTER TABLE clientes ADD COLUMN IF NOT EXISTS zip     text;
 ALTER TABLE clientes ADD COLUMN IF NOT EXISTS notes   text;
+-- Courier del cliente
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS courier_name      text;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS courier_address   text;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS courier_casillero text;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS courier_phone     text;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS courier_notes     text;
 
 -- Facturas: partes de la dirección del cliente
 ALTER TABLE facturas ADD COLUMN IF NOT EXISTS client_street text;
