@@ -822,13 +822,13 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.bo
           </div>
         </div>
         <div class="field" style="position:relative;grid-column:1 / -1">
-          <label class="lbl">Dirección (calle y número)</label>
+          <label class="lbl" id="lblDireccion">Dirección (calle y número)</label>
           <input id="f_address" placeholder="Escribe para buscar dirección..." autocomplete="off" oninput="addrSearch(this.value)" onkeydown="addrKeydown(event)" />
           <div id="addrDropdown" style="display:none;position:absolute;top:calc(100% + 3px);left:0;right:0;background:#0f0d08;border:1px solid var(--border);border-radius:8px;z-index:250;max-height:200px;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.7)"></div>
         </div>
-        <div class="field" style="grid-column:1 / -1">
+        <div class="field" id="rowCiudad" style="grid-column:1 / -1">
           <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:10px">
-            <div><label class="lbl">Ciudad</label><input id="f_city" placeholder="Ciudad" autocomplete="off" /></div>
+            <div><label class="lbl">Ciudad</label><div style="display:flex;gap:6px"><input id="f_city" placeholder="Ciudad" autocomplete="off" /><button type="button" class="btn btn-outline" style="padding:6px 10px" onclick="elegirCiudadForm()" title="Elegir la ciudad de una lista">📍</button></div></div>
             <div><label class="lbl">Estado</label><input id="f_state" placeholder="FL" autocomplete="off" maxlength="40" /></div>
             <div><label class="lbl">Código postal</label><input id="f_zip" placeholder="33101" inputmode="numeric" autocomplete="off" maxlength="10" oninput="zipLookup(this.value)" /></div>
           </div>
@@ -1448,6 +1448,11 @@ async function loadClients(){
       state:             cl.state             || '',
       zip:               cl.zip               || '',
       notes:             cl.notes             || '',
+      courier_name:      cl.courier_name      || '',
+      courier_address:   cl.courier_address   || '',
+      courier_casillero: cl.courier_casillero || '',
+      courier_phone:     cl.courier_phone     || '',
+      courier_notes:     cl.courier_notes     || '',
     }));
     localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
     console.log('[SB] Clientes cargados:', DB.clients.length);
@@ -2059,12 +2064,23 @@ const fmtM         = (n,c) => simMoneda(c)+Number(n||0).toFixed(2);
 function monedaActual(){ const el = g('f_country'); return el ? monedaDePais(el.value) : 'USD'; }
 
 // Aplica la moneda del país elegido a todo el formulario
+// RD: la dirección es una sola línea (sin ciudad/estado/código postal por separado)
+function aplicarDireccionPais(){
+  const rd = g('f_country').value === 'RD';
+  const row = g('rowCiudad'); if(row) row.style.display = rd ? 'none' : '';
+  const l = g('lblDireccion'); if(l) l.textContent = rd ? 'Dirección (una sola línea)' : 'Dirección (calle y número)';
+  g('f_address').placeholder = rd ? 'Calle, número, sector y ciudad' : 'Escribe para buscar dirección...';
+}
+function elegirCiudadForm(){
+  abrirCiudades({ pais:'USA', alElegir:(n,e)=>{ g('f_city').value = n; if(e) g('f_state').value = e; } });
+}
 function aplicarMonedaForm(){
   const c = monedaActual(), sim = simMoneda(c);
   document.querySelectorAll('#formPanel .mon-sim').forEach(e=>e.textContent = sim);
   const opt = g('f_discType').querySelector('option[value="fixed"]'); if(opt) opt.textContent = sim;
   const b = g('monedaBadge'); if(b) b.textContent = c+' · '+sim;
   window.__monPrev = c;
+  aplicarDireccionPais();
   renderItems();   // vuelve a pintar los montos de los artículos y los totales
 }
 
@@ -2159,7 +2175,10 @@ function fillClient(name,email,phone,address){
       .sort((x,y)=>String(y.created_at||'').localeCompare(String(x.created_at||'')))[0];
     if(of) cl = { street:of.street, city:of.city, state:of.state, zip:of.zip };
   }
-  if(cl && (cl.city||cl.state||cl.zip||cl.street)){
+  if(cl && cl.country==='RD'){      // RD: dirección en una sola línea (con la ciudad incluida)
+    g('f_address').value=cl.shipping_address||cl.address||address||'';
+    g('f_city').value=''; g('f_state').value=''; g('f_zip').value='';
+  }else if(cl && (cl.city||cl.state||cl.zip||cl.street)){
     g('f_address').value=cl.street||'';
     g('f_city').value=cl.city||''; g('f_state').value=cl.state||''; g('f_zip').value=cl.zip||'';
   }else{
@@ -2222,10 +2241,10 @@ function collectData(){
     clientEmail:   g('f_email').value.trim(),
     clientPhone:   g('f_phone').value.trim(),
     street:        g('f_address').value.trim(),
-    city:          g('f_city').value.trim(),
-    state:         g('f_state').value.trim(),
-    zip:           g('f_zip').value.trim(),
-    address:       dirCompleta(g('f_address').value, g('f_city').value, g('f_state').value, g('f_zip').value),
+    city:          g('f_country').value==='RD' ? '' : g('f_city').value.trim(),
+    state:         g('f_country').value==='RD' ? '' : g('f_state').value.trim(),
+    zip:           g('f_country').value==='RD' ? '' : g('f_zip').value.trim(),
+    address:       g('f_country').value==='RD' ? g('f_address').value.trim() : dirCompleta(g('f_address').value, g('f_city').value, g('f_state').value, g('f_zip').value),
     address_usa:   g('f_address_usa').value.trim(),
     casillero:     g('f_casillero').value.trim(),
     invoice_num:   g('f_invNum').value.trim(),
@@ -3938,6 +3957,8 @@ const COURIER_STATIC_LIST = [
 //  TELÉFONO — formato automático + detección de país
 // ══════════════════════════════════════════════════════
 const DR_AREA_CODES = ['809','829','849'];
+// Prefijos (RD + Florida, Nueva York, Nueva Jersey, Massachusetts, Rhode Island, Pensilvania) que se reconocen aunque se escriban sin el 1
+const NANP_COMUN = /^(809|829|849|305|786|954|754|561|239|321|407|689|813|727|904|352|386|772|850|941|212|332|347|516|631|646|718|845|914|917|929|201|551|609|732|862|908|973|617|781|857|978|508|774|401|215|267|484|610|717|412)/;
 const PHONE_COUNTRY_CODES = [
   { code:'1',   name:'Estados Unidos/Canadá' },
   { code:'52',  name:'México' },
@@ -3986,7 +4007,7 @@ function detectPhoneCountry(digits){
 
 function formatPhoneInput(input){
   let digits = input.value.replace(/\D/g,'').slice(0,15);
-  if(digits.length===10 && /^(809|829|849)/.test(digits)) digits = '1'+digits;   // número dominicano escrito sin el 1
+  if(digits.length===10 && NANP_COMUN.test(digits)) digits = '1'+digits;   // número de RD o de las zonas de EE.UU. con más clientes, escrito sin el 1
   const badge = g('phoneCountry');
   if(!digits){ input.value=''; if(badge) badge.textContent=''; return; }
 
@@ -4207,7 +4228,8 @@ function selectAddr(idx){
   if(window.confirm('¿Confirmas usar esta dirección?\n\n'+addr)){
     const calle = [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(' ');
     const iso = String(a['ISO3166-2-lvl4']||'').split('-')[1];
-    document.getElementById('f_address').value = calle || item.display_name.split(',')[0];
+    const esRD = a.country_code === 'do' || document.getElementById('f_country').value === 'RD';
+    document.getElementById('f_address').value = esRD ? parts.filter(x=>x!==a.country && x!==a.postcode).join(', ') : (calle || item.display_name.split(',')[0]);
     document.getElementById('f_city').value  = a.city || a.town || a.village || a.suburb || a.county || '';
     document.getElementById('f_state').value = iso || a.state || '';
     document.getElementById('f_zip').value   = (a.postcode||'').split(';')[0].trim();
