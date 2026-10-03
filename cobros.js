@@ -533,6 +533,9 @@
       $('f_casillero').value = ult.casillero || ult.casillero_number || '';
       aplicarMonedaForm();
       try{ checkCourierBadge(); }catch(e){}
+    }else{            // cliente sin facturas: usa el país con el que se registró
+      const reg = (DB.clients || []).find(x => normNombre(x.name) === c.clave);
+      if(reg && reg.country){ $('f_country').value = reg.country; aplicarMonedaForm(); }
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
     $('f_clientName').focus();
@@ -546,12 +549,82 @@
     abrirFicha(k);
   }
 
+  // ── Registro de un cliente nuevo ──────────────────────────
+  const dirJunta = (calle, ciudad, estado, zip) => [calle, ciudad, [estado, zip].filter(Boolean).join(' ')].map(x => String(x || '').trim()).filter(Boolean).join(', ');
+  function abrirNuevoCliente(nombreInicial){
+    const M = modal('clienteNuevoModal', '👤 Nuevo cliente', 600);
+    M.cuerpo.innerHTML = `
+      <div class="cb-grid">
+        <div style="grid-column:1/-1"><label class="lbl">Nombre *</label><input id="ncNombre" placeholder="Nombre y apellido" autocomplete="off" value="${esc(nombreInicial && !/^\d+$/.test(nombreInicial) ? nombreInicial : '')}"/></div>
+        <div><label class="lbl">Teléfono</label><input id="ncTel" type="tel" placeholder="+1 (000) 000-0000" autocomplete="off" oninput="formatPhoneInput(this)"/></div>
+        <div><label class="lbl">País y moneda</label><select id="ncPais"><option value="USA">USA · USD $</option><option value="RD">RD · DOP RD$</option></select></div>
+        <div style="grid-column:1/-1"><label class="lbl">Correo electrónico</label><input id="ncEmail" type="email" placeholder="cliente@correo.com" autocomplete="off"/></div>
+        <div style="grid-column:1/-1"><label class="lbl">Dirección (calle y número)</label><input id="ncCalle" placeholder="Calle y número" autocomplete="off"/></div>
+        <div><label class="lbl">Código postal</label><input id="ncZip" inputmode="numeric" placeholder="33101" maxlength="10" autocomplete="off"/></div>
+        <div><label class="lbl">Ciudad</label><input id="ncCiudad" placeholder="Ciudad" autocomplete="off"/></div>
+        <div><label class="lbl">Estado</label><input id="ncEstado" placeholder="FL" maxlength="40" autocomplete="off"/></div>
+        <div style="display:flex;align-items:flex-end"><span id="ncZipEst" class="cb-muted" style="min-height:18px"></span></div>
+        <div style="grid-column:1/-1"><label class="lbl">Notas</label><input id="ncNotas" placeholder="Gustos, tallas, referencias…" autocomplete="off"/></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="btn btn-outline btn-sm" id="ncCancelar">Cancelar</button>
+        <button class="btn btn-gold btn-sm" id="ncGuardar">💾 Guardar cliente</button>
+      </div>`;
+    let seq = 0, tm = null;
+    $('ncZip').oninput = () => {
+      clearTimeout(tm);
+      const pais = $('ncPais').value === 'RD' ? 'do' : 'us', zip = $('ncZip').value.replace(/\D/g, '').slice(0, 5), st = $('ncZipEst');
+      if(zip.length !== 5){ st.textContent = ''; return; }
+      st.textContent = '🔍 Buscando ciudad…'; const mi = ++seq;
+      tm = setTimeout(async () => {
+        try{
+          const r = await fetch('https://api.zippopotam.us/' + pais + '/' + zip); if(mi !== seq) return;
+          const pl = r.ok && ((await r.json()).places || [])[0]; if(!pl) throw new Error('nf');
+          $('ncCiudad').value = pl['place name'] || ''; $('ncEstado').value = pl['state abbreviation'] || pl['state'] || '';
+          st.textContent = '✓ ' + $('ncCiudad').value + ($('ncEstado').value ? ', ' + $('ncEstado').value : '');
+        }catch(e){ if(mi === seq) st.textContent = 'No se encontró ese código postal — escribe ciudad y estado.'; }
+      }, 350);
+    };
+    $('ncPais').onchange = () => { if($('ncZip').value) $('ncZip').oninput(); };
+    $('ncCancelar').onclick = M.cerrar;
+    $('ncGuardar').onclick = async () => {
+      const nombre = nombreLimpio($('ncNombre').value);
+      if(!nombre){ toast('Escribe el nombre del cliente', 'warn'); $('ncNombre').focus(); return; }
+      const tel = $('ncTel').value.trim(), digs = tel.replace(/\D/g, '');
+      const k = normNombre(nombre), ya = clientes().find(c => c.clave === k);
+      if(ya){
+        if(confirm('Ya existe un cliente llamado "' + ya.nombre + '".\n\nAceptar = abrir su ficha\nCancelar = seguir editando')){ M.cerrar(); abrirFicha(ya.clave); }
+        return;
+      }
+      if(digs.length >= 7){
+        const igual = clientes().find(c => c.phone && c.phone.replace(/\D/g, '') === digs);
+        if(igual && !confirm('El teléfono ya pertenece a "' + igual.nombre + '".\n\n¿Guardar este cliente de todas formas?')) return;
+      }
+      const calle = $('ncCalle').value.trim(), ciudad = $('ncCiudad').value.trim(), estado = $('ncEstado').value.trim(), zip = $('ncZip').value.trim();
+      const ahora = new Date().toISOString();
+      const fila = { id: 'cli-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: nombre, email: $('ncEmail').value.trim() || null, phone: tel || null,
+        country: $('ncPais').value, street: calle || null, city: ciudad || null, state: estado || null, zip: zip || null,
+        shipping_address: dirJunta(calle, ciudad, estado, zip) || null, billing_address: null, preferred_payment: null, notes: $('ncNotas').value.trim() || null,
+        orders_count: 0, created_at: ahora, updated_at: ahora };
+      $('ncGuardar').disabled = true;
+      let pendiente = false;
+      try{ await sbPOST('clientes', fila, 'return=minimal'); }catch(e){ pendiente = true; console.error('[Cliente]', e.message); }
+      DB.clients.push({ id: fila.id, name: nombre, email: fila.email || '', phone: fila.phone || '', country: fila.country, street: calle, city: ciudad, state: estado, zip, notes: fila.notes || '',
+        address: fila.shipping_address || '', shipping_address: fila.shipping_address || '', billing_address: '', preferred_payment: '', orders_count: 0, ...(pendiente ? { pending_sync: true } : {}) });
+      try{ localStorage.setItem('pm_clients_v1', JSON.stringify(DB.clients)); }catch(e){}
+      toast(pendiente ? '⚠ Cliente guardado solo en la base local' : '👤 Cliente guardado: ' + nombre, pendiente ? 'warn' : 'ok');
+      M.cerrar(); refrescarTodo(); abrirFicha(k);
+    };
+    setTimeout(() => $('ncNombre') && $('ncNombre').focus(), 50);
+  }
+
   function abrirClientes(){
     const M = modal('clientesModal', '📇 Clientes', 820);
     let q = '', orden = 'reciente';
     M.cuerpo.innerHTML = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <input id="clBuscar" placeholder="Buscar por nombre, teléfono o correo…" autocomplete="off" style="flex:1;min-width:200px"/>
+        <button class="btn btn-gold btn-sm" id="clNuevo" title="Registrar un cliente nuevo">＋ Nuevo cliente</button>
         <select id="clOrden" style="width:auto"><option value="reciente">Más recientes</option><option value="compra">Mayor compra</option><option value="saldo">Mayor saldo</option><option value="az">A – Z</option></select>
       </div>
       <div id="clResumen" class="cb-muted" style="margin-bottom:8px"></div>
@@ -574,6 +647,7 @@
         </div></div>`; }).join('') || '<div class="items-empty" style="padding:20px;text-align:center;color:var(--muted)">Sin clientes que coincidan</div>';
       $('clLista').querySelectorAll('[data-k]').forEach(el => el.onclick = () => abrirFicha(el.dataset.k));
     };
+    $('clNuevo').onclick = () => abrirNuevoCliente(q);
     $('clBuscar').oninput = e => { q = e.target.value; pintar(); };
     $('clOrden').onchange = e => { orden = e.target.value; pintar(); };
     M.alRefrescar(pintar);
@@ -644,6 +718,6 @@
 
   Object.assign(window, { cargarPagos, cargarTasas, tasaVigente, convertir, equivalenteTexto, pintarEquivForm, cambiarPais, abrirTasa, tasaOnline,
     infoCobro, saldoDe, cobroImpresion, cobroBadge, sumaSaldos, pintarKpiCobros, pintarCobroForm, abrirAbonos, abrirAbonosForm,
-    abrirFicha, abrirFichaDesdeForm, abrirClientes, abrirCuentasPorCobrar, sincronizarEstadoCobro, pmCobrosIniciar: iniciar,
+    abrirFicha, abrirFichaDesdeForm, abrirClientes, abrirNuevoCliente, abrirCuentasPorCobrar, sincronizarEstadoCobro, pmCobrosIniciar: iniciar,
     pmCobrosTasaActual: () => TASAS.slice() });
 })();

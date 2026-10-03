@@ -1430,7 +1430,7 @@ async function loadProducts(){
 
 async function loadClients(){
   try{
-    const data = await sbGET('clientes?select=id,name,email,phone,shipping_address,billing_address,preferred_payment,orders_count&order=name');
+    const data = await sbGET('clientes?select=*&order=name');
     if(data === null) throw new Error('null response');
     DB.clients = (data||[]).map(cl=>({
       id:                cl.id                || '',
@@ -1442,6 +1442,12 @@ async function loadClients(){
       billing_address:   cl.billing_address   || '',
       preferred_payment: cl.preferred_payment || '',
       orders_count:      cl.orders_count      || 0,
+      country:           cl.country           || '',
+      street:            cl.street            || '',
+      city:              cl.city              || '',
+      state:             cl.state             || '',
+      zip:               cl.zip               || '',
+      notes:             cl.notes             || '',
     }));
     localStorage.setItem(LS_CLIENTS, JSON.stringify(DB.clients));
     console.log('[SB] Clientes cargados:', DB.clients.length);
@@ -3979,7 +3985,8 @@ function detectPhoneCountry(digits){
 }
 
 function formatPhoneInput(input){
-  const digits = input.value.replace(/\D/g,'').slice(0,15);
+  let digits = input.value.replace(/\D/g,'').slice(0,15);
+  if(digits.length===10 && /^(809|829|849)/.test(digits)) digits = '1'+digits;   // número dominicano escrito sin el 1
   const badge = g('phoneCountry');
   if(!digits){ input.value=''; if(badge) badge.textContent=''; return; }
 
