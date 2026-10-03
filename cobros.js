@@ -38,7 +38,7 @@
   st.textContent = `
     .saldo-chip{font-size:10px;padding:1px 7px;border-radius:20px;background:rgba(255,154,77,.14);color:#ff9a4d;border:1px solid rgba(255,154,77,.4);font-weight:700;white-space:nowrap}
     .saldo-chip.ok{background:rgba(47,227,181,.12);color:#2fe3b5;border-color:rgba(47,227,181,.35)}
-    .kpi-cobrar{border-left-color:#ff9a4d}.kpi-cobrar .kpi-val{color:#ff9a4d}
+    .kpi-cobrar{border-left-color:#ff9a4d;--glow:rgba(255,154,77,.30)}.kpi-cobrar .kpi-val{color:#ff9a4d}
     .cb-t1{border-color:rgba(255,200,60,.85)!important;background:linear-gradient(100deg,rgba(255,196,48,.22),rgba(255,196,48,.04))!important;box-shadow:0 0 14px rgba(255,196,48,.18)}
     .cb-t2{border-color:rgba(176,124,255,.75)!important;background:linear-gradient(100deg,rgba(150,95,255,.20),rgba(150,95,255,.04))!important}
     .cb-t3{border-color:rgba(47,200,227,.6)!important;background:linear-gradient(100deg,rgba(47,200,227,.15),rgba(47,200,227,.03))!important}
