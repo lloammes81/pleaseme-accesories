@@ -208,6 +208,13 @@ Si pasan 2 días (configurable en **🗄 BD local → Avisar tras N días**; 0 l
 apaga) sin guardar un archivo de respaldo, aparece un aviso con **Respaldar
 ahora** o **Más tarde** (6 horas).
 
+## Menú lateral
+
+Todos los botones están ahora en un menú a la izquierda, agrupados en Facturas,
+Datos y Ajustes. El botón **☰** lo pliega a solo iconos (se recuerda al
+recargar). En pantallas pequeñas el menú es un cajón que se abre con **☰** y se
+cierra con Esc o tocando fuera.
+
 ## Ten en cuenta
 
 - La **tienda online** y **Mi cuenta** también usan la base local. Solo ven los
