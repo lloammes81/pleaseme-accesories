@@ -85,6 +85,13 @@
     .side-btn.cta:hover .sl,.side-btn.cta:focus-visible .sl{color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.45)}
     .side-btn:active{transform:translateY(0) rotateX(0);box-shadow:none}
     @media (prefers-reduced-motion:reduce){.side-btn,.side-btn:hover,.side-btn:focus-visible{transform:none}}
+    /* Sombra negra en las letras del menú lateral */
+    .side .sl,.side-group,.side-top .nm b,.side-top .nm small,.side-ver,.side-info #pmNubeEstado,.side-btn .sb-badge{
+      text-shadow:1px 1px 0 rgba(0,0,0,.9),2px 2px 3px rgba(0,0,0,.75),0 0 6px rgba(0,0,0,.55)}
+    .side-btn:hover .sl,.side-btn:focus-visible .sl,.side-btn.verde:hover .sl,.side-btn.verde:focus-visible .sl,
+    .side-btn.salir:hover .sl,.side-btn.salir:focus-visible .sl,.side-btn.cta:hover .sl,.side-btn.cta:focus-visible .sl{
+      text-shadow:1px 1px 0 rgba(0,0,0,.95),2px 2px 3px rgba(0,0,0,.85),0 0 6px rgba(0,0,0,.6)}
+    .side-btn.cta .sl{text-shadow:1px 1px 0 rgba(0,0,0,.35),1px 2px 3px rgba(0,0,0,.3)}
     /* Pie del menú: estado de Supabase (solo texto) y versión de la aplicación */
     .side-info{display:flex;flex-direction:column;gap:3px;padding:8px 12px 0;white-space:nowrap;overflow:hidden}
     .side-info #pmNubeEstado{font:600 10px/1.35 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer;white-space:normal}
