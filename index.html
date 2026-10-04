@@ -372,6 +372,7 @@
   <div id="pinLockGrid" aria-hidden="true"></div>
   <div id="pinLockBg" aria-hidden="true"></div>
   <div id="pinLockBeam" aria-hidden="true"></div>
+  <div id="pinLockWrap">
   <div id="pinLockCard" style="width:100%;max-width:320px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 28px;text-align:center">
     <div class="pin-logo" style="width:48px;height:48px;margin:0 auto 14px;border-radius:12px;background:linear-gradient(135deg,#b48226,#e8c56e);display:grid;place-items:center;font-size:22px;font-weight:900;color:#13100a">✦</div>
     <div style="font-family:var(--fd);font-size:19px;color:var(--gold);font-weight:700">Facturación</div>
@@ -395,8 +396,84 @@
       <button type="button" class="pin-key" data-k="back">⌫</button>
     </div>
   </div>
+  <!-- Mensaje de inspiración (uno al azar cada vez que se abre la aplicación) -->
+  <div id="pinLockQuote" aria-live="polite"><span id="pinQuoteTxt"></span></div>
+  </div>
   <div id="pinLockFoot" aria-hidden="true">✦ Pleaseme Accessories · Oro laminado 14k ✦</div>
 </div>
+<script>
+// Mensajes de inspiración y superación bajo la tarjeta del PIN: uno al azar cada vez que se abre
+// la aplicación (nunca el mismo dos veces seguidas) y otro distinto cada 12 segundos mientras siga bloqueada
+(function(){
+  const FRASES = [
+    "Cada gran logro empezó con la decisión de intentarlo.",
+    "El éxito es la suma de pequeños esfuerzos repetidos cada día.",
+    "No esperes el momento perfecto: toma el momento y hazlo perfecto.",
+    "Tus sueños no tienen fecha de vencimiento. Respira, y vuelve a empezar.",
+    "La constancia convierte lo difícil en hábito y el hábito en resultados.",
+    "Hoy es un buen día para dar un paso más hacia tu meta.",
+    "Quien cree en lo que hace, hace que otros crean en ello.",
+    "Los obstáculos son escalones disfrazados.",
+    "Hazlo con pasión o no lo hagas.",
+    "Un pequeño progreso cada día suma grandes resultados.",
+    "La disciplina te lleva donde la motivación no alcanza.",
+    "Cae siete veces, levántate ocho.",
+    "Lo que hoy parece imposible mañana será tu historia de éxito.",
+    "No cuentes los días, haz que los días cuenten.",
+    "Brilla con luz propia: tu esfuerzo vale oro.",
+    "El mejor momento para empezar fue ayer; el segundo mejor es ahora.",
+    "Tu actitud decide qué tan lejos puedes llegar.",
+    "Sé constante: las grandes marcas se construyen un cliente a la vez.",
+    "Trabaja en silencio y deja que tus resultados hagan el ruido.",
+    "Cree en ti: ya has superado todos tus días difíciles hasta hoy.",
+    "La excelencia no es un acto, es un hábito.",
+    "Cada factura es un sueño que se hace realidad para alguien.",
+    "Si puedes soñarlo, puedes lograrlo.",
+    "Atrévete a empezar; el camino se aclara al caminarlo.",
+    "La paciencia y el trabajo convierten el carbón en diamante.",
+    "No te compares con nadie: compárate con quien eras ayer.",
+    "Los límites solo existen en la mente. Ve por más.",
+    "Un cliente feliz es la mejor publicidad. Sirve con el corazón.",
+    "La suerte favorece a quien se prepara y se atreve.",
+    "Aprende de cada tropiezo: es parte de la receta del éxito.",
+    "Haz hoy lo que otros no quieren, y mañana tendrás lo que otros no tienen.",
+    "Tu esfuerzo de hoy es la tranquilidad de mañana.",
+    "Los grandes negocios nacen de pequeñas ideas bien cuidadas.",
+    "Mantén la calma, confía en tu proceso y sigue avanzando.",
+    "Convierte cada \"no\" en un \"todavía no\" y sigue intentándolo.",
+    "La confianza se construye con cada promesa cumplida.",
+    "Lo valioso toma tiempo, como el oro: se forja con calor y paciencia.",
+    "Sonríe: hoy vas a vender, a crecer y a aprender.",
+    "Empieza donde estás, usa lo que tienes, haz lo que puedas.",
+    "Las metas grandes se logran con pasos pequeños y firmes.",
+    "El fracaso solo es la oportunidad de comenzar de nuevo con más experiencia.",
+    "Sé la razón por la que alguien sonríe hoy.",
+    "Tu futuro se crea con lo que haces hoy, no con lo que harás mañana.",
+    "Cuando la meta parezca lejana, mira cuánto ya has recorrido.",
+    "Quien se atreve a soñar y trabaja por ello, tarde o temprano lo logra.",
+    "La motivación te hace empezar; el hábito te hace continuar.",
+    "Haz de cada día tu obra maestra.",
+    "Donde otros ven problemas, los emprendedores ven oportunidades.",
+    "El talento abre puertas; el esfuerzo te mantiene adentro."
+  ];
+  const el = document.getElementById('pinQuoteTxt'); if(!el) return;
+  let actual = -1;
+  try{ actual = parseInt(localStorage.getItem('pm_frase_ultima'), 10); if(isNaN(actual)) actual = -1; }catch(e){}
+  function otra(){
+    let i; do{ i = Math.floor(Math.random() * FRASES.length); }while(i === actual && FRASES.length > 1);
+    actual = i;
+    try{ localStorage.setItem('pm_frase_ultima', String(i)); }catch(e){}
+    el.textContent = FRASES[i];
+  }
+  otra();
+  const ov = document.getElementById('pinLockOverlay');
+  const t = setInterval(function(){
+    if(!ov || ov.style.display === 'none' || !document.body.contains(ov)){ clearInterval(t); return; }
+    el.classList.add('oculto');
+    setTimeout(function(){ otra(); el.classList.remove('oculto'); }, 600);
+  }, 12000);
+})();
+</script>
 <style>
   .pin-dot{width:13px;height:13px;border-radius:50%;border:1px solid var(--border2);background:transparent;transition:.15s}
   .pin-dot.filled{background:var(--gold);border-color:var(--gold)}
@@ -521,6 +598,15 @@
     box-shadow:inset 0 1px 0 rgba(255,238,180,.45),inset 0 -3px 0 rgba(0,0,0,.4),0 4px 0 #120d04,0 10px 16px rgba(0,0,0,.6),0 0 18px rgba(232,197,110,.4)}
   .pin-key:active{transform:translateZ(16px) translateY(4px);
     box-shadow:inset 0 1px 0 rgba(255,238,180,.25),inset 0 -1px 0 rgba(0,0,0,.4),0 0 0 #120d04,0 3px 6px rgba(0,0,0,.6)}
+  #pinLockWrap{position:relative;z-index:1;width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;gap:22px}
+  #pinLockQuote{width:100%;text-align:center;min-height:62px;padding:0 6px;display:flex;align-items:flex-start;justify-content:center;
+    font-family:var(--fd);font-style:italic;font-size:15px;line-height:1.5;color:#f3e6bd;letter-spacing:.2px;
+    text-shadow:1px 1px 0 rgba(0,0,0,.9),0 2px 8px rgba(0,0,0,.8),0 0 18px rgba(232,197,110,.28)}
+  #pinLockQuote span{display:block;transition:opacity .6s ease,transform .6s ease}
+  #pinLockQuote span.oculto{opacity:0;transform:translateY(6px)}
+  #pinLockQuote span::before{content:"✦ ";color:var(--gold);font-style:normal}
+  @media (max-height:720px){#pinLockWrap{gap:12px}#pinLockQuote{font-size:13px;min-height:50px}}
+  @media (prefers-reduced-motion:reduce){#pinLockQuote span{transition:none}}
   #pinLockFoot{
     position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:1;
     font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(232,197,110,.65);
