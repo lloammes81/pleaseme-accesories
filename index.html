@@ -72,7 +72,27 @@
     .side-btn.cta svg{stroke-width:2.2;opacity:1}
     .side-btn .sb-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(232,197,110,.14);color:var(--gold);border:1px solid rgba(232,197,110,.3);flex:none}
     .side-btn .sb-badge:empty{display:none}
-    .side-foot{padding:10px 12px 56px;border-top:1px solid rgba(232,197,110,.30);display:flex;flex-direction:column;gap:2px}
+    .side-foot{padding:10px 12px 12px;border-top:1px solid rgba(232,197,110,.30);display:flex;flex-direction:column;gap:2px}
+    /* Botones en 3D al pasar el mouse: se levantan, se inclinan y el rótulo cambia de color */
+    .side-scroll,.side-foot{perspective:600px}
+    .side-btn{transform-style:preserve-3d;transition:background .15s,color .15s,border-color .15s,transform .18s ease,box-shadow .18s ease}
+    .side-btn .sl{transition:color .15s,text-shadow .15s}
+    .side-btn:hover,.side-btn:focus-visible{transform:translateY(-2px) rotateX(10deg);border-color:rgba(232,197,110,.45);
+      box-shadow:0 1px 0 rgba(255,241,194,.25) inset,0 -2px 0 rgba(0,0,0,.35) inset,0 6px 0 -2px rgba(20,15,6,.9),0 10px 18px rgba(0,0,0,.45)}
+    .side-btn:hover .sl,.side-btn:focus-visible .sl{color:var(--goldf);text-shadow:0 1px 0 rgba(0,0,0,.5),0 0 10px rgba(240,216,128,.35)}
+    .side-btn.verde:hover .sl,.side-btn.verde:focus-visible .sl{color:#d2fff2;text-shadow:0 1px 0 rgba(0,0,0,.5),0 0 10px rgba(47,227,181,.4)}
+    .side-btn.salir:hover .sl,.side-btn.salir:focus-visible .sl{color:#ffb0b0;text-shadow:0 1px 0 rgba(0,0,0,.5),0 0 10px rgba(255,85,85,.35)}
+    .side-btn.cta:hover .sl,.side-btn.cta:focus-visible .sl{color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.45)}
+    .side-btn:active{transform:translateY(0) rotateX(0);box-shadow:none}
+    @media (prefers-reduced-motion:reduce){.side-btn,.side-btn:hover,.side-btn:focus-visible{transform:none}}
+    /* Pie del menú: estado de Supabase (solo texto) y versión de la aplicación */
+    .side-info{display:flex;flex-direction:column;gap:3px;padding:8px 12px 0;white-space:nowrap;overflow:hidden}
+    .side-info #pmNubeEstado{font:600 10px/1.35 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer;white-space:normal}
+    .side-ver{font-size:10px;color:#a99d7c;letter-spacing:.6px}
+    body.side-colapsado .side-ver .vl{display:none}
+    body.side-colapsado .side-info{align-items:center;padding:8px 0 0}
+    body.side-colapsado .side-info #pmNubeEstado .tx{display:none}
+    body.side-colapsado .side-info #pmNubeEstado .ic{font-size:13px}
     .side-btn.salir{color:#cfc6aa}.side-btn.salir:hover{background:rgba(255,85,85,.10);color:#ff8a8a}.side-btn.salir:hover::before{background:#ff5555}
     /* Plegado: solo iconos, con rótulo flotante al pasar el mouse */
     body.side-colapsado .side-top{padding:18px 0 16px;justify-content:center;flex-direction:column;gap:10px;min-height:0}
@@ -100,6 +120,10 @@
       body.side-colapsado .side-btn .sl{display:block}
       body.side-colapsado .side-btn .sb-badge{display:inline-block}
       body.side-colapsado .side-group{font-size:10px;padding:16px 12px 6px;margin:0;border-top:none}
+      body.side-colapsado .side-info{align-items:stretch;padding:8px 12px 0}
+      body.side-colapsado .side-info #pmNubeEstado .tx{display:inline}
+      body.side-colapsado .side-info #pmNubeEstado .ic{font-size:inherit}
+      body.side-colapsado .side-ver .vl{display:inline}
     }
 
     /* ── LAYOUT ── */
@@ -674,6 +698,10 @@
   </div>
   <div class="side-foot">
   <button class="side-btn salir" onclick="sideGo(function(){window.close()})" title="Cerrar ventana" data-tip="Cerrar ventana"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span class="sl">Cerrar ventana</span></button>
+  <div class="side-info">
+    <div id="pmNubeSlot"></div>
+    <div class="side-ver" id="appVersion" title="Versión de la aplicación"></div>
+  </div>
   </div>
 </nav>
 
@@ -700,6 +728,9 @@ document.addEventListener('DOMContentLoaded', function(){
   if(window.ResizeObserver) new ResizeObserver(medir).observe(w);
   window.addEventListener('resize', medir); medir();
 });
+// Versión de la aplicación (se muestra al pie del menú lateral) — súbela con cada entrega
+const APP_VERSION = '1.0.0';
+document.addEventListener('DOMContentLoaded', function(){ const v = document.getElementById('appVersion'); if(v) v.innerHTML = '<span class="vl">Versión </span>v' + APP_VERSION; });
 function sideGo(fn){ document.body.classList.remove('side-abierto'); try{ fn(); }catch(e){ console.error(e); } }
 try{ if(localStorage.getItem('pm_menu_colapsado') === '1') document.body.classList.add('side-colapsado'); }catch(e){}
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.body.classList.contains('side-abierto')){ e.stopPropagation(); toggleSideMenu(false); } }, true);
