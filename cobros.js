@@ -548,12 +548,13 @@
       $('fcCourier').onclick = () => abrirCourier(c.courier, d => guardarCourierCliente(c, d), c.nombre);
       M.cuerpo.querySelectorAll('[data-fid]').forEach(el => el.onclick = () => { cerrarTodas(); loadForEdit(el.dataset.fid); });
       M.cuerpo.querySelectorAll('[data-pdf]').forEach(b => b.onclick = e => { e.stopPropagation(); quickPDF(b.dataset.pdf); });
-      // Enviar una factura del listado por WhatsApp (si la factura no trae teléfono, se usa el del cliente)
+      // Enviar una factura del listado por WhatsApp: al teléfono registrado del cliente (solo si no tiene, el de la factura)
       M.cuerpo.querySelectorAll('[data-wa]').forEach(b => b.onclick = e => {
         e.stopPropagation();
         const o = DB.orders.find(x => x.id === b.dataset.wa);
         if(!o){ toast('Factura no encontrada', 'warn'); return; }
-        abrirEnvioWhatsApp(o.clientPhone || o.phone ? o : { ...o, clientPhone: c.phone });
+        const tel = c.phone || o.clientPhone || o.phone || '';
+        abrirEnvioWhatsApp({ ...o, clientPhone: tel, phone: tel });
       });
       M.cuerpo.querySelectorAll('[data-ab]').forEach(b => b.onclick = e => { e.stopPropagation(); abrirAbonos(b.dataset.ab); });
     };
