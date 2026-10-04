@@ -501,12 +501,13 @@
       M.cuerpo.innerHTML = `
         <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px">
           <div class="cb-avatar">${esc(iniciales(c.nombre))}</div>
-          <div style="min-width:0">
+          <div style="min-width:0;flex:1">
             <div style="font-size:17px;font-weight:700">${esc(c.nombre)}${insignia(nivelesClientes().get(c.clave) || 0)}</div>
             <div class="cb-muted">${[c.phone && '📞 ' + esc(c.phone), c.email && '✉ ' + esc(c.email)].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</div>
             ${c.address ? '<div class="cb-muted">📍 ' + esc(c.address) + '</div>' : ''}
             <div class="cb-muted">${c.pais === 'RD' ? 'Cliente en RD' : 'Cliente en USA'}${c.ciudad ? ' · ' + esc(c.ciudad) : ''}</div>
           </div>
+          <button class="btn btn-outline btn-sm" id="fcEditar" title="Cambiar los datos de este cliente" style="flex:none;align-self:flex-start">✏ Editar</button>
         </div>
         <div class="cb-box" style="margin-top:0;margin-bottom:12px;padding:10px 12px">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:12px">📦 Courier</b>
@@ -537,6 +538,7 @@
               ${cancelada(o) ? '' : `<button class="btn btn-sm btn-outline" data-ab="${esc(o.id)}" title="Abonos">💳</button>`}</div>
           </div></div>`).join('') || '<div class="cb-muted">Todavía no tiene facturas.</div>'}
         </div>`;
+      $('fcEditar').onclick = () => abrirNuevoCliente('', c.pais, c);
       $('fcChat').onclick = () => abrirChat(c.phone);
       if($('fcRecordar')) $('fcRecordar').onclick = () => abrirChat(c.phone, textoRecordatorio(c));
       $('fcNueva').onclick = () => nuevaFacturaPara(c, s);
@@ -658,8 +660,10 @@
 
   // ── Registro de un cliente nuevo ──────────────────────────
   const dirJunta = (calle, ciudad, estado, zip) => [calle, ciudad, [estado, zip].filter(Boolean).join(' ')].map(x => String(x || '').trim()).filter(Boolean).join(', ');
-  function abrirNuevoCliente(nombreInicial, paisInicial){
-    const M = modal('clienteNuevoModal', '👤 Nuevo cliente', 600);
+  // Sin "editar": registra un cliente nuevo. Con "editar" (un cliente de clientes()): la misma ventana
+  // trae sus datos para cambiarlos y guarda sobre su registro.
+  function abrirNuevoCliente(nombreInicial, paisInicial, editar){
+    const M = modal('clienteNuevoModal', editar ? '✏ Editar cliente' : '👤 Nuevo cliente', 600);
     let courier = null, ciudadRD = '';
     M.cuerpo.innerHTML = `
       <div class="cb-grid">
@@ -712,18 +716,39 @@
     $('ncCiudadBtn').onclick = () => abrirCiudades({ pais: 'USA', alElegir: (n, e) => { $('ncCiudad').value = n; if(e) $('ncEstado').value = e; } });
     $('ncCiudadRDBtn').onclick = () => abrirCiudades({ pais: 'RD', alElegir: n => { ciudadRD = n; $('ncCiudadRD').textContent = n ? '📍 ' + n : 'Sin ciudad'; } });
     $('ncCourierBtn').onclick = () => abrirCourier(courier, async d => { courier = d; $('ncCourierRes').textContent = [d.nombre, d.casillero && 'Casillero ' + d.casillero].filter(Boolean).join(' · ') || 'Courier guardado'; $('ncCourierBtn').textContent = '✏ Courier'; });
+    if(editar){
+      const reg = editar.reg || {};
+      const ult = editar.facturas.filter(o => !cancelada(o)).sort((a, b) => fechaFactura(b).localeCompare(fechaFactura(a))).find(o => o.city || o.state || o.zip || o.street) || {};
+      $('ncNombre').value = editar.nombre; $('ncTel').value = editar.phone || ''; $('ncEmail').value = editar.email || '';
+      $('ncPais').value = editar.pais === 'RD' ? 'RD' : 'USA'; aplicarPais();
+      $('ncNotas').value = reg.notes || '';
+      if(editar.pais === 'RD'){
+        $('ncLinea').value = reg.shipping_address || reg.address || editar.address || '';
+        ciudadRD = editar.ciudad || ''; $('ncCiudadRD').textContent = ciudadRD ? '📍 ' + ciudadRD : 'Sin ciudad';
+      }else{
+        const partes = reg.street || reg.city || reg.state || reg.zip;
+        $('ncCalle').value = partes ? (reg.street || '') : (ult.street || (ult.city || ult.state || ult.zip ? '' : editar.address) || '');
+        $('ncCiudad').value = reg.city || ult.city || ''; $('ncEstado').value = reg.state || ult.state || ''; $('ncZip').value = reg.zip || ult.zip || '';
+      }
+      if(tieneCourier(editar.courier)){
+        courier = { ...editar.courier };
+        $('ncCourierRes').textContent = [courier.nombre, courier.casillero && 'Casillero ' + courier.casillero].filter(Boolean).join(' · ') || 'Courier guardado';
+        $('ncCourierBtn').textContent = '✏ Courier';
+      }
+      $('ncGuardar').textContent = '💾 Guardar cambios';
+    }
     $('ncCancelar').onclick = M.cerrar;
     $('ncGuardar').onclick = async () => {
       const nombre = nombreLimpio($('ncNombre').value);
       if(!nombre){ toast('Escribe el nombre del cliente', 'warn'); $('ncNombre').focus(); return; }
       const tel = $('ncTel').value.trim(), digs = tel.replace(/\D/g, '');
-      const k = normNombre(nombre), ya = clientes().find(c => c.clave === k);
+      const k = normNombre(nombre), ya = clientes().find(c => c.clave === k && !(editar && c.clave === editar.clave));
       if(ya){
         if(confirm('Ya existe un cliente llamado "' + ya.nombre + '".\n\nAceptar = abrir su ficha\nCancelar = seguir editando')){ M.cerrar(); abrirFicha(ya.clave); }
         return;
       }
       if(digs.length >= 7){
-        const igual = clientes().find(c => c.phone && c.phone.replace(/\D/g, '') === digs);
+        const igual = clientes().find(c => c.phone && c.phone.replace(/\D/g, '') === digs && !(editar && c.clave === editar.clave));
         if(igual && !confirm('El teléfono ya pertenece a "' + igual.nombre + '".\n\n¿Guardar este cliente de todas formas?')) return;
       }
       const rd = esRD();
@@ -731,6 +756,7 @@
       const estado = rd ? '' : $('ncEstado').value.trim(), zip = rd ? '' : $('ncZip').value.trim();
       const linea = rd ? (ciudad && !calle.toLowerCase().includes(ciudad.toLowerCase()) ? [calle, ciudad].filter(Boolean).join(', ') : calle) : dirJunta(calle, ciudad, estado, zip);
       const ahora = new Date().toISOString();
+      if(editar){ await guardarEdicionCliente(M, editar, { nombre, tel, email: $('ncEmail').value.trim(), pais: $('ncPais').value, calle, ciudad, estado, zip, linea, notas: $('ncNotas').value.trim(), courier }); return; }
       const fila = { id: 'cli-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name: nombre, email: $('ncEmail').value.trim() || null, phone: tel || null,
         country: $('ncPais').value, street: calle || null, city: ciudad || null, state: estado || null, zip: zip || null,
         shipping_address: linea || null, billing_address: null, preferred_payment: null, notes: $('ncNotas').value.trim() || null,
@@ -746,6 +772,42 @@
       M.cerrar(); refrescarTodo(); abrirFicha(k);
     };
     setTimeout(() => $('ncNombre') && $('ncNombre').focus(), 50);
+  }
+
+  // Guarda los cambios de un cliente: actualiza su registro (o lo crea si solo existía por sus facturas)
+  // y, si cambió el nombre, también el de sus facturas para que sigan juntas en su ficha.
+  async function guardarEdicionCliente(M, c, d){
+    const ahora = new Date().toISOString(), reg = (DB.clients || []).find(x => normNombre(x.name) === c.clave);
+    const campos = { name: d.nombre, email: d.email || null, phone: d.tel || null, country: d.pais, street: d.calle || null, city: d.ciudad || null,
+      state: d.estado || null, zip: d.zip || null, shipping_address: d.linea || null, notes: d.notas || null, ...campoCourier(d.courier || {}) };
+    const local = { name: d.nombre, email: d.email, phone: d.tel, country: d.pais, street: d.calle, city: d.ciudad, state: d.estado, zip: d.zip, notes: d.notas,
+      address: d.linea, shipping_address: d.linea, ...campoCourier(d.courier || {}) };
+    $('ncGuardar').disabled = true;
+    let pendiente = false;
+    try{
+      if(reg) await sbPATCH('clientes', 'id=eq.' + encodeURIComponent(reg.id), { ...campos, updated_at: ahora });
+      else{
+        const fila = { id: 'cli-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), ...campos, billing_address: null, preferred_payment: null, orders_count: 0, created_at: ahora, updated_at: ahora };
+        await sbPOST('clientes', fila, 'return=minimal');
+        DB.clients.push({ id: fila.id, billing_address: '', preferred_payment: '', orders_count: 0, ...local });
+      }
+    }catch(e){ pendiente = true; console.error('[Cliente]', e.message); }
+    if(reg) Object.assign(reg, local, pendiente ? { pending_sync: true } : {});
+    else if(pendiente){ const nuevo = DB.clients.find(x => normNombre(x.name) === normNombre(d.nombre)); if(nuevo) nuevo.pending_sync = true; else DB.clients.push({ id: 'cli-' + Date.now(), billing_address: '', preferred_payment: '', orders_count: 0, pending_sync: true, ...local }); }
+    // Cambió el nombre: se actualiza en sus facturas
+    if(d.nombre !== c.nombre){
+      for(const o of c.facturas){
+        try{ await sbPATCH('facturas', 'id=eq.' + encodeURIComponent(o.id), { client_name: d.nombre }); }catch(e){ pendiente = true; console.error('[Cliente] factura', e.message); }
+        o.clientName = d.nombre; o.client_name = d.nombre;
+      }
+      try{ localStorage.setItem(LS_ORDERS, JSON.stringify(DB.orders)); }catch(e){}
+    }
+    try{ localStorage.setItem('pm_clients_v1', JSON.stringify(DB.clients)); }catch(e){}
+    toast(pendiente ? '⚠ Cambios guardados solo en la base local' : '✏ Cliente actualizado: ' + d.nombre, pendiente ? 'warn' : 'ok');
+    M.cerrar();
+    // la ficha abierta (de la clave anterior) se cierra y se abre la del cliente ya con sus cambios
+    [...pila].filter(x => x.ov && x.ov.id === 'fichaModal').forEach(x => x.cerrar());
+    refrescarTodo(); abrirFicha(normNombre(d.nombre));
   }
 
   function abrirClientes(){
