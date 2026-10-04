@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
-<script src="bd-local.js?v=2026-10-04b"></script>
+<script src="bd-local.js?v=2026-10-04c"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>✦ Facturación — Pleaseme</title>
@@ -602,11 +602,14 @@
   #pinLockQuote{width:100%;text-align:center;min-height:62px;padding:0 6px;display:flex;align-items:flex-start;justify-content:center;
     font-family:var(--fd);font-style:italic;font-size:15px;line-height:1.5;color:#f3e6bd;letter-spacing:.2px;
     text-shadow:1px 1px 0 rgba(0,0,0,.9),0 2px 8px rgba(0,0,0,.8),0 0 18px rgba(232,197,110,.28)}
-  #pinLockQuote span{display:block;transition:opacity .6s ease,transform .6s ease}
+  #pinLockQuote span{display:block;transition:opacity .6s ease,transform .6s ease;animation:pinFraseBrillo 3s ease-in-out infinite}
+  @keyframes pinFraseBrillo{
+    0%,100%{color:#f6e9c0;text-shadow:1px 1px 0 rgba(0,0,0,.9),0 0 8px rgba(240,205,100,.50),0 0 18px rgba(232,197,110,.30)}
+    50%{color:#fffaf0;text-shadow:1px 1px 0 rgba(0,0,0,.85),0 0 9px rgba(255,232,150,1),0 0 22px rgba(245,205,95,.80),0 0 42px rgba(232,197,110,.55)}}
   #pinLockQuote span.oculto{opacity:0;transform:translateY(6px)}
   #pinLockQuote span::before{content:"✦ ";color:var(--gold);font-style:normal}
   @media (max-height:720px){#pinLockWrap{gap:12px}#pinLockQuote{font-size:13px;min-height:50px}}
-  @media (prefers-reduced-motion:reduce){#pinLockQuote span{transition:none}}
+  @media (prefers-reduced-motion:reduce){#pinLockQuote span{transition:none;animation:none;text-shadow:1px 1px 0 rgba(0,0,0,.9),0 0 14px rgba(240,216,128,.6)}}
   #pinLockFoot{
     position:absolute;left:0;right:0;bottom:18px;text-align:center;z-index:1;
     font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(232,197,110,.65);

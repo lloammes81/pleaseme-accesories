@@ -1127,6 +1127,16 @@
     return c;
   }
 
+  // Un solo respaldo automático por día: si ya se hizo hoy (a cualquier hora, al abrir la app o a la hora
+  // de cierre) no se vuelve a hacer. Se anota en la base local y también en localStorage como segunda marca.
+  const RESP_DIA_LS = 'pm_respaldo_dia', RESP_FALLO_LS = 'pm_respaldo_fallo';
+  async function respaldoHechoHoy(){
+    const hoy = diaLocal(new Date());
+    try{ if(localStorage.getItem(RESP_DIA_LS) === hoy) return true; }catch(e){}
+    const u = await getMeta('respaldo_auto_ultimo');
+    return !!(u && diaLocal(new Date(u.value)) === hoy);
+  }
+
   // ── Notificación con barra de progreso ──────────────────────
   function notificacion(){
     document.getElementById('pmRespNotif')?.remove();
@@ -1257,6 +1267,7 @@
       }
       await sleep(300);
       await setMeta('respaldo_auto_ultimo', ahora.toISOString());
+      try{ localStorage.setItem(RESP_DIA_LS, dia); localStorage.removeItem(RESP_FALLO_LS); }catch(e){}
       setTimeout(() => window.pmAvisoRespaldo && window.pmAvisoRespaldo(), 1200);   // si se guardó un archivo, el aviso desaparece
 
       // Botones de la notificación (un clic del usuario permite pedir permiso / elegir carpeta)
@@ -1279,6 +1290,7 @@
       return true;
     }catch(e){
       console.error('[Respaldo diario]', e);
+      try{ localStorage.setItem(RESP_FALLO_LS, String(Date.now())); }catch(e2){}   // para no reintentar sin parar cada minuto
       n.error('No se pudo hacer el respaldo: ' + (e && e.message || e), () => respaldoDiario(motivo));
       return false;
     }
@@ -1293,7 +1305,12 @@
       const cfg = await respConfig();
       if(!cfg.activo) return;
       const cierre = ultimoCierre(cfg.hora);
-      const tocaRespaldo = async () => { const u = await getMeta('respaldo_auto_ultimo'); return !u || new Date(u.value) < cierre; };
+      // tras un fallo no se reintenta solo antes de 30 minutos (queda el botón "Reintentar" de la notificación)
+      try{ if(Date.now() - (Number(localStorage.getItem(RESP_FALLO_LS)) || 0) < 30 * 60000) return; }catch(e){}
+      const tocaRespaldo = async () => {
+        if(await respaldoHechoHoy()) return false;
+        const u = await getMeta('respaldo_auto_ultimo'); return !u || new Date(u.value) < cierre;
+      };
       if(!(await tocaRespaldo())) return;
       // Una sola pestaña hace el respaldo
       const hacer = async () => { if(await tocaRespaldo()) await respaldoDiario('auto'); };
