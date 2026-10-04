@@ -403,21 +403,26 @@
   // ── Indicador de conexión (Facturación y Admin) ─────────────
   const conIndicador = !/tienda|account/i.test(location.pathname);
   function pintarEstado(){
-    if(!conIndicador || !document.body) return;
+    if(!conIndicador || !document.body || document.readyState === 'loading') return;
     let el = document.getElementById('pmNubeEstado');
     if(!el){
+      // Solo texto, sin tarjeta. Si la página tiene menú lateral va en su pie; si no, abajo a la izquierda
       el = document.createElement('div');
       el.id = 'pmNubeEstado';
-      el.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:99990;padding:5px 10px;border-radius:20px;font:600 11px system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4)';
+      el.innerHTML = '<span class="ic"></span> <span class="tx"></span>';
       el.onclick = () => { nubeHasta = 0; enviarPendientes(); alert(pmEstadoNube().texto + (nubeError ? '\n\nDetalle: ' + nubeError : '')); };
-      document.body.appendChild(el);
+      const slot = document.getElementById('pmNubeSlot');
+      if(slot) slot.appendChild(el);
+      else {
+        el.style.cssText = 'position:fixed;left:12px;bottom:10px;z-index:99990;font:600 10px system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.6)';
+        document.body.appendChild(el);
+      }
     }
     const e = pmEstadoNube();
-    el.textContent = e.icono + ' ' + e.corto;
+    el.querySelector('.ic').textContent = e.icono;
+    el.querySelector('.tx').textContent = e.corto;
     el.title = e.texto;
-    el.style.background = e.estado === 'conectada' && !pendientes ? 'rgba(47,227,181,.15)' : 'rgba(212,175,55,.18)';
     el.style.color = e.estado === 'conectada' && !pendientes ? '#2fe3b5' : '#e8c56e';
-    el.style.border = '1px solid ' + el.style.color;
   }
   function pmEstadoNube(){
     const p = pendientes ? ' · ' + pendientes + ' cambio' + (pendientes === 1 ? '' : 's') + ' por subir' : '';
