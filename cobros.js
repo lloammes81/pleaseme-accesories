@@ -535,6 +535,7 @@
               <div class="inv-meta"><span>📅 ${fechaCorta(fechaFactura(o))}</span><span>🛍 ${(o.items || []).reduce((a, i) => a + (num(i.qty) || 1), 0)}</span></div></div>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><div class="inv-total">${fm(o.total, mon(o))}</div>
               <button class="btn btn-sm btn-green" data-pdf="${esc(o.id)}" title="Ver PDF">🧾 PDF</button>
+              ${cancelada(o) ? '' : `<button class="btn btn-sm btn-outline" data-wa="${esc(o.id)}" title="Enviar esta factura por WhatsApp" style="border-color:rgba(47,227,181,.45);color:#2fe3b5">💬 WhatsApp</button>`}
               ${cancelada(o) ? '' : `<button class="btn btn-sm btn-outline" data-ab="${esc(o.id)}" title="Abonos">💳</button>`}</div>
           </div></div>`).join('') || '<div class="cb-muted">Todavía no tiene facturas.</div>'}
         </div>`;
@@ -545,6 +546,13 @@
       $('fcCourier').onclick = () => abrirCourier(c.courier, d => guardarCourierCliente(c, d), c.nombre);
       M.cuerpo.querySelectorAll('[data-fid]').forEach(el => el.onclick = () => { cerrarTodas(); loadForEdit(el.dataset.fid); });
       M.cuerpo.querySelectorAll('[data-pdf]').forEach(b => b.onclick = e => { e.stopPropagation(); quickPDF(b.dataset.pdf); });
+      // Enviar una factura del listado por WhatsApp (si la factura no trae teléfono, se usa el del cliente)
+      M.cuerpo.querySelectorAll('[data-wa]').forEach(b => b.onclick = e => {
+        e.stopPropagation();
+        const o = DB.orders.find(x => x.id === b.dataset.wa);
+        if(!o){ toast('Factura no encontrada', 'warn'); return; }
+        abrirEnvioWhatsApp(o.clientPhone || o.phone ? o : { ...o, clientPhone: c.phone });
+      });
       M.cuerpo.querySelectorAll('[data-ab]').forEach(b => b.onclick = e => { e.stopPropagation(); abrirAbonos(b.dataset.ab); });
     };
     M.alRefrescar(pintar);
