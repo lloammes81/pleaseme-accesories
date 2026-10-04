@@ -2,7 +2,7 @@
 // Hace que el catálogo se pueda instalar como aplicación y que abra aunque no haya internet.
 // Solo toca la página del catálogo (red primero, copia guardada si no hay internet):
 // todo lo demás (Facturación, Admin, Supabase, imágenes…) pasa directo, sin cache.
-const CACHE = 'pleaseme-catalogo-v1';
+const CACHE = 'pleaseme-catalogo-v2';
 const PRECACHE = ['./tienda.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {
