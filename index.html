@@ -273,6 +273,19 @@
     .kpi-paid .kpi-val{color:#2fe3b5}
     .kpi-revenue{border-left-color:var(--gold);--glow:rgba(232,197,110,.34)}
 
+    /* ── MEJORES CLIENTES (panel derecho) ── */
+    .top-clients{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+    .top-clients .tc-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+    .top-clients .tc-title::before{content:'';display:block;width:3px;height:14px;background:var(--gold);border-radius:2px}
+    .tc-item{display:flex;align-items:center;gap:10px;padding:9px 10px;margin-bottom:6px;border-radius:10px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);transition:.2s}
+    .tc-item:hover,.tc-item:focus-visible{border-color:var(--gold);background:rgba(212,175,55,.08);outline:none;transform:translateX(2px)}
+    .tc-rank{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;color:#13100a;background:linear-gradient(135deg,#b48226,#e8c56e)}
+    .tc-info{min-width:0;flex:1}
+    .tc-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tc-meta{font-size:11px;color:var(--muted);margin-top:1px}
+    .tc-total{font-size:12px;color:var(--gold);font-weight:700;text-align:right;white-space:nowrap}
+    .tc-go{color:var(--muted);font-size:18px;flex:none}
+
     /* ── PANEL DERECHO ── */
     .right-panel{
       position:sticky;top:calc(var(--kpih,0px) + 12px);
@@ -1033,8 +1046,14 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.bo
           📋 Ver todas
         </button>
       </div>
-      <div class="invoice-list" id="invoiceList" style="flex:1;overflow-y:auto;min-height:0">
-        <div class="items-empty">Cargando facturas...</div>
+      <div style="flex:1;overflow-y:auto;min-height:0">
+        <div class="invoice-list" id="invoiceList">
+          <div class="items-empty">Cargando facturas...</div>
+        </div>
+        <div class="top-clients">
+          <div class="tc-title">Clientes que más compran</div>
+          <div id="topClients"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -2734,7 +2753,50 @@ function invoiceCardDblClick(id){
 // ══════════════════════════════════════════════════════
 //  LISTA LATERAL — solo 4 últimas activas
 // ══════════════════════════════════════════════════════
+// Clientes que más compran: por número de facturas (y, a igualdad, por monto). Al elegir uno
+// se llena la ventana Cliente para una factura nueva.
+let _topClientes = [];
+function renderTopClients(){
+  const el = g('topClients'); if(!el) return;
+  const por = {};
+  DB.orders.forEach(o=>{
+    const st = o.status||o.invoice_status||'';
+    if(st==='cancelado'||st==='anulado') return;
+    const nombre = String(o.clientName||o.client_name||'').trim();
+    if(!nombre) return;
+    const k = nombre.toLowerCase();
+    const c = por[k] || (por[k] = { name:nombre, n:0, monto:0, tot:{} });
+    const mon = o.currency||'USD';
+    c.n++; c.monto += Number(o.total||0); c.tot[mon] = (c.tot[mon]||0) + Number(o.total||0);
+  });
+  _topClientes = Object.values(por).sort((a,b)=> b.n-a.n || b.monto-a.monto).slice(0,10);
+  if(!_topClientes.length){
+    el.innerHTML = '<div class="items-empty" style="padding:14px;text-align:center;color:var(--muted);font-size:12px">Aún no hay compras registradas</div>';
+    return;
+  }
+  el.innerHTML = _topClientes.map((c,i)=>{
+    const total = Object.entries(c.tot).map(([m,v])=>fmtM(v,m)).join(' · ');
+    return `<div class="tc-item" tabindex="0" role="button" onclick="elegirTopCliente(${i})" onkeydown="if(event.key==='Enter')elegirTopCliente(${i})" title="Usar este cliente en una factura nueva">
+      <div class="tc-rank">${i+1}</div>
+      <div class="tc-info"><div class="tc-name">${esc(c.name)}</div><div class="tc-meta">${c.n} compra${c.n!==1?'s':''}</div></div>
+      <div class="tc-total">${total}</div>
+      <span class="tc-go">›</span>
+    </div>`;
+  }).join('');
+}
+async function elegirTopCliente(i){
+  const c = _topClientes[i]; if(!c) return;
+  if(editingId || formReadOnly) await resetForm();   // si había una factura abierta, se parte de una nueva
+  const nl = c.name.toLowerCase();
+  const cl = DB.clients.find(x=>(x.name||'').toLowerCase().trim()===nl) || {};
+  fillClient(c.name, cl.email||'', cl.phone||'', cl.shipping_address||cl.address||'');
+  updateFormActions();
+  window.scrollTo({top:0,behavior:'smooth'});
+  toast('Cliente cargado: '+c.name,'ok');
+}
+
 function renderList(){
+  renderTopClients();
   // Excluir canceladas/anuladas, mostrar solo las 4 más recientes
   const active = DB.orders
     .filter(o=>{ const st=o.status||o.invoice_status||''; return st!=='cancelado'&&st!=='anulado'; })
