@@ -132,6 +132,8 @@
 
     /* ── CARDS ── */
     .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px}
+    /* Tarjetas del centro: sombra dorada un poco brillosa alrededor */
+    .layout .card{border-color:rgba(232,197,110,.30);box-shadow:0 0 0 1px rgba(232,197,110,.06),0 0 18px rgba(232,197,110,.16),0 0 42px rgba(212,175,55,.07),0 10px 26px rgba(0,0,0,.45)}
     .card-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:7px}
     .card-title::before{content:'';display:block;width:3px;height:14px;background:var(--gold);border-radius:2px}
     .card-title.steps::before{display:none}
@@ -1012,8 +1014,8 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape' && document.bo
         </div>
       </div>
 
-      <!-- ACCIONES -->
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <!-- ACCIONES (solo cuando hay una factura abierta o se está registrando una) -->
+      <div id="formActions" style="display:none;gap:10px;flex-wrap:wrap">
         <button class="btn btn-outline" onclick="resetForm()" style="flex:1;min-width:100px">✕ Nuevo</button>
         <button class="btn btn-outline" onclick="saveOnly()" style="flex:1.5;min-width:120px">💾 Guardar</button>
         <button class="btn btn-gold" onclick="printCurrentInvoice()" style="flex:2;min-width:150px" id="btnPrint" title="Guardar, imprimir factura y abrir PirateShip para el label">🖨 Imprimir factura</button>
@@ -2116,6 +2118,7 @@ function aplicarMonedaForm(){
 }
 
 function recalc(){
+  updateFormActions();
   const sub   = items.reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0);
   const ship  = parseMoney(g('f_shipping').value);
   const dv    = parseMoney(g('f_discVal').value);
@@ -2194,7 +2197,7 @@ function zipLookup(v){
 }
 
 function fillClient(name,email,phone,address){
-  g('f_clientName').value=name;
+  g('f_clientName').value=name; updateFormActions();
   g('f_email').value=email||'';
   g('f_phone').value=phone||'';
   updatePhoneCountryBadge();
@@ -2633,6 +2636,20 @@ function askSendInvoiceToClient(o, {printOnNo=true}={}){
 // ══════════════════════════════════════════════════════
 //  CARGAR PARA EDITAR
 // ══════════════════════════════════════════════════════
+// Los botones Nuevo/Guardar/Imprimir/WhatsApp solo se ven si hay una factura abierta
+// o se está registrando una (con cliente o artículos)
+function updateFormActions(){
+  const a = g('formActions'); if(!a) return;
+  const registrando = !!editingId || items.length > 0 || !!(g('f_clientName').value||'').trim();
+  a.style.display = registrando ? 'flex' : 'none';
+}
+document.addEventListener('DOMContentLoaded', function(){
+  const fp = g('formPanel'); if(!fp) return;
+  fp.addEventListener('input', updateFormActions);
+  fp.addEventListener('change', updateFormActions);
+  updateFormActions();
+});
+
 function applyFormLockState(){
   g('formPanel').querySelectorAll('input,select,textarea').forEach(el=>el.disabled=formReadOnly);
   ['addItem','openClientPicker','openCourierPicker','saveOnly'].forEach(fn=>{
