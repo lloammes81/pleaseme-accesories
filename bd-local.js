@@ -1034,9 +1034,10 @@
   // ══════════════════════════════════════════════════════════
   //  RESPALDO DIARIO AUTOMÁTICO (Facturación y Admin)
   //
-  //  Al llegar la hora de cierre (18:00 por defecto) la app hace un
-  //  respaldo completo de la base local y muestra una notificación con
-  //  barra de progreso:
+  //  Al llegar la hora de cierre (18:00 por defecto) la app pregunta si se
+  //  quiere hacer el respaldo del día ("Más tarde" vuelve a preguntar en 2 horas).
+  //  Al aceptar hace un respaldo completo de la base local y muestra una
+  //  notificación con barra de progreso:
   //    1. guarda una copia en este equipo (IndexedDB "pleaseme_respaldos",
   //       se conservan las últimas 7), y
   //    2. descarga el archivo .json (carpeta Descargas).
@@ -1329,13 +1330,43 @@
         if(await respaldoHechoHoy()) return false;
         const u = await getMeta('respaldo_auto_ultimo'); return !u || new Date(u.value) < cierre;
       };
-      if(!(await tocaRespaldo())) return;
-      // Una sola pestaña hace el respaldo
-      const hacer = async () => { if(await tocaRespaldo()) await respaldoDiario('auto'); };
-      if(navigator.locks && navigator.locks.request) await navigator.locks.request('pm-respaldo-diario', { ifAvailable: true }, lock => lock && hacer());
-      else await hacer();
+      if(!(await tocaRespaldo())){ document.getElementById(PREG_ID)?.remove(); return; }
+      // Ya no se hace solo: se pregunta. "Más tarde" vuelve a preguntar en 2 horas.
+      try{ if(Date.now() < (Number(localStorage.getItem(PREG_LS)) || 0)) return; }catch(e){}
+      // Se pregunta después de entrar (no encima de la pantalla del PIN / login)
+      if(pantallaBloqueada()){ clearTimeout(reintentoPreg); reintentoPreg = setTimeout(revisarRespaldo, 3000); return; }
+      preguntarRespaldo(async () => {
+        if(!(await tocaRespaldo())) return;          // otra pestaña ya lo hizo
+        const hacer = () => respaldoDiario('auto');   // una sola pestaña hace el respaldo
+        if(navigator.locks && navigator.locks.request) await navigator.locks.request('pm-respaldo-diario', { ifAvailable: true }, lock => lock && hacer());
+        else await hacer();
+      });
     }catch(e){ console.warn('[Respaldo diario]', e && e.message); }
     finally{ revisando = false; }
+  }
+  // Pregunta si se quiere hacer el respaldo del día (en vez de hacerlo solo)
+  const PREG_ID = 'pmRespPregunta', PREG_LS = 'pm_respaldo_posponer';
+  let reintentoPreg = null;
+  function pantallaBloqueada(){
+    return ['pinLockOverlay', 'adminLoginScreen'].some(id => {
+      const el = document.getElementById(id);
+      return el && getComputedStyle(el).display !== 'none' && el.style.opacity !== '0';
+    });
+  }
+  function preguntarRespaldo(hacer){
+    if(document.getElementById(PREG_ID) || document.getElementById('pmRespNotif') || !document.body) return;
+    const el = document.createElement('div');
+    el.id = PREG_ID;
+    el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-label', 'Respaldo diario');
+    el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:100001;width:min(350px,calc(100vw - 32px));background:#15120a;border:1px solid rgba(212,175,55,.55);border-radius:12px;padding:14px 16px;color:#e8e0cc;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 10px 36px rgba(0,0,0,.6),0 0 22px rgba(212,175,55,.18)';
+    el.innerHTML = '<b style="color:#d4af37;display:block;margin-bottom:6px">💾 ¿Hacer el respaldo de hoy?</b>' +
+      '<div style="font-size:12px;color:#cfc6b0;margin-bottom:12px">Guarda una copia completa de tus facturas, clientes y productos. Tarda unos segundos.</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' +
+      '<button data-a="luego" style="padding:7px 12px;border-radius:8px;border:1px solid rgba(212,175,55,.45);background:transparent;color:#e8c56e;cursor:pointer;font-size:12px">Más tarde</button>' +
+      '<button data-a="si" style="padding:7px 14px;border-radius:8px;border:none;background:linear-gradient(135deg,#c9963a,#e8c56e);color:#1b1204;font-weight:700;cursor:pointer;font-size:12px">Sí, hacer respaldo</button></div>';
+    document.body.appendChild(el);
+    el.querySelector('[data-a="luego"]').onclick = () => { try{ localStorage.setItem(PREG_LS, String(Date.now() + 2 * 3600000)); }catch(e){} el.remove(); };
+    el.querySelector('[data-a="si"]').onclick = () => { el.remove(); hacer().catch(e => console.warn('[Respaldo diario]', e && e.message)); };
   }
   // ── Aviso si pasan días sin respaldo ─────────────────────────
   //  "Respaldo" = un archivo guardado FUERA del navegador (carpeta de respaldos,
