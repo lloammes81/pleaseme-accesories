@@ -1130,11 +1130,28 @@
   // Un solo respaldo automático por día: si ya se hizo hoy (a cualquier hora, al abrir la app o a la hora
   // de cierre) no se vuelve a hacer. Se anota en la base local y también en localStorage como segunda marca.
   const RESP_DIA_LS = 'pm_respaldo_dia', RESP_FALLO_LS = 'pm_respaldo_fallo';
+  // Tercera marca en Supabase (tabla config): sirve aunque el navegador borre sus datos al cerrarse
+  // (modo incógnito o "borrar cookies y datos de sitios al cerrar"), y vale para todos los equipos.
+  const RESP_CFG_KEY = 'respaldo_diario_ultimo';
+  async function respaldoHoyEnNube(hoy){
+    try{
+      const r = await nubeFetch('/rest/v1/config?select=value&key=eq.' + RESP_CFG_KEY + '&limit=1', 'GET');
+      if(!r.ok) return false;
+      const fila = (await r.json())[0];
+      let v = fila && fila.value; if(typeof v === 'string'){ try{ v = JSON.parse(v); }catch(e){} }
+      return String(v || '').slice(0, 10) === hoy;
+    }catch(e){ return false; }
+  }
+  function anotarRespaldoEnNube(dia){
+    nubeFetch('/rest/v1/config', 'POST', 'resolution=merge-duplicates,return=minimal', { key: RESP_CFG_KEY, value: JSON.stringify(dia) }).catch(() => {});
+  }
   async function respaldoHechoHoy(){
     const hoy = diaLocal(new Date());
     try{ if(localStorage.getItem(RESP_DIA_LS) === hoy) return true; }catch(e){}
     const u = await getMeta('respaldo_auto_ultimo');
-    return !!(u && diaLocal(new Date(u.value)) === hoy);
+    if(u && diaLocal(new Date(u.value)) === hoy) return true;
+    if(await respaldoHoyEnNube(hoy)){ try{ localStorage.setItem(RESP_DIA_LS, hoy); }catch(e){} return true; }
+    return false;
   }
 
   // ── Notificación con barra de progreso ──────────────────────
@@ -1268,6 +1285,7 @@
       await sleep(300);
       await setMeta('respaldo_auto_ultimo', ahora.toISOString());
       try{ localStorage.setItem(RESP_DIA_LS, dia); localStorage.removeItem(RESP_FALLO_LS); }catch(e){}
+      anotarRespaldoEnNube(dia);
       setTimeout(() => window.pmAvisoRespaldo && window.pmAvisoRespaldo(), 1200);   // si se guardó un archivo, el aviso desaparece
 
       // Botones de la notificación (un clic del usuario permite pedir permiso / elegir carpeta)
