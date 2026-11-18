@@ -626,21 +626,6 @@
     return ops.length;
   }
 
-  // ── Respaldo ────────────────────────────────────────────────
-  async function exportBackup(){
-    const db = await openDB();
-    const recs = await reqP(db.transaction(STORE, 'readonly').objectStore(STORE).getAll());
-    const tablas = {};
-    recs.forEach(r => { if(r.tabla !== META) (tablas[r.tabla] = tablas[r.tabla] || []).push(r.datos); });
-    const blob = new Blob([JSON.stringify({ app: 'pleaseme', exportado: new Date().toISOString(), tablas }, null, 1)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'pleaseme-respaldo-' + new Date().toISOString().slice(0, 10) + '.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    await setMeta('ultimo_respaldo', new Date().toISOString());
-  }
-
   function pickFile(){
     return new Promise(resolve => {
       const inp = document.createElement('input');
@@ -1032,20 +1017,18 @@
   }
 
   // ══════════════════════════════════════════════════════════
-  //  RESPALDO DIARIO AUTOMÁTICO (Facturación y Admin)
+  //  RESPALDO (Facturación y Admin) — SOLO MANUAL, UN SOLO ARCHIVO
   //
-  //  Al llegar la hora de cierre (18:00 por defecto) la app pregunta si se
-  //  quiere hacer el respaldo del día ("Más tarde" vuelve a preguntar en 2 horas).
-  //  Al aceptar hace un respaldo completo de la base local y muestra una
-  //  notificación con barra de progreso:
-  //    1. guarda una copia en este equipo (IndexedDB "pleaseme_respaldos",
-  //       se conservan las últimas 7), y
-  //    2. descarga el archivo .json (carpeta Descargas).
-  //  Si la app estaba cerrada a esa hora, el respaldo se hace en cuanto se
-  //  abre. Solo se hace uno por día aunque haya varias pestañas abiertas.
+  //  Ya no hay respaldo diario: se hace solo al pulsar "💾 Respaldar ahora".
+  //  El respaldo va a la carpeta "Pleaseme Respaldos" dentro de Documentos
+  //  (la primera vez se crea y se elige en la ventana de Windows). En esa
+  //  carpeta solo queda UN archivo: al guardar el nuevo se borran los anteriores.
+  //  En este equipo (IndexedDB "pleaseme_respaldos") también se guarda solo
+  //  la última copia.
   // ══════════════════════════════════════════════════════════
-  const RESP_DB = 'pleaseme_respaldos', RESP_STORE = 'copias', RESP_MAX = 7;
-  const RESP_DEF = { activo: true, hora: '18:00', descargar: true, avisoDias: 2 };   // avisoDias: 0 = no avisar
+  const RESP_DB = 'pleaseme_respaldos', RESP_STORE = 'copias', RESP_MAX = 1;
+  const CARPETA_NOMBRE = 'Pleaseme Respaldos';
+  const RESP_DEF = { avisoDias: 2 };   // avisoDias: 0 = no avisar
   const autoRespaldo = !/tienda|account/i.test(location.pathname);
 
   let respDbP = null;
@@ -1067,10 +1050,10 @@
     return all.sort((a, b) => String(b.id).localeCompare(String(a.id)));
   }
 
-  // ── Carpeta de respaldos (p. ej. Documentos\Pleaseme Respaldos) ──
+  // ── Carpeta de respaldos: Documentos\Pleaseme Respaldos ──
   //  El navegador solo deja escribir en una carpeta que el usuario eligió:
-  //  se elige una vez y se recuerda. Cada respaldo va en una subcarpeta con
-  //  la fecha:  <carpeta>\AAAA-MM-DD\pleaseme-respaldo-AAAA-MM-DD.json
+  //  "Pleaseme Respaldos" se elige una vez y se recuerda (si se elige otra
+  //  carpeta, se crea "Pleaseme Respaldos" dentro). Solo queda el último respaldo.
   async function leerCarpeta(){
     try{
       const db = await openRespDB();
@@ -1093,7 +1076,12 @@
       h = await window.showDirectoryPicker({ id: 'pleaseme-respaldos', mode: 'readwrite', startIn: 'documents' });
     }catch(e){
       if(e && e.name === 'AbortError') return null;
-      throw new Error('El navegador no permite usar esa carpeta (no deja elegir "Documentos" directamente). Dentro de Documentos crea una carpeta llamada "Pleaseme Respaldos" y elígela.');
+      throw new Error('El navegador no permite usar esa carpeta. Dentro de Documentos crea una carpeta llamada "' + CARPETA_NOMBRE + '" y elígela.');
+    }
+    // Si eligió Documentos (u otra carpeta), se crea "Pleaseme Respaldos" dentro
+    if(h.name !== CARPETA_NOMBRE){
+      try{ h = await h.getDirectoryHandle(CARPETA_NOMBRE, { create: true }); }
+      catch(e){ throw new Error('No se pudo crear la carpeta "' + CARPETA_NOMBRE + '" (' + (e && e.message || e) + ').'); }
     }
     await guardarCarpeta(h);
     return h;
@@ -1106,54 +1094,29 @@
       return !!pedir && (await h.requestPermission(o)) === 'granted';
     }catch{ return false; }
   }
+  // Guarda el respaldo nuevo y borra todo lo demás de la carpeta (respaldos anteriores)
+  // Solo se borran respaldos: archivos pleaseme-respaldo-*.json y las subcarpetas
+  // con fecha (AAAA-MM-DD) del sistema anterior. Nada más de la carpeta se toca.
+  const ES_RESPALDO = /^(pleaseme-respaldo-.*\.json|\d{4}-\d{2}-\d{2})$/i;
   async function escribirEnCarpeta(h, dia, datos){
+    if(h.name !== CARPETA_NOMBRE) throw new Error('La carpeta de respaldos debe llamarse "' + CARPETA_NOMBRE + '".');
     const archivo = 'pleaseme-respaldo-' + dia + '.json';
-    const sub = await h.getDirectoryHandle(dia, { create: true });
-    const f = await sub.getFileHandle(archivo, { create: true });
+    const f = await h.getFileHandle(archivo, { create: true });
     const w = await f.createWritable();
     await w.write(JSON.stringify(datos));
     await w.close();
-    return h.name + '\\' + dia + '\\' + archivo;
+    const borrar = [];
+    for await (const [nombre] of h.entries()) if(nombre !== archivo && ES_RESPALDO.test(nombre)) borrar.push(nombre);
+    for(const nombre of borrar){
+      try{ await h.removeEntry(nombre, { recursive: true }); }
+      catch(e){ console.warn('[Respaldo] no se pudo borrar', nombre, e); }
+    }
+    return { ruta: 'Documentos\\' + h.name + '\\' + archivo, borrados: borrar.length };
   }
 
   async function respConfig(){ return { ...RESP_DEF, ...((await getMeta('respaldo_auto')) || {}).value }; }
   const diaLocal = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-  // Momento programado más reciente que ya pasó (hoy a la hora de cierre, o ayer)
-  function ultimoCierre(hora){
-    const [h, m] = String(hora || RESP_DEF.hora).split(':').map(Number);
-    const c = new Date(); c.setHours(h || 0, m || 0, 0, 0);
-    if(c > new Date()) c.setDate(c.getDate() - 1);
-    return c;
-  }
-
-  // Un solo respaldo automático por día: si ya se hizo hoy (a cualquier hora, al abrir la app o a la hora
-  // de cierre) no se vuelve a hacer. Se anota en la base local y también en localStorage como segunda marca.
-  const RESP_DIA_LS = 'pm_respaldo_dia', RESP_FALLO_LS = 'pm_respaldo_fallo';
-  // Tercera marca en Supabase (tabla config): sirve aunque el navegador borre sus datos al cerrarse
-  // (modo incógnito o "borrar cookies y datos de sitios al cerrar"), y vale para todos los equipos.
-  const RESP_CFG_KEY = 'respaldo_diario_ultimo';
-  async function respaldoHoyEnNube(hoy){
-    try{
-      const r = await nubeFetch('/rest/v1/config?select=value&key=eq.' + RESP_CFG_KEY + '&limit=1', 'GET');
-      if(!r.ok) return false;
-      const fila = (await r.json())[0];
-      let v = fila && fila.value; if(typeof v === 'string'){ try{ v = JSON.parse(v); }catch(e){} }
-      return String(v || '').slice(0, 10) === hoy;
-    }catch(e){ return false; }
-  }
-  function anotarRespaldoEnNube(dia){
-    nubeFetch('/rest/v1/config', 'POST', 'resolution=merge-duplicates,return=minimal', { key: RESP_CFG_KEY, value: JSON.stringify(dia) }).catch(() => {});
-  }
-  async function respaldoHechoHoy(){
-    const hoy = diaLocal(new Date());
-    try{ if(localStorage.getItem(RESP_DIA_LS) === hoy) return true; }catch(e){}
-    const u = await getMeta('respaldo_auto_ultimo');
-    if(u && diaLocal(new Date(u.value)) === hoy) return true;
-    if(await respaldoHoyEnNube(hoy)){ try{ localStorage.setItem(RESP_DIA_LS, hoy); }catch(e){} return true; }
-    return false;
-  }
 
   // ── Notificación con barra de progreso ──────────────────────
   function notificacion(){
@@ -1164,7 +1127,7 @@
     el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:100001;width:min(340px,calc(100vw - 32px));background:#15120a;border:1px solid rgba(212,175,55,.45);border-radius:12px;padding:14px 16px;color:#e8e0cc;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.6);transition:opacity .4s';
     el.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
-        <b data-r="titulo" style="color:#d4af37">💾 Respaldo diario</b>
+        <b data-r="titulo" style="color:#d4af37">💾 Respaldo</b>
         <button data-r="x" title="Cerrar" style="background:none;border:none;color:#aaa;font-size:15px;cursor:pointer;line-height:1">✕</button>
       </div>
       <div data-r="texto" style="font-size:12px;color:#cfc6b0;margin-bottom:8px">Preparando…</div>
@@ -1210,7 +1173,7 @@
       },
       error(texto, reintentar){
         clearTimeout(timer);
-        q('titulo').textContent = '⚠ Respaldo diario'; q('titulo').style.color = '#ff6b6b';
+        q('titulo').textContent = '⚠ Respaldo'; q('titulo').style.color = '#ff6b6b';
         q('barra').style.background = '#ff6b6b';
         q('texto').textContent = texto; q('paso').textContent = '';
         if(reintentar){
@@ -1224,9 +1187,27 @@
     };
   }
 
-  // Hace el respaldo mostrando el progreso. motivo: 'auto' | 'manual'
+  // Hace el respaldo mostrando el progreso. Debe llamarse desde un clic
+  // (el navegador solo deja elegir la carpeta o dar permiso dentro de un clic).
   async function respaldoDiario(motivo){
-    const cfg = await respConfig();
+    // Carpeta Documentos\Pleaseme Respaldos: se pide ANTES de leer la base (dentro del clic)
+    let carpeta = null;
+    if(window.showDirectoryPicker){
+      try{
+        carpeta = await leerCarpeta();
+        if(carpeta && !(await permisoCarpeta(carpeta, true))) carpeta = null;
+        // Carpeta elegida con el sistema anterior (p. ej. Documentos): usar "Pleaseme Respaldos" dentro
+        if(carpeta && carpeta.name !== CARPETA_NOMBRE){
+          carpeta = await carpeta.getDirectoryHandle(CARPETA_NOMBRE, { create: true });
+          await guardarCarpeta(carpeta);
+        }
+        if(!carpeta){
+          alert('Solo esta vez: en la ventana que se abre (Documentos) pulsa "Nueva carpeta", llámala "' + CARPETA_NOMBRE + '" y elígela.\n\nAhí se guardará siempre el respaldo (solo el último).');
+          carpeta = await elegirCarpeta();
+        }
+      }catch(e){ alert('No se pudo usar la carpeta de respaldos: ' + (e && e.message || e)); return false; }
+      if(!carpeta) return false;   // canceló
+    }
     const n = notificacion();
     try{
       n.progreso(3, 'Leyendo la base de datos…', 'Paso 1 de 3');
@@ -1247,127 +1228,45 @@
       const ahora = new Date(), dia = diaLocal(ahora);
       const datos = { app: 'pleaseme', exportado: ahora.toISOString(), tablas };
       const rdb = await openRespDB();
+      // Solo la última copia: se borran las anteriores y se guarda la nueva
       await new Promise((res, rej) => {
         const tx = rdb.transaction(RESP_STORE, 'readwrite');
-        tx.objectStore(RESP_STORE).put({ id: dia, fecha: ahora.toISOString(), registros, motivo, datos });
+        const st = tx.objectStore(RESP_STORE);
+        st.clear();
+        st.put({ id: dia, fecha: ahora.toISOString(), registros, motivo, datos });
         tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
       });
-      const viejas = (await listarCopias()).slice(RESP_MAX);
-      if(viejas.length){
-        const tx = rdb.transaction(RESP_STORE, 'readwrite');
-        viejas.forEach(c => tx.objectStore(RESP_STORE).delete(c.id));
-      }
-      n.progreso(75, 'Copia guardada en este equipo (se conservan las últimas ' + RESP_MAX + ')', 'Paso 2 de 3');
+      n.progreso(75, 'Copia guardada en este equipo', 'Paso 2 de 3');
       await sleep(250);
 
-      const archivo = 'pleaseme-respaldo-' + dia + '.json';
-      const descargar = () => {
+      let destino;
+      if(carpeta){
+        n.progreso(80, 'Guardando en Documentos\\' + carpeta.name + '…', 'Paso 3 de 3');
+        const r = await escribirEnCarpeta(carpeta, dia, datos);
+        destino = 'Guardado en: ' + r.ruta + (r.borrados ? ' (se borraron ' + r.borrados + ' respaldo' + (r.borrados !== 1 ? 's' : '') + ' anterior' + (r.borrados !== 1 ? 'es' : '') + ')' : '');
+      }else{
+        // Navegador sin acceso a carpetas (no es Chrome/Edge): se descarga el archivo
+        n.progreso(85, 'Descargando el archivo de respaldo…', 'Paso 3 de 3');
+        const archivo = 'pleaseme-respaldo-' + dia + '.json';
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([JSON.stringify(datos)], { type: 'application/json' }));
         a.download = archivo;
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-        setMeta('ultimo_respaldo', new Date().toISOString()).catch(() => {});
-      };
-      // Paso 3: carpeta elegida (Documentos\Pleaseme Respaldos\AAAA-MM-DD); si no se puede, Descargas
-      const carpeta = await leerCarpeta();
-      let ruta = '', avisoCarpeta = '';
-      if(carpeta){
-        n.progreso(80, 'Guardando en la carpeta "' + carpeta.name + '"…', 'Paso 3 de 3');
-        try{ if(await permisoCarpeta(carpeta, false)) ruta = await escribirEnCarpeta(carpeta, dia, datos); else avisoCarpeta = 'El navegador pide permiso para escribir en la carpeta "' + carpeta.name + '".'; }
-        catch(e){ console.warn('[Respaldo diario] carpeta:', e); avisoCarpeta = 'No se pudo escribir en la carpeta "' + carpeta.name + '" (' + (e && e.message || e) + ').'; }
+        destino = 'Este navegador no permite usar carpetas: archivo "' + archivo + '" en Descargas.';
       }
-      if(ruta) setMeta('ultimo_respaldo', new Date().toISOString()).catch(() => {});
-      const bajar = !ruta && (cfg.descargar || carpeta);
-      if(bajar){
-        n.progreso(85, 'Descargando el archivo de respaldo…', 'Paso 3 de 3');
-        descargar();
-      }
-      await sleep(300);
-      await setMeta('respaldo_auto_ultimo', ahora.toISOString());
-      try{ localStorage.setItem(RESP_DIA_LS, dia); localStorage.removeItem(RESP_FALLO_LS); }catch(e){}
-      anotarRespaldoEnNube(dia);
-      setTimeout(() => window.pmAvisoRespaldo && window.pmAvisoRespaldo(), 1200);   // si se guardó un archivo, el aviso desaparece
-
-      // Botones de la notificación (un clic del usuario permite pedir permiso / elegir carpeta)
-      const guardarEnCarpeta = async () => {
-        let h = await leerCarpeta();
-        if(!h) h = await elegirCarpeta();
-        if(!h) return null;
-        if(!(await permisoCarpeta(h, true))) throw new Error('Sin permiso para escribir en la carpeta "' + h.name + '".');
-        const r = await escribirEnCarpeta(h, dia, datos);
-        setMeta('ultimo_respaldo', new Date().toISOString()).catch(() => {});
-        return '✓ Guardado en: ' + r;
-      };
-      const botones = [];
-      if(!ruta) botones.push({ unaVez: true, texto: carpeta ? '📁 Guardar en la carpeta' : '📁 Elegir carpeta en Documentos',
-        titulo: carpeta ? 'Permitir que el navegador escriba en la carpeta de respaldos' : 'Elige (o crea) una carpeta dentro de Documentos para guardar los respaldos por fecha', accion: guardarEnCarpeta });
-      if(bajar || cfg.descargar) botones.push({ texto: '⬇ Descargar de nuevo', titulo: 'Por si el navegador no lo descargó', accion: () => { descargar(); return null; } });
-      n.listo('Respaldo del ' + ahora.toLocaleDateString('es') + ' listo: ' + registros.toLocaleString('es') + ' registros. ' +
-        (ruta ? 'Guardado en: ' + ruta
-          : (avisoCarpeta ? avisoCarpeta + ' ' : '') + (bajar ? 'Archivo "' + archivo + '" en Descargas.' : 'Copia guardada en este equipo.')), botones);
+      await setMeta('ultimo_respaldo', new Date().toISOString());
+      setTimeout(() => window.pmAvisoRespaldo && window.pmAvisoRespaldo(), 1200);
+      n.listo('Respaldo del ' + ahora.toLocaleDateString('es') + ' listo: ' + registros.toLocaleString('es') + ' registros. ' + destino);
       return true;
     }catch(e){
-      console.error('[Respaldo diario]', e);
-      try{ localStorage.setItem(RESP_FALLO_LS, String(Date.now())); }catch(e2){}   // para no reintentar sin parar cada minuto
+      console.error('[Respaldo]', e);
       n.error('No se pudo hacer el respaldo: ' + (e && e.message || e), () => respaldoDiario(motivo));
       return false;
     }
   }
   window.pmRespaldoDiario = () => respaldoDiario('manual');
 
-  let revisando = false;
-  async function revisarRespaldo(){
-    if(revisando) return;
-    revisando = true;
-    try{
-      const cfg = await respConfig();
-      if(!cfg.activo) return;
-      const cierre = ultimoCierre(cfg.hora);
-      // tras un fallo no se reintenta solo antes de 30 minutos (queda el botón "Reintentar" de la notificación)
-      try{ if(Date.now() - (Number(localStorage.getItem(RESP_FALLO_LS)) || 0) < 30 * 60000) return; }catch(e){}
-      const tocaRespaldo = async () => {
-        if(await respaldoHechoHoy()) return false;
-        const u = await getMeta('respaldo_auto_ultimo'); return !u || new Date(u.value) < cierre;
-      };
-      if(!(await tocaRespaldo())){ document.getElementById(PREG_ID)?.remove(); return; }
-      // Ya no se hace solo: se pregunta. "Más tarde" vuelve a preguntar en 2 horas.
-      try{ if(Date.now() < (Number(localStorage.getItem(PREG_LS)) || 0)) return; }catch(e){}
-      // Se pregunta después de entrar (no encima de la pantalla del PIN / login)
-      if(pantallaBloqueada()){ clearTimeout(reintentoPreg); reintentoPreg = setTimeout(revisarRespaldo, 3000); return; }
-      preguntarRespaldo(async () => {
-        if(!(await tocaRespaldo())) return;          // otra pestaña ya lo hizo
-        const hacer = () => respaldoDiario('auto');   // una sola pestaña hace el respaldo
-        if(navigator.locks && navigator.locks.request) await navigator.locks.request('pm-respaldo-diario', { ifAvailable: true }, lock => lock && hacer());
-        else await hacer();
-      });
-    }catch(e){ console.warn('[Respaldo diario]', e && e.message); }
-    finally{ revisando = false; }
-  }
-  // Pregunta si se quiere hacer el respaldo del día (en vez de hacerlo solo)
-  const PREG_ID = 'pmRespPregunta', PREG_LS = 'pm_respaldo_posponer';
-  let reintentoPreg = null;
-  function pantallaBloqueada(){
-    return ['pinLockOverlay', 'adminLoginScreen'].some(id => {
-      const el = document.getElementById(id);
-      return el && getComputedStyle(el).display !== 'none' && el.style.opacity !== '0';
-    });
-  }
-  function preguntarRespaldo(hacer){
-    if(document.getElementById(PREG_ID) || document.getElementById('pmRespNotif') || !document.body) return;
-    const el = document.createElement('div');
-    el.id = PREG_ID;
-    el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-label', 'Respaldo diario');
-    el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:100001;width:min(350px,calc(100vw - 32px));background:#15120a;border:1px solid rgba(212,175,55,.55);border-radius:12px;padding:14px 16px;color:#e8e0cc;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 10px 36px rgba(0,0,0,.6),0 0 22px rgba(212,175,55,.18)';
-    el.innerHTML = '<b style="color:#d4af37;display:block;margin-bottom:6px">💾 ¿Hacer el respaldo de hoy?</b>' +
-      '<div style="font-size:12px;color:#cfc6b0;margin-bottom:12px">Guarda una copia completa de tus facturas, clientes y productos. Tarda unos segundos.</div>' +
-      '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' +
-      '<button data-a="luego" style="padding:7px 12px;border-radius:8px;border:1px solid rgba(212,175,55,.45);background:transparent;color:#e8c56e;cursor:pointer;font-size:12px">Más tarde</button>' +
-      '<button data-a="si" style="padding:7px 14px;border-radius:8px;border:none;background:linear-gradient(135deg,#c9963a,#e8c56e);color:#1b1204;font-weight:700;cursor:pointer;font-size:12px">Sí, hacer respaldo</button></div>';
-    document.body.appendChild(el);
-    el.querySelector('[data-a="luego"]').onclick = () => { try{ localStorage.setItem(PREG_LS, String(Date.now() + 2 * 3600000)); }catch(e){} el.remove(); };
-    el.querySelector('[data-a="si"]').onclick = () => { el.remove(); hacer().catch(e => console.warn('[Respaldo diario]', e && e.message)); };
-  }
   // ── Aviso si pasan días sin respaldo ─────────────────────────
   //  "Respaldo" = un archivo guardado FUERA del navegador (carpeta de respaldos,
   //  Descargas o "Descargar respaldo"): la copia que queda dentro del navegador se
@@ -1404,7 +1303,6 @@
 
   if(autoRespaldo){
     const iniciar = () => {
-      setTimeout(revisarRespaldo, 5000); setInterval(revisarRespaldo, 60000);
       setTimeout(revisarAvisoRespaldo, 7000); setInterval(revisarAvisoRespaldo, 5 * 60000);
     };
     if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
@@ -1427,19 +1325,15 @@
         </div>
         <pre id="pmBDLog" style="margin:0;padding:14px 20px;overflow:auto;flex:1;min-height:120px;font:12px/1.55 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:#cfc6b0"></pre>
         <div style="padding:10px 20px;border-top:1px solid rgba(212,175,55,.2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="activo" style="accent-color:#d4af37"> Respaldo diario a las</label>
-          <input type="time" data-c="hora" style="background:rgba(0,0,0,.35);border:1px solid rgba(212,175,55,.35);border-radius:6px;color:#e8e0cc;padding:3px 6px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-c="descargar" style="accent-color:#d4af37"> descargar a Descargas si no hay carpeta</label>
           <label style="display:flex;align-items:center;gap:6px" title="Aparece un aviso si pasan estos días sin guardar un respaldo en un archivo. 0 = no avisar">Avisar tras <input type="number" data-c="avisoDias" min="0" max="30" style="width:52px;background:rgba(0,0,0,.35);border:1px solid rgba(212,175,55,.35);border-radius:6px;color:#e8e0cc;padding:3px 6px;font-size:12px"> días sin respaldo</label>
-          <button data-a="carpeta" style="${BTN}" title="Elige la carpeta (dentro de Documentos) donde se guardan los respaldos, una subcarpeta por fecha">📁 Carpeta de respaldos</button>
+          <button data-a="carpeta" style="${BTN}" title="Elige (o crea) la carpeta \'Pleaseme Respaldos\' dentro de Documentos">📁 Carpeta de respaldos</button>
           <span style="flex:1"></span>
-          <button data-a="copias" style="${BTN}" title="Ver y restaurar las copias diarias guardadas en este equipo">🕘 Copias diarias</button>
-          <button data-a="ahora" style="${BTN}" title="Hacer el respaldo diario ahora">💾 Respaldar ahora</button>
+          <button data-a="copias" style="${BTN}" title="Ver y restaurar la última copia guardada en este equipo">🕘 Copia en este equipo</button>
+          <button data-a="ahora" style="${BTN}" title="Guarda el respaldo en Documentos\\Pleaseme Respaldos (borra el anterior)">💾 Respaldar ahora</button>
         </div>
         <div style="padding:12px 20px;border-top:1px solid rgba(212,175,55,.2);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
           <button data-a="articulos" style="${BTN}" title="Busca los artículos de las facturas que no los tienen (Supabase y este navegador)">🔎 Recuperar artículos</button>
           <button data-a="restaurar" style="${BTN}" title="Respaldo .json o registro de facturas en Excel (.xlsx/.xls) o CSV">📂 Restaurar (respaldo o Excel)</button>
-          <button data-a="respaldo" style="${BTN}">💾 Descargar respaldo</button>
           <button data-a="migrar" style="${BTN_MAIN}">⇪ Traer mis datos (Supabase + navegador)</button>
         </div>
       </div>`;
@@ -1463,27 +1357,25 @@
     const close = () => { ov.remove(); if(changed) location.reload(); };
     ov.querySelector('[data-a="cerrar"]').onclick = () => { if(!busy) close(); };
 
-    // Ajustes del respaldo diario
+    // Ajuste: días sin respaldo antes de avisar
     const cfg = await respConfig();
     const ci = k => ov.querySelector('[data-c="' + k + '"]');
-    ci('activo').checked = cfg.activo; ci('hora').value = cfg.hora; ci('descargar').checked = cfg.descargar; ci('avisoDias').value = cfg.avisoDias;
-    const guardarCfg = async () => {
+    ci('avisoDias').value = cfg.avisoDias;
+    ci('avisoDias').onchange = async () => {
       const ad = Math.max(0, Math.min(30, Math.floor(Number(ci('avisoDias').value)) || 0));
-      await setMeta('respaldo_auto', { activo: ci('activo').checked, hora: ci('hora').value || RESP_DEF.hora, descargar: ci('descargar').checked, avisoDias: ad });
+      await setMeta('respaldo_auto', { avisoDias: ad });
       try{ localStorage.removeItem(AVISO_LS); }catch(e){}
       revisarAvisoRespaldo();
-      log('\n✓ Respaldo diario ' + (ci('activo').checked ? 'activo a las ' + (ci('hora').value || RESP_DEF.hora) + (ci('descargar').checked ? ', con descarga del archivo' : ', solo copia en este equipo') : 'desactivado'));
+      log('\n✓ ' + (ad ? 'Aviso tras ' + ad + ' día' + (ad !== 1 ? 's' : '') + ' sin respaldo' : 'Aviso de respaldo desactivado'));
     };
-    ['activo', 'hora', 'descargar', 'avisoDias'].forEach(k => ci(k).onchange = guardarCfg);
 
     await run(async () => {
       log('Los datos se guardan en este navegador, en este equipo. No necesita servidor ni internet.');
       const last = await getMeta('ultimo_respaldo');
-      log('Último respaldo descargado: ' + (last ? new Date(last.value).toLocaleString('es') : 'nunca'));
+      log('Último respaldo: ' + (last ? new Date(last.value).toLocaleString('es') : 'nunca'));
       const carp = await leerCarpeta();
-      log('Carpeta de respaldos: ' + (carp ? carp.name + '  (se crea una subcarpeta por fecha)' : 'no elegida — se descarga a la carpeta Descargas'));
-      const auto = await getMeta('respaldo_auto_ultimo');
-      log('Respaldo diario: ' + (cfg.activo ? 'activo a las ' + cfg.hora : 'desactivado') + ' · último: ' + (auto ? new Date(auto.value).toLocaleString('es') : 'nunca'));
+      log('Carpeta de respaldos: ' + (carp ? 'Documentos\\' + carp.name + '  (solo se guarda el último respaldo)' : 'todavía no elegida — se pide al pulsar 💾 Respaldar ahora'));
+      log('El respaldo ya no es diario: se hace solo al pulsar 💾 Respaldar ahora.');
       await showTotals('\nContenido actual:');
     });
 
@@ -1519,26 +1411,21 @@
       if(await recoverItems(log)){ changed = true; await showTotals('\nTotal en la base local:'); }
     });
 
-    ov.querySelector('[data-a="respaldo"]').onclick = () => run(async () => {
-      await exportBackup();
-      log('\n✓ Respaldo descargado. Guárdalo en un lugar seguro (USB, nube…).');
-    });
-
     ov.querySelector('[data-a="carpeta"]').onclick = () => run(async () => {
       const h = await elegirCarpeta();
       if(!h) return;
-      log('\n✓ Carpeta de respaldos: "' + h.name + '". Cada día se guarda en una subcarpeta con la fecha.');
+      log('\n✓ Carpeta de respaldos: Documentos\\' + h.name + '. Solo se guarda el último respaldo.');
       log('  Pulsa 💾 Respaldar ahora para probarla.');
     });
 
     ov.querySelector('[data-a="ahora"]').onclick = () => run(async () => {
-      log('\nHaciendo el respaldo diario…');
+      log('\nHaciendo el respaldo…');
       log(await respaldoDiario('manual') ? '✓ Respaldo hecho.' : '✖ No se pudo hacer el respaldo.');
     });
 
     ov.querySelector('[data-a="copias"]').onclick = () => run(async () => {
       const copias = await listarCopias();
-      log('\nCopias diarias guardadas en este equipo (' + copias.length + ' de ' + RESP_MAX + ' máximo):');
+      log('\nCopia guardada en este equipo:');
       if(!copias.length){ log('  (ninguna todavía)'); return; }
       copias.forEach((c, i) => log('  ' + (i + 1) + '. ' + new Date(c.fecha).toLocaleString('es') + ' — ' + Number(c.registros || 0).toLocaleString('es') + ' registros'));
       const elegida = prompt('Escribe el número de la copia que quieres restaurar (o cancela):\n\n' +
