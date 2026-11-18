@@ -51,9 +51,11 @@ datos. Por eso:
 
 ## Respaldo diario automático
 
-Facturación y Admin hacen solos un respaldo completo **una vez al día**, a la
-hora de cierre (**18:00** por defecto). Mientras trabaja aparece abajo a la
-derecha una notificación con barra de progreso:
+Una vez al día, a la hora de cierre (**18:00** por defecto), Facturación y
+Admin **preguntan** abajo a la derecha: **«¿Hacer el respaldo de hoy?»**.
+Con **Sí, hacer respaldo** se hace el respaldo completo; con **Más tarde** se
+vuelve a preguntar en 2 horas. Mientras se hace aparece una notificación con
+barra de progreso:
 
 1. Lee toda la base de datos.
 2. Guarda una copia en este equipo (se conservan las últimas 7).
@@ -61,8 +63,8 @@ derecha una notificación con barra de progreso:
    carpeta elegida, lo descarga a Descargas. Si el navegador no lo descargó,
    pulsa **⬇ Descargar de nuevo** en la notificación.
 
-Si la app estaba cerrada a esa hora, el respaldo se hace al abrirla. Aunque
-haya varias pestañas abiertas, solo se hace uno por día.
+Si la app estaba cerrada a esa hora, la pregunta aparece al abrirla. Una vez
+hecho el respaldo del día no se vuelve a preguntar hasta el día siguiente.
 
 ### Carpeta de respaldos en Documentos (por fecha)
 
