@@ -3644,6 +3644,18 @@ function openPrintWindow(o){
   // Toda impresión: pasa a "pagado" y queda en el historial de impresión (con copia de la factura)
   marcarPagadaAlImprimir(o);
   registrarImpresion(o);
+  // Imprimir = generar el PDF y entregarlo al equipo para que lo abra la aplicación de PDF
+  // predeterminada (Adobe, etc.). Ya no se imprime desde una ventana de la página.
+  try{
+    const doc = buildInvoicePDF(o);
+    if(doc){ showPDFInTab(doc, 'Factura-'+(o.invoice_num||o.id)); return; }
+  }catch(e){ console.error('PDF para imprimir:', e); }
+  // Solo si el PDF falla: impresión antigua desde la página
+  toast('No se pudo generar el PDF — se usará la impresión del navegador','warn');
+  openPrintWindowHTML(o);
+}
+
+function openPrintWindowHTML(o){
   const co = getCompanyInfo();
   const invNum = o.invoice_num||o.invoiceNum||('F-'+new Date().getFullYear()+'-'+String(o.id||'').slice(-5));
   const logoSrc = (co._logoB64||co.logoB64||co.logo_b64||co.logo||'').trim();
@@ -3805,8 +3817,10 @@ function showPDFInTab(doc, filename){
   // Se descarga el archivo a la computadora para abrirlo/imprimirlo localmente.
   const nombre = (filename||'Factura')+'.pdf';
   try{
+    // El archivo se entrega al equipo; si el navegador está configurado para
+    // "Abrir siempre archivos de este tipo", se abre solo en la app de PDF predeterminada.
     doc.save(nombre);
-    toast('⬇ PDF descargado: '+nombre+' — ábrelo desde Descargas para imprimir','ok');
+    toast('📄 '+nombre+' enviado a la aplicación de PDF del equipo','ok');
   }catch(e){
     console.error('Descarga PDF error:', e);
     toast('Error al descargar el PDF: '+e.message,'err');
