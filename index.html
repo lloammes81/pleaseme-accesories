@@ -3644,8 +3644,7 @@ function openPrintWindow(o){
   // Toda impresión: pasa a "pagado" y queda en el historial de impresión (con copia de la factura)
   marcarPagadaAlImprimir(o);
   registrarImpresion(o);
-  // Imprimir = generar el PDF y entregarlo al equipo para que lo abra la aplicación de PDF
-  // predeterminada (Adobe, etc.). Ya no se imprime desde una ventana de la página.
+  // Imprimir = mostrar la factura en el visor, con los botones Imprimir / Descargar.
   try{
     const doc = buildInvoicePDF(o);
     if(doc){ showPDFInTab(doc, 'Factura-'+(o.invoice_num||o.id)); return; }
@@ -3810,21 +3809,45 @@ async function exportCSV(){
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ══════════════════════════════════════════════════════
-//  PDF DE FACTURA → DESCARGA LOCAL (no se abre en la página)
+//  VISOR DE FACTURA: ventana con la factura y botones Imprimir / Descargar
 // ══════════════════════════════════════════════════════
 function showPDFInTab(doc, filename){
-  // Ya NO se abre el PDF en una pestaña de la página (blob:https://…github.io/…).
-  // Se descarga el archivo a la computadora para abrirlo/imprimirlo localmente.
   const nombre = (filename||'Factura')+'.pdf';
-  try{
-    // El archivo se entrega al equipo; si el navegador está configurado para
-    // "Abrir siempre archivos de este tipo", se abre solo en la app de PDF predeterminada.
-    doc.save(nombre);
-    toast('📄 '+nombre+' enviado a la aplicación de PDF del equipo','ok');
-  }catch(e){
-    console.error('Descarga PDF error:', e);
-    toast('Error al descargar el PDF: '+e.message,'err');
-  }
+  let url;
+  try{ url = URL.createObjectURL(doc.output('blob')); }
+  catch(e){ console.error('PDF error:', e); toast('Error al generar el PDF: '+e.message,'err'); return; }
+  document.getElementById('visorFactura')?.remove();
+  const m = document.createElement('div');
+  m.id = 'visorFactura';
+  m.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML = `
+    <div style="background:var(--card,#15120a);border:1px solid rgba(212,175,55,.4);border-radius:14px;width:min(900px,100%);height:min(92vh,1100px);display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid rgba(212,175,55,.25)">
+        <div style="flex:1;min-width:150px;font-size:15px;font-weight:700;color:#d4af37;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🧾 ${esc(nombre)}</div>
+        <button class="btn btn-gold" data-a="imprimir">🖨 Imprimir</button>
+        <button class="btn btn-outline" data-a="descargar">⬇ Descargar</button>
+        <button data-a="x" title="Cerrar (Esc)" style="background:none;border:none;color:var(--muted,#a59c86);font-size:22px;cursor:pointer;line-height:1;padding:0 4px">✕</button>
+      </div>
+      <iframe data-a="pdf" title="Factura" src="${url}" style="flex:1;width:100%;border:none;background:#525659"></iframe>
+    </div>`;
+  document.body.appendChild(m);
+  const frame = m.querySelector('[data-a="pdf"]');
+  const cerrar = () => { m.remove(); document.removeEventListener('keydown', onKey, true); setTimeout(()=>URL.revokeObjectURL(url), 1000); };
+  const onKey = ev => { if(ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); cerrar(); } };   // stopPropagation: que Esc no limpie el formulario
+  document.addEventListener('keydown', onKey, true);
+  m.addEventListener('click', ev => { if(ev.target === m) cerrar(); });
+  m.querySelector('[data-a="x"]').onclick = cerrar;
+  m.querySelector('[data-a="descargar"]').onclick = () => {
+    try{ doc.save(nombre); toast('⬇ '+nombre+' descargado','ok'); }
+    catch(e){ toast('Error al descargar el PDF: '+e.message,'err'); }
+  };
+  m.querySelector('[data-a="imprimir"]').onclick = () => {
+    try{ frame.contentWindow.focus(); frame.contentWindow.print(); }
+    catch(e){
+      console.warn('Imprimir desde el visor:', e);
+      toast('Usa el botón 🖨 de la barra del PDF (arriba a la derecha de la factura) para imprimir','warn');
+    }
+  };
 }
 
 // ══════════════════════════════════════════════════════
