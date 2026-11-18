@@ -3798,35 +3798,18 @@ async function exportCSV(){
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ══════════════════════════════════════════════════════
-//  MOSTRAR PDF EN PESTAÑA (sin descargar)
+//  PDF DE FACTURA → DESCARGA LOCAL (no se abre en la página)
 // ══════════════════════════════════════════════════════
 function showPDFInTab(doc, filename){
+  // Ya NO se abre el PDF en una pestaña de la página (blob:https://…github.io/…).
+  // Se descarga el archivo a la computadora para abrirlo/imprimirlo localmente.
+  const nombre = (filename||'Factura')+'.pdf';
   try{
-    // output('bloburl') genera una URL blob que el navegador abre como visor de PDF
-    const blobUrl = doc.output('bloburl');
-    const win = window.open(blobUrl, '_blank');
-    if(!win){
-      // Si el navegador bloqueó la ventana emergente, fallback a descarga
-      toast('Activa las ventanas emergentes para ver el PDF, o se descargará','warn');
-      doc.save((filename||'Factura')+'.pdf');
-    } else {
-      toast('📄 PDF abierto en nueva pestaña','ok');
-    }
+    doc.save(nombre);
+    toast('⬇ PDF descargado: '+nombre+' — ábrelo desde Descargas para imprimir','ok');
   }catch(e){
-    console.error('showPDFInTab error:', e);
-    // Fallback: intentar con datauristring
-    try{
-      const uri = doc.output('datauristring');
-      const win2 = window.open('','_blank');
-      if(win2){
-        win2.document.write('<iframe src="'+uri+'" width="100%" height="100%" style="border:none;position:fixed;inset:0"></iframe>');
-        win2.document.close();
-      } else {
-        doc.save((filename||'Factura')+'.pdf');
-      }
-    }catch(e2){
-      doc.save((filename||'Factura')+'.pdf');
-    }
+    console.error('Descarga PDF error:', e);
+    toast('Error al descargar el PDF: '+e.message,'err');
   }
 }
 
