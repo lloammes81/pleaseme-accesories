@@ -72,6 +72,23 @@ Documentos\Pleaseme Respaldos\pleaseme-respaldo-2026-11-18.json   ← solo el ú
 - Para restaurar: **🗄 BD local → 📂 Restaurar** y elige el archivo `.json`.
   Para pasar los datos a otro equipo, copia ese archivo (USB, nube…).
 
+## Imprimir facturas directo (sin cuadro de imprimir)
+
+Una página web no puede elegir la impresora por su cuenta. Para que **🖨 Imprimir**
+mande la factura directo a la impresora predeterminada, sin cuadro de diálogo:
+
+1. Descarga **configurar-impresion.bat**
+   (https://lloammes81.github.io/pleaseme-accesories/configurar-impresion.bat).
+   Si Edge avisa que el archivo puede ser peligroso, elige **Conservar**.
+2. Haz doble clic. Si Windows muestra "Windows protegió su PC", pulsa
+   **Más información → Ejecutar de todas formas**.
+3. Elige la impresora de las facturas y pulsa Enter cuando lo pida (cierra Edge).
+4. Desde entonces abre el sistema **siempre** con el acceso directo
+   **Pleaseme Facturacion** del escritorio.
+
+Ese acceso directo abre Edge con `--kiosk-printing`: todo lo que imprimas en esa
+ventana de Edge va directo a la impresora predeterminada.
+
 ## Aviso si pasan días sin respaldo
 
 Si pasan 2 días (configurable en **🗄 BD local → Avisar tras N días**; 0 lo
